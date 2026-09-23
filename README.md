@@ -16,10 +16,15 @@ the thing.
 
 ## Status
 
-**Phase 0 — repository scaffold.** The build, module layout, infrastructure,
-docs and CI are in place and `./mvnw verify` passes. No business logic exists
-yet: `backend` and `simulator` are empty Spring Boot applications, and the
-Modulith boundary test currently verifies an empty module set.
+**Phase 1 — shared kernel.** The `shared` module is in place: `Money`,
+`GeoPoint`, `VehicleType`, UUIDv7 id generation, the RFC 9457 error model and
+the injected `Clock`. `./mvnw verify` passes with 78 tests, and Modulith
+verifies the boundary.
+
+Phase 0 (build, infrastructure, docs, CI) is merged and tagged `phase-0`.
+
+The `identity` module is next. It needs a running Docker daemon for its
+Testcontainers integration tests.
 
 ## Requirements
 
@@ -72,6 +77,12 @@ The backend modules are `shared`, `identity`, `driver`, `location`, `pricing`,
 only use another module's top-level package; `internal`, `persistence` and `web`
 packages are private. `ModularityTests` enforces this on every build, so a
 boundary violation breaks CI rather than surviving review.
+
+`shared` is the kernel every other module builds on, and holds no business
+logic. Note that `Money` is a count of paise in a `long` and `GeoPoint`
+validates itself in its constructor, so an invalid coordinate cannot be
+constructed at all. Errors carry an `ErrorCode`, which each module declares for
+itself — see [ADR 0004](docs/adr/0004-error-codes-as-an-interface.md).
 
 The simulator never depends on `backend` code. It is a client of the public HTTP
 and STOMP API, and a Kafka consumer of `rideflow.trip-events`.
