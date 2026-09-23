@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+  external_labels:
+    env: local
+
+scrape_configs:
+  - job_name: rideflow-backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # host.docker.internal reaches the backend when it runs outside compose
+      # (IDE or ./mvnw spring-boot:run). The scale profile adds the containers.
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          instance_role: backend
+
+  - job_name: rideflow-simulator
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
+        labels:
+          instance_role: simulator
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

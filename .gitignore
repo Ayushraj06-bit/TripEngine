@@ -1,0 +1,32 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+nbproject/private/
+build/
+
+*.log
+logs/
+.DS_Store
+Thumbs.db
+
+# Local, machine specific or secret configuration.
+application-local.yml
+application-local.properties
+.env
+.env.*
+!.env.example
+
+# Test and tooling output.
+.attach_pid*
+*.hprof
+load-tests/results/

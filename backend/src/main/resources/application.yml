@@ -1,0 +1,108 @@
+spring:
+  application:
+    name: rideflow-backend
+
+  datasource:
+    url: ${RIDEFLOW_DB_URL:jdbc:postgresql://localhost:5432/rideflow}
+    username: ${RIDEFLOW_DB_USER:rideflow}
+    password: ${RIDEFLOW_DB_PASSWORD:rideflow}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${RIDEFLOW_REDIS_HOST:localhost}
+      port: ${RIDEFLOW_REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${RIDEFLOW_KAFKA_BOOTSTRAP:localhost:9092}
+
+  threads:
+    virtual:
+      enabled: true
+
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          # Flyway owns the event_publication table; Modulith must not create it.
+          enabled: false
+      republish-outstanding-events-on-restart: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,modulith
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${RIDEFLOW_TRACE_SAMPLE:0.1}
+
+logging:
+  structured:
+    format:
+      console: ${RIDEFLOW_LOG_FORMAT:}
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# Business constants - PROJECT_SPEC section 9.
+# Bound with @ConfigurationProperties. Never hard-code these values in code.
+rideflow:
+  location:
+    min-interval-ms: 1000
+    min-move-meters: 10
+    force-write-seconds: 15
+    stale-after-seconds: 30
+    max-speed-kmph: 150
+    max-accuracy-meters: 100
+  matching:
+    radius-steps-km: [2, 4, 7]
+    candidates-per-search: 20
+    offer-timeout-seconds: 12
+    deadline-seconds: 60
+    research-interval-seconds: 5
+    fairness-bucket-meters: 300
+    min-driver-rating: 3.5
+  pricing:
+    road-factor: 1.3
+    quote-ttl-minutes: 5
+    min-trip-meters: 300
+    max-trip-km: 60
+    reprice-deviation: 0.20
+  trip:
+    arrival-geofence-meters: 150
+    free-wait-minutes: 3
+    no-show-after-minutes: 5
+    otp-max-attempts: 3
+    rider-cancel-grace-seconds: 120
+  surge:
+    geohash-precision: 6
+    window-minutes: 5
+    tick-seconds: 30
+    max-step-per-tick: 0.25
+    cap: 2.5
+    ttl-seconds: 90
+  payment:
+    commission-percent: 20

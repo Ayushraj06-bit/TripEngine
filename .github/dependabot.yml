@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # One PR per ecosystem keeps the Spring versions consistent with each other.
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "io.micrometer*"
+      testing:
+        patterns:
+          - "org.testcontainers*"
+          - "com.redis:testcontainers-redis"
+          - "org.awaitility*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: docker
+    directory: "/infra"
+    schedule:
+      interval: weekly
+      day: monday
