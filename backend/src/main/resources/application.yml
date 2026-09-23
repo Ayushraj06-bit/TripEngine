@@ -32,6 +32,12 @@ spring:
     virtual:
       enabled: true
 
+  mvc:
+    problemdetails:
+      # Spring's own exceptions (405, 415, unreadable body) become RFC 9457
+      # problem details too, so no error escapes without the shape section 10 requires.
+      enabled: true
+
   modulith:
     events:
       jdbc:
