@@ -7,11 +7,13 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -83,6 +85,51 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     log.debug("Request rejected with {}: {}", VALIDATION_FAILED, errors);
     return ResponseEntity.badRequest().body(validationProblem(errors));
+  }
+
+  /**
+   * A unique or check constraint rejected the write.
+   *
+   * <p>Almost every "does it already exist?" check in the application is read-then-write, so two
+   * concurrent requests can both pass the check and one loses at the constraint. Without this
+   * handler that loser gets a 500 for what is really a duplicate, and the caller cannot tell a
+   * conflict from an outage. The database is the authority PROJECT_SPEC section 8 says it is; this
+   * translates its verdict into the 409 section 10 asks for.
+   *
+   * <p>The cause is logged at warn with the constraint name, because this also fires when a genuine
+   * bug violates a constraint, and that must not be indistinguishable from a race.
+   */
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
+      DataIntegrityViolationException exception) {
+    log.warn("Constraint violation translated to 409", exception);
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT, "That record already exists or conflicts with an existing one");
+    problem.setProperty(CODE_PROPERTY, CONFLICT);
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+  }
+
+  /**
+   * An authenticated caller without the right role.
+   *
+   * <p>This handler is not optional. Method security throws {@link AccessDeniedException} inside
+   * the DispatcherServlet, so this advice sees it before Spring Security's {@code
+   * ExceptionTranslationFilter} ever does - and without an explicit handler the catch-all below
+   * would report a routine authorization denial as a 500.
+   *
+   * <p>403 rather than 404 here because the caller's role is wrong for the endpoint, which reveals
+   * nothing about anyone's data. Section 10's "404 for someone else's resource" rule applies to
+   * ownership checks inside a service, not to role checks on a route.
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException exception) {
+    log.debug("Request rejected with {}: {}", FORBIDDEN, exception.getMessage());
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.FORBIDDEN, "Your role does not permit this operation");
+    problem.setProperty(CODE_PROPERTY, FORBIDDEN);
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
   }
 
   /**

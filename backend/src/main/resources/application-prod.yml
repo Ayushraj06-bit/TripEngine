@@ -22,3 +22,8 @@ logging:
       console: ecs
   level:
     com.rideflow: INFO
+    # Pinned so that turning on DEBUG to chase a problem cannot start dumping entity
+    # state - Hibernate's debug output includes phone numbers and password hashes.
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN

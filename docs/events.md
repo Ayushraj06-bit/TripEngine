@@ -32,10 +32,27 @@ changes an event.
 
 | Event | Published by | Consumed by | Externalized | Phase |
 |---|---|---|---|---|
-| _none yet_ | — | — | — | — |
+| `DriverStatusChanged` | `driver` | `location` (from Phase 2) | no | 1 |
 
-Phase 0 created the repository scaffold; no modules and therefore no events
-exist yet. Each phase appends its rows here.
+Each phase appends its rows here.
+
+### DriverStatusChanged
+
+- **Module:** driver
+- **Published when:** a driver goes online or offline, is rejected while not
+  already offline, or changes vehicle type while on the map.
+- **Payload:** driverId, previousStatus, newStatus, vehicleType,
+  previousVehicleType, occurredAt
+- **Consumed by:** `location`, which adds the driver to or removes them from the
+  Redis GEO set for their vehicle type.
+- **Externalized:** no. PROJECT_SPEC section 5 puts only trip and payment events
+  on a Kafka topic.
+- **Ordering:** not guaranteed across drivers. Per driver it follows the
+  publishing transactions, which are serialised by the row lock on `drivers`.
+- **Why `previousVehicleType`:** without it a listener cannot know which GEO set
+  to remove the driver from when they swap vehicles, so the driver would linger
+  in the old type's set and be offered the wrong kind of trip. On a status-only
+  change it equals `vehicleType`.
 
 ### Template for a new entry
 
