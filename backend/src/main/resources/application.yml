@@ -128,3 +128,23 @@ rideflow:
     ttl-seconds: 90
   payment:
     commission-percent: 20
+
+  # Authentication. PROJECT_SPEC section 9 does not cover auth, so this extends it
+  # under the same prefix rather than hard-coding the values (section 11).
+  security:
+    # A URI, not a bare word: Spring's Jwt.getIssuer() parses this as a URL.
+    issuer: ${RIDEFLOW_JWT_ISSUER:https://rideflow.local}
+    access-token-ttl: 15m
+    refresh-token-ttl: 7d
+    max-login-attempts: 10
+    login-lock-duration: 15m
+    # Blank generates an ephemeral keypair and logs a warning. Both must be set
+    # together before running more than one instance, or each will reject the
+    # other's tokens.
+    rsa-private-key: ${RIDEFLOW_RSA_PRIVATE_KEY:}
+    rsa-public-key: ${RIDEFLOW_RSA_PUBLIC_KEY:}
+    bootstrap-admin:
+      # Deliberately no defaults: a committed admin password is a backdoor.
+      phone: ${RIDEFLOW_ADMIN_PHONE:}
+      password: ${RIDEFLOW_ADMIN_PASSWORD:}
+      name: ${RIDEFLOW_ADMIN_NAME:RideFlow Admin}
