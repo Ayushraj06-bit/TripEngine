@@ -9,7 +9,6 @@ COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 COPY backend/pom.xml backend/pom.xml
-COPY simulator/pom.xml simulator/pom.xml
 RUN chmod +x mvnw && ./mvnw -B -ntp -pl backend -am dependency:go-offline
 
 COPY backend/src backend/src

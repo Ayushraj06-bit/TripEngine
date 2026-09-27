@@ -211,6 +211,17 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!--
+            ./mvnw spring-boot:run means local. Deliberately not a
+            spring.profiles.default, so a deployment that forgets
+            SPRING_PROFILES_ACTIVE gets the safe base configuration rather than
+            silently managing Docker Compose and tracing every request.
+          -->
+          <profiles>
+            <profile>local</profile>
+          </profiles>
+        </configuration>
       </plugin>
 
       <plugin>

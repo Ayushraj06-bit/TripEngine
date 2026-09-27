@@ -2,9 +2,6 @@ spring:
   application:
     name: rideflow-backend
 
-  profiles:
-    default: local
-
   datasource:
     url: ${RIDEFLOW_DB_URL:jdbc:postgresql://localhost:5432/rideflow}
     username: ${RIDEFLOW_DB_USER:rideflow}
