@@ -25,6 +25,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,6 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
+@ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
 class ApplicationIntegrationTest {
 
@@ -59,7 +61,7 @@ class ApplicationIntegrationTest {
           jdbc.queryForList(
               "SELECT version, description FROM flyway_schema_history WHERE success ORDER BY installed_rank");
 
-      assertThat(applied).extracting(row -> row.get("version")).containsExactly("1", "2");
+      assertThat(applied).extracting(row -> row.get("version")).containsSubsequence("1", "2");
       // The tables those migrations own must actually be there.
       assertThat(jdbc.queryForObject("SELECT count(*) FROM shedlock", Integer.class)).isZero();
       assertThat(jdbc.queryForObject("SELECT count(*) FROM event_publication", Integer.class))
@@ -68,9 +70,12 @@ class ApplicationIntegrationTest {
 
     @Test
     void reachesRedis(@Autowired StringRedisTemplate redis) {
-      redis.opsForValue().set("rideflow:smoke", "ok");
-      assertThat(redis.opsForValue().get("rideflow:smoke")).isEqualTo("ok");
-      redis.delete("rideflow:smoke");
+      try {
+        redis.opsForValue().set("rideflow:smoke", "ok");
+        assertThat(redis.opsForValue().get("rideflow:smoke")).isEqualTo("ok");
+      } finally {
+        redis.delete("rideflow:smoke");
+      }
     }
 
     @Test

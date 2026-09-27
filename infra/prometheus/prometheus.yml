@@ -14,13 +14,6 @@ scrape_configs:
         labels:
           instance_role: backend
 
-  - job_name: rideflow-simulator
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ["host.docker.internal:8081"]
-        labels:
-          instance_role: simulator
-
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
