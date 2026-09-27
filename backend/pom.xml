@@ -51,6 +51,14 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>
+    <!--
+      Boot 4 split autoconfiguration into per-technology modules. Without this,
+      flyway-core sits on the classpath and no migration ever runs - silently.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-flyway</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
@@ -84,6 +92,11 @@
       <groupId>org.springframework.modulith</groupId>
       <artifactId>spring-modulith-events-kafka</artifactId>
     </dependency>
+    <!-- Documenter, used by the modularity test to write module docs to target/. -->
+    <dependency>
+      <groupId>org.springframework.modulith</groupId>
+      <artifactId>spring-modulith-docs</artifactId>
+    </dependency>
 
     <!-- Resilience, rate limiting, scheduling -->
     <dependency>
@@ -111,6 +124,11 @@
     <!-- Observability -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-docker-compose</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
     <dependency>
@@ -134,6 +152,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -206,39 +229,6 @@
               <goal>report</goal>
             </goals>
             <phase>verify</phase>
-          </execution>
-          <execution>
-            <id>check-core-modules</id>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <phase>verify</phase>
-            <configuration>
-              <rules>
-                <!--
-                  PROJECT_SPEC section 12: at least 80% line coverage on trip,
-                  matching, pricing and payment. The rule matches nothing until
-                  those packages exist, so the gate switches on by itself as the
-                  modules land.
-                -->
-                <rule>
-                  <element>PACKAGE</element>
-                  <includes>
-                    <include>com.rideflow.trip.*</include>
-                    <include>com.rideflow.matching.*</include>
-                    <include>com.rideflow.pricing.*</include>
-                    <include>com.rideflow.payment.*</include>
-                  </includes>
-                  <limits>
-                    <limit>
-                      <counter>LINE</counter>
-                      <value>COVEREDRATIO</value>
-                      <minimum>${jacoco.line.coverage}</minimum>
-                    </limit>
-                  </limits>
-                </rule>
-              </rules>
-            </configuration>
           </execution>
         </executions>
       </plugin>

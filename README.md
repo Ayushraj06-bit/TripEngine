@@ -6,9 +6,7 @@ simulator that drives realistic traffic through it.
 Riders get fare quotes, book rides, track the driver live, pay from a wallet and
 rate the trip. Drivers onboard with a vehicle, go online, stream their location,
 receive offers and complete trips. Admins approve drivers, watch a live map and
-manage surge pricing. The simulator runs hundreds of fake drivers and riders
-against the public API, so the system can be demonstrated and load-tested
-without a mobile app.
+manage surge pricing.
 
 [`PROJECT_SPEC.md`](PROJECT_SPEC.md) is the single source of truth for scope,
 architecture, domain rules and standards. This README only tells you how to run
@@ -16,15 +14,18 @@ the thing.
 
 ## Status
 
-**Phase 1 — shared kernel.** The `shared` module is in place: `Money`,
-`GeoPoint`, `VehicleType`, UUIDv7 id generation, the RFC 9457 error model and
-the injected `Clock`. `./mvnw verify` passes with 78 tests, and Modulith
-verifies the boundary.
+**Phase 0 — Foundation. Complete.** `./mvnw verify` passes with 117 tests against
+real PostgreSQL, Redis and Kafka.
 
-Phase 0 (build, infrastructure, docs, CI) is merged and tagged `phase-0`.
+In place: the multi-module build, all eleven module packages with enforced
+boundaries, the `shared` kernel (`Money`, `GeoPoint`, `VehicleType`, UUIDv7 ids,
+the RFC 9457 error model, an injected UTC `Clock`), `RideFlowProperties` bound and
+validated so bad configuration fails startup, Flyway with ShedLock and the
+Modulith outbox table, the `local`/`test`/`prod` profiles, observability, the
+pinned Docker Compose stack, and CI.
 
-The `identity` module is next. It needs a running Docker daemon for its
-Testcontainers integration tests.
+No business logic yet: every module package beyond `shared` is an empty boundary
+waiting for its phase. The `simulator` module arrives in Phase 9.
 
 ## Requirements
 
@@ -32,22 +33,25 @@ Testcontainers integration tests.
 |---|---|
 | JDK | 21 (LTS) |
 | Maven | use the bundled `./mvnw` |
-| Docker | with Compose v2 |
+| Docker | with Compose v2, running |
 
-Docker is required, not optional — integration tests run on Testcontainers and
+Docker is required, not optional: integration tests run on Testcontainers and
 PROJECT_SPEC section 12 rules out H2 and embedded Redis.
 
 ## Quick start
 
+On the `local` profile, Spring Boot starts the Compose stack itself and wires the
+connection details, so there is nothing to configure by hand:
+
 ```bash
-# 1. Infrastructure: postgres, redis, kafka, prometheus, grafana, jaeger
-docker compose -f infra/docker-compose.yml up -d
-
-# 2. Build and test everything
-./mvnw verify
-
-# 3. Run the backend
 ./mvnw -pl backend spring-boot:run
+```
+
+To manage the infrastructure yourself instead:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml ps     # all six healthy?
 ```
 
 | Service | URL |
@@ -55,63 +59,75 @@ docker compose -f infra/docker-compose.yml up -d
 | Backend | http://localhost:8080 |
 | API docs | http://localhost:8080/swagger-ui.html |
 | Health | http://localhost:8080/actuator/health |
+| Liveness / readiness | `/actuator/health/liveness`, `/actuator/health/readiness` |
+| Metrics | http://localhost:8080/actuator/prometheus |
+| Module structure | http://localhost:8080/actuator/modulith |
 | Grafana | http://localhost:3000 (`admin` / `admin`) |
 | Prometheus | http://localhost:9090 |
 | Jaeger | http://localhost:16686 |
 
-More detail, including the two-instance setup and troubleshooting, is in
-[`docs/runbook.md`](docs/runbook.md).
+More detail and troubleshooting: [`docs/runbook.md`](docs/runbook.md).
+
+## Profiles
+
+| Profile | Purpose |
+|---|---|
+| `local` (default) | Boot manages Compose, plain-text logs, every request traced |
+| `test` | Testcontainers supplies all connection details; no fixed hosts |
+| `prod` | Everything from the environment, no defaults, ECS JSON logs |
+
+## Testing
+
+```bash
+./mvnw verify           # unit + integration + module boundaries + coverage report
+./mvnw spotless:apply   # format before committing (google-java-format)
+```
+
+Integration tests share one set of containers through
+[`TestcontainersConfiguration`](backend/src/test/java/com/rideflow/TestcontainersConfiguration.java).
+Time-dependent behaviour uses
+[`MutableClock`](backend/src/test/java/com/rideflow/shared/MutableClock.java) rather
+than sleeping, per PROJECT_SPEC section 12.
+
+JaCoCo reports coverage; the 80% gate on `trip`, `matching`, `pricing` and
+`payment` switches on in Phase 4, once there is business code to measure.
 
 ## Layout
 
 ```
 ├── backend/        Spring Boot application, split into Modulith modules
-├── simulator/      separate app: fake drivers and riders, live map
 ├── infra/          docker compose, prometheus, grafana dashboards as code
-├── load-tests/     k6 scripts
+├── load-tests/     k6 scripts (Phase 10)
 └── docs/           ADRs, event catalog, measured performance, runbook
 ```
 
-The backend modules are `shared`, `identity`, `driver`, `location`, `pricing`,
-`trip`, `matching`, `payment`, `rating`, `notification` and `admin`. A module may
-only use another module's top-level package; `internal`, `persistence` and `web`
-packages are private. `ModularityTests` enforces this on every build, so a
-boundary violation breaks CI rather than surviving review.
-
-`shared` is the kernel every other module builds on, and holds no business
-logic. Note that `Money` is a count of paise in a `long` and `GeoPoint`
-validates itself in its constructor, so an invalid coordinate cannot be
-constructed at all. Errors carry an `ErrorCode`, which each module declares for
-itself — see [ADR 0004](docs/adr/0004-error-codes-as-an-interface.md).
-
-The simulator never depends on `backend` code. It is a client of the public HTTP
-and STOMP API, and a Kafka consumer of `rideflow.trip-events`.
+Modules: `shared`, `identity`, `driver`, `location`, `pricing`, `trip`,
+`matching`, `payment`, `rating`, `notification`, `admin`. A module may only use
+another module's top-level package; `internal`, `persistence` and `web` packages
+are private. `ModularityTests` enforces this on every build and writes the module
+documentation to `target/spring-modulith-docs`, so a boundary violation breaks CI
+rather than surviving review.
 
 ## Stack
 
 Java 21 · Spring Boot 4.1.1 · Spring Modulith 2.1.1 · PostgreSQL 17 with Flyway ·
 Redis 7 · Kafka 4 (KRaft) · Spring Security with OAuth2 resource server ·
-WebSocket/STOMP · Testcontainers 2 · Micrometer, Prometheus, OpenTelemetry,
-Grafana.
+WebSocket/STOMP · Testcontainers 2 · Micrometer, Prometheus, OpenTelemetry, Grafana.
 
-Two deliberate deviations from PROJECT_SPEC section 3, both recorded in
-[ADR 0003](docs/adr/0003-test-stack-on-junit-6-jqwik-deferred.md): Spring Boot
-4.1.1 manages **JUnit 6**, not 5, and **jqwik is not on the classpath** because
-its current release targets the incompatible JUnit Platform 1.x.
+### Notes on Spring Boot 4
 
-## Development
+Boot 4 splits autoconfiguration into per-technology modules and renames several
+things. The traps this project hit, all of which fail *silently*:
 
-```bash
-./mvnw verify          # the full gate: tests, module boundaries, coverage
-./mvnw spotless:apply  # format before committing (google-java-format)
-```
-
-Coverage is enforced by JaCoCo at 80% of lines on `trip`, `matching`, `pricing`
-and `payment` (PROJECT_SPEC section 12). The rule is already configured and
-activates by itself as those packages appear.
-
-Commits follow Conventional Commits. Each phase is developed on a `phase-N`
-branch and tagged `phase-N` when merged.
+- `flyway-core` alone does nothing — Boot's Flyway autoconfiguration lives in
+  `spring-boot-flyway`. Without it no migration runs and there is no warning.
+- `@AutoConfigureMockMvc` moved to `spring-boot-starter-webmvc-test`.
+- `HttpStatus.UNPROCESSABLE_ENTITY` is deprecated in favour of
+  `UNPROCESSABLE_CONTENT` (RFC 9110 renamed 422).
+- Boot 4.1.1 manages **JUnit 6**, not 5, which rules out jqwik — see
+  [ADR 0003](docs/adr/0003-test-stack-on-junit-6-jqwik-deferred.md).
+- Testcontainers 2.x renamed every module to `testcontainers-*` and dropped its
+  Redis module; Redis comes from `com.redis:testcontainers-redis`.
 
 ## Documentation
 

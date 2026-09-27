@@ -1,0 +1,24 @@
+# Production. Every connection detail and secret comes from the environment; there
+# are deliberately no defaults here to fall back to.
+spring:
+  docker-compose:
+    enabled: false
+  flyway:
+    # Never let a deploy invent a schema baseline it was not given.
+    baseline-on-migrate: false
+
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    com.rideflow: INFO

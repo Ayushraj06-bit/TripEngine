@@ -5,16 +5,18 @@ import java.math.RoundingMode;
 import java.util.Objects;
 
 /**
- * An amount of money, held as whole paise.
+ * A non-negative amount of money, held as whole paise.
  *
  * <p>PROJECT_SPEC section 7 forbids {@code double} and {@code float} for money: binary floating
- * point cannot represent 0.10 exactly, so repeated fare arithmetic drifts. Every amount in RideFlow
- * is therefore a {@code long} count of paise, and every operation that cannot produce a whole
- * number takes an explicit {@link RoundingMode} so the caller has to decide how it rounds.
+ * point cannot represent 0.10 exactly, so repeated fare arithmetic drifts. Every amount is a {@code
+ * long} count of paise.
  *
- * <p>Negative amounts are allowed: the ledger expresses corrections and deltas with them. The
- * constraint that a ledger <em>entry</em> is strictly positive belongs to the payment module, not
- * to this type.
+ * <p>Amounts cannot be negative. Direction is expressed by the ledger, not by the sign: section 7
+ * gives {@code ledger_entries} a {@code direction} of DEBIT or CREDIT with {@code amount_paise >
+ * 0}, so a signed amount is never needed and a negative one is always a bug.
+ *
+ * <p>The rounding mode is fixed per operation rather than passed in, because section 7 fixes it per
+ * use: HALF_UP for fares, HALF_EVEN for commission splits. A caller cannot pick the wrong one.
  *
  * <p>Arithmetic overflows throw {@link ArithmeticException} rather than wrapping around silently.
  */
@@ -26,6 +28,12 @@ public record Money(long paise) implements Comparable<Money> {
   private static final long PAISE_PER_RUPEE = 100L;
   private static final BigDecimal PAISE_PER_RUPEE_DECIMAL = BigDecimal.valueOf(PAISE_PER_RUPEE);
   private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+
+  public Money {
+    if (paise < 0) {
+      throw new IllegalArgumentException("money must not be negative, was " + paise + " paise");
+    }
+  }
 
   /** An amount of {@code paise}. */
   public static Money ofPaise(long paise) {
@@ -54,74 +62,67 @@ public record Money(long paise) implements Comparable<Money> {
   /**
    * This amount minus {@code other}.
    *
-   * @throws ArithmeticException on overflow
+   * @throws IllegalArgumentException if the result would be negative
    */
   public Money minus(Money other) {
     Objects.requireNonNull(other, "other");
-    return new Money(Math.subtractExact(paise, other.paise));
-  }
-
-  /**
-   * This amount with the opposite sign.
-   *
-   * @throws ArithmeticException on overflow
-   */
-  public Money negated() {
-    return new Money(Math.negateExact(paise));
-  }
-
-  /** This amount with its sign removed. */
-  public Money abs() {
-    return paise < 0 ? negated() : this;
-  }
-
-  /**
-   * This amount scaled by {@code factor}, rounded to whole paise.
-   *
-   * <p>Used for the surge multiplier, where the factor is not a whole number.
-   *
-   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and rounding
-   *     would be needed, or if the result overflows
-   */
-  public Money multipliedBy(BigDecimal factor, RoundingMode mode) {
-    Objects.requireNonNull(factor, "factor");
-    Objects.requireNonNull(mode, "mode");
-    return new Money(BigDecimal.valueOf(paise).multiply(factor).setScale(0, mode).longValueExact());
-  }
-
-  /**
-   * The given percentage of this amount, rounded to whole paise.
-   *
-   * <p>PROJECT_SPEC section 7 requires {@link RoundingMode#HALF_EVEN} for commission splits, and
-   * that the remainder goes to the driver. This method only computes one side of such a split; the
-   * policy of who gets the remainder belongs to the payment module, which derives the other side by
-   * subtraction.
-   *
-   * @throws IllegalArgumentException if {@code percent} is negative
-   */
-  public Money percentage(int percent, RoundingMode mode) {
-    if (percent < 0) {
-      throw new IllegalArgumentException("percent must not be negative, was " + percent);
+    long result = Math.subtractExact(paise, other.paise);
+    if (result < 0) {
+      throw new IllegalArgumentException(
+          "subtracting %d paise from %d paise would be negative".formatted(other.paise, paise));
     }
-    Objects.requireNonNull(mode, "mode");
+    return new Money(result);
+  }
+
+  /**
+   * This amount scaled by {@code multiplier}, rounded HALF_UP to whole paise.
+   *
+   * <p>Used for the surge multiplier.
+   *
+   * @throws IllegalArgumentException if {@code multiplier} is negative
+   */
+  public Money times(BigDecimal multiplier) {
+    Objects.requireNonNull(multiplier, "multiplier");
+    if (multiplier.signum() < 0) {
+      throw new IllegalArgumentException("multiplier must not be negative, was " + multiplier);
+    }
     return new Money(
         BigDecimal.valueOf(paise)
-            .multiply(BigDecimal.valueOf(percent))
-            .divide(HUNDRED, 0, mode)
+            .multiply(multiplier)
+            .setScale(0, RoundingMode.HALF_UP)
             .longValueExact());
   }
 
   /**
-   * This amount rounded to a whole number of rupees.
+   * The given percentage of this amount, rounded HALF_EVEN.
    *
-   * <p>PROJECT_SPEC section 7 requires {@link RoundingMode#HALF_UP} for fares, so riders never see
-   * a fare in paise.
+   * <p>PROJECT_SPEC section 7 requires HALF_EVEN for commission splits so that a long run of splits
+   * does not drift upwards the way HALF_UP would. The other side of the split is derived with
+   * {@link #minus}, which is what gives the remainder to the driver and keeps the two parts summing
+   * exactly to the whole.
+   *
+   * @throws IllegalArgumentException if {@code percent} is outside 0 to 100
    */
-  public Money roundedToRupee(RoundingMode mode) {
-    Objects.requireNonNull(mode, "mode");
+  public Money percentage(int percent) {
+    if (percent < 0 || percent > 100) {
+      throw new IllegalArgumentException("percent must be in [0, 100], was " + percent);
+    }
     return new Money(
         BigDecimal.valueOf(paise)
-            .divide(PAISE_PER_RUPEE_DECIMAL, 0, mode)
+            .multiply(BigDecimal.valueOf(percent))
+            .divide(HUNDRED, 0, RoundingMode.HALF_EVEN)
+            .longValueExact());
+  }
+
+  /**
+   * This amount rounded HALF_UP to a whole number of rupees.
+   *
+   * <p>PROJECT_SPEC section 7 requires HALF_UP for fares, so riders never see a fare in paise.
+   */
+  public Money roundedToRupee() {
+    return new Money(
+        BigDecimal.valueOf(paise)
+            .divide(PAISE_PER_RUPEE_DECIMAL, 0, RoundingMode.HALF_UP)
             .multiply(PAISE_PER_RUPEE_DECIMAL)
             .longValueExact());
   }
@@ -132,7 +133,7 @@ public record Money(long paise) implements Comparable<Money> {
     return paise >= other.paise ? this : other;
   }
 
-  /** The smaller of this amount and {@code other}. */
+  /** The smaller of this amount and {@code other}, used to cap a charge at a balance. */
   public Money min(Money other) {
     Objects.requireNonNull(other, "other");
     return paise <= other.paise ? this : other;
@@ -144,10 +145,6 @@ public record Money(long paise) implements Comparable<Money> {
 
   public boolean isPositive() {
     return paise > 0;
-  }
-
-  public boolean isNegative() {
-    return paise < 0;
   }
 
   public boolean isGreaterThan(Money other) {
@@ -164,15 +161,11 @@ public record Money(long paise) implements Comparable<Money> {
   }
 
   /**
-   * This amount formatted as rupees and paise, for example {@code -1234} becomes {@code -12.34}.
+   * This amount formatted as rupees and paise, for example {@code 1234} becomes {@code 12.34}.
    *
    * <p>For display and logs only. Never parse this back into a {@code Money}.
    */
   public String toRupeeString() {
-    // absExact rather than abs: Math.abs(Long.MIN_VALUE) is still negative and would
-    // silently print a nonsensical amount.
-    long absolute = Math.absExact(paise);
-    return "%s%d.%02d"
-        .formatted(paise < 0 ? "-" : "", absolute / PAISE_PER_RUPEE, absolute % PAISE_PER_RUPEE);
+    return "%d.%02d".formatted(paise / PAISE_PER_RUPEE, paise % PAISE_PER_RUPEE);
   }
 }

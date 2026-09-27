@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class MoneyTest {
 
@@ -20,6 +22,15 @@ class MoneyTest {
       assertThat(Money.ofRupees(150).paise()).isEqualTo(15_000);
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {-1, -100, Long.MIN_VALUE})
+    void rejectsNegativeAmounts(long paise) {
+      // Direction lives on the ledger entry, not on the sign: a negative Money is a bug.
+      assertThatIllegalArgumentException()
+          .isThrownBy(() -> Money.ofPaise(paise))
+          .withMessageContaining("negative");
+    }
+
     @Test
     void rejectsRupeeAmountsThatOverflow() {
       assertThatExceptionOfType(ArithmeticException.class)
@@ -27,8 +38,8 @@ class MoneyTest {
     }
 
     @Test
-    void allowsNegativeAmountsForLedgerCorrections() {
-      assertThat(Money.ofPaise(-500).isNegative()).isTrue();
+    void allowsZero() {
+      assertThat(Money.ofPaise(0)).isEqualTo(Money.ZERO);
     }
   }
 
@@ -43,6 +54,18 @@ class MoneyTest {
     }
 
     @Test
+    void subtractsExactlyToZero() {
+      assertThat(Money.ofPaise(500).minus(Money.ofPaise(500))).isEqualTo(Money.ZERO);
+    }
+
+    @Test
+    void refusesToSubtractIntoANegativeAmount() {
+      assertThatIllegalArgumentException()
+          .isThrownBy(() -> Money.ofPaise(500).minus(Money.ofPaise(501)))
+          .withMessageContaining("negative");
+    }
+
+    @Test
     void failsLoudlyOnOverflowRatherThanWrappingAround() {
       Money huge = Money.ofPaise(Long.MAX_VALUE);
       assertThatExceptionOfType(ArithmeticException.class)
@@ -50,105 +73,142 @@ class MoneyTest {
     }
 
     @Test
-    void appliesSurgeMultiplier() {
-      Money base = Money.ofPaise(10_000);
-      assertThat(base.multipliedBy(new BigDecimal("1.5"), RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(15_000));
-    }
-
-    @Test
-    void roundsAFractionalMultiplierToWholePaise() {
-      // 10001 * 1.25 = 12501.25
-      Money base = Money.ofPaise(10_001);
-      assertThat(base.multipliedBy(new BigDecimal("1.25"), RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(12_501));
-    }
-
-    @Test
     void picksTheLargerAmountForAMinimumFare() {
-      Money computed = Money.ofPaise(2_500);
-      Money minimumFare = Money.ofPaise(4_000);
-      assertThat(computed.max(minimumFare)).isEqualTo(minimumFare);
+      assertThat(Money.ofPaise(2_500).max(Money.ofPaise(4_000))).isEqualTo(Money.ofPaise(4_000));
+    }
+
+    @Test
+    void picksTheSmallerAmountToCapACharge() {
+      assertThat(Money.ofPaise(2_500).min(Money.ofPaise(4_000))).isEqualTo(Money.ofPaise(2_500));
     }
   }
 
   @Nested
-  @DisplayName("rounding, per PROJECT_SPEC section 7")
-  class Rounding {
+  @DisplayName("times, with HALF_UP rounding per PROJECT_SPEC section 7")
+  class Multiplication {
 
-    @Test
-    void roundsFaresHalfUpToTheNearestRupee() {
-      assertThat(Money.ofPaise(2_550).roundedToRupee(RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(2_600));
-      assertThat(Money.ofPaise(2_549).roundedToRupee(RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(2_500));
+    @ParameterizedTest
+    @CsvSource({
+      "10000, 1.0, 10000",
+      "10000, 1.25, 12500",
+      "10000, 2.5, 25000",
+      "13333, 1.0, 13333",
+      "4001, 1.25, 5001", // 5001.25 rounds down
+    })
+    void multipliesBySurgeMultiplier(long paise, String multiplier, long expected) {
+      assertThat(Money.ofPaise(paise).times(new BigDecimal(multiplier)))
+          .isEqualTo(Money.ofPaise(expected));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+      // Each of these lands on exactly .5 of a paise, the tie HALF_UP must round away
+      // from zero rather than to even.
+      "1, 1.5, 2", // 1.5    -> 2
+      "3, 1.5, 5", // 4.5    -> 5
+      "5, 1.5, 8", // 7.5    -> 8
+      "2, 1.25, 3", // 2.5   -> 3
+      "6, 1.25, 8", // 7.5   -> 8
+    })
+    void roundsAnExactHalfPaiseUp(long paise, String multiplier, long expected) {
+      assertThat(Money.ofPaise(paise).times(new BigDecimal(multiplier)))
+          .isEqualTo(Money.ofPaise(expected));
     }
 
     @Test
-    void roundsAnExactHalfRupeeAwayFromZeroWhenHalfUp() {
-      assertThat(Money.ofPaise(2_450).roundedToRupee(RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(2_500));
-      assertThat(Money.ofPaise(-2_450).roundedToRupee(RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofPaise(-2_500));
+    void multiplyingByOneIsIdentity() {
+      assertThat(Money.ofPaise(13_337).times(BigDecimal.ONE)).isEqualTo(Money.ofPaise(13_337));
     }
 
     @Test
-    void leavesWholeRupeeAmountsUntouched() {
-      assertThat(Money.ofRupees(30).roundedToRupee(RoundingMode.HALF_UP))
-          .isEqualTo(Money.ofRupees(30));
-    }
-
-    @Test
-    void breaksTiesTowardsTheEvenAmountWhenHalfEven() {
-      // 50% of 2501 is 1250.5 and of 2503 is 1251.5: HALF_EVEN picks the even neighbour,
-      // so a long run of splits does not drift upwards the way HALF_UP would.
-      assertThat(Money.ofPaise(2_501).percentage(50, RoundingMode.HALF_EVEN))
-          .isEqualTo(Money.ofPaise(1_250));
-      assertThat(Money.ofPaise(2_503).percentage(50, RoundingMode.HALF_EVEN))
-          .isEqualTo(Money.ofPaise(1_252));
-    }
-
-    @Test
-    void rejectsANegativePercentage() {
+    void rejectsANegativeMultiplier() {
       assertThatIllegalArgumentException()
-          .isThrownBy(() -> Money.ofPaise(100).percentage(-1, RoundingMode.HALF_EVEN));
+          .isThrownBy(() -> Money.ofPaise(100).times(new BigDecimal("-1.0")));
     }
   }
 
   @Nested
-  @DisplayName("commission split, per PROJECT_SPEC sections 7 and 9")
+  @DisplayName("rupee rounding, HALF_UP per PROJECT_SPEC section 7")
+  class RupeeRounding {
+
+    @ParameterizedTest
+    @CsvSource({
+      "2550, 2600", // exactly half a rupee rounds up
+      "2549, 2500",
+      "2450, 2500", // exactly half a rupee rounds up
+      "2449, 2400",
+      "3000, 3000", // already whole
+      "0, 0",
+    })
+    void roundsToTheNearestRupee(long paise, long expected) {
+      assertThat(Money.ofPaise(paise).roundedToRupee()).isEqualTo(Money.ofPaise(expected));
+    }
+  }
+
+  @Nested
+  @DisplayName("commission split, HALF_EVEN per PROJECT_SPEC sections 7 and 9")
   class CommissionSplit {
 
     private static final int COMMISSION_PERCENT = 20;
 
     @Test
-    void givesTheRemainderToTheDriverSoNoPaiseIsLost() {
-      // An amount that does not divide evenly by the commission percentage.
-      Money fare = Money.ofPaise(13_333);
+    void splitsTheSpecExampleWithoutLosingAPaise() {
+      Money fare = Money.ofPaise(12_345);
 
-      Money commission = fare.percentage(COMMISSION_PERCENT, RoundingMode.HALF_EVEN);
+      Money commission = fare.percentage(COMMISSION_PERCENT);
       Money driverEarnings = fare.minus(commission);
 
-      assertThat(commission).isEqualTo(Money.ofPaise(2_667));
-      assertThat(driverEarnings).isEqualTo(Money.ofPaise(10_666));
-      // The ledger must balance exactly: this is the property that matters.
+      assertThat(commission).isEqualTo(Money.ofPaise(2_469));
+      assertThat(driverEarnings).isEqualTo(Money.ofPaise(9_876));
       assertThat(commission.plus(driverEarnings)).isEqualTo(fare);
     }
 
     @Test
+    void givesTheRemainderToTheDriver() {
+      Money fare = Money.ofPaise(13_333);
+
+      Money commission = fare.percentage(COMMISSION_PERCENT);
+      Money driverEarnings = fare.minus(commission);
+
+      assertThat(commission).isEqualTo(Money.ofPaise(2_667));
+      assertThat(driverEarnings).isEqualTo(Money.ofPaise(10_666));
+      assertThat(commission.plus(driverEarnings)).isEqualTo(fare);
+    }
+
+    @Test
+    void breaksTiesTowardsTheEvenAmount() {
+      // 50% of an odd number of paise is always an exact half. HALF_EVEN picks the even
+      // neighbour, so a long run of splits does not drift upwards the way HALF_UP would.
+      assertThat(Money.ofPaise(2_501).percentage(50)).isEqualTo(Money.ofPaise(1_250));
+      assertThat(Money.ofPaise(2_503).percentage(50)).isEqualTo(Money.ofPaise(1_252));
+    }
+
+    @Test
     void balancesForEveryFareAcrossAWideRange() {
-      for (long paise = 0; paise <= 5_000; paise++) {
+      // The property that actually matters: PROJECT_SPEC section 2 requires the ledger
+      // to balance to zero, for every fare, not just the ones someone thought to test.
+      for (long paise = 0; paise <= 20_000; paise++) {
         Money fare = Money.ofPaise(paise);
-        Money commission = fare.percentage(COMMISSION_PERCENT, RoundingMode.HALF_EVEN);
+        Money commission = fare.percentage(COMMISSION_PERCENT);
         Money driverEarnings = fare.minus(commission);
 
         assertThat(commission.plus(driverEarnings))
-            .withFailMessage("split of %s did not balance", fare)
+            .withFailMessage("split of %d paise did not balance", paise)
             .isEqualTo(fare);
-        assertThat(commission.isNegative())
-            .withFailMessage("commission on %s was negative", fare)
-            .isFalse();
       }
+    }
+
+    @Test
+    void takesNothingAtZeroPercentAndEverythingAtAHundred() {
+      Money fare = Money.ofPaise(12_345);
+      assertThat(fare.percentage(0)).isEqualTo(Money.ZERO);
+      assertThat(fare.percentage(100)).isEqualTo(fare);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 101})
+    void rejectsAPercentageOutsideRange(int percent) {
+      assertThatIllegalArgumentException().isThrownBy(() -> Money.ofPaise(100).percentage(percent));
     }
   }
 
@@ -171,23 +231,10 @@ class MoneyTest {
   @Nested
   class Formatting {
 
-    @Test
-    void formatsRupeesAndPaise() {
-      assertThat(Money.ofPaise(1_234).toRupeeString()).isEqualTo("12.34");
-      assertThat(Money.ofPaise(5).toRupeeString()).isEqualTo("0.05");
-      assertThat(Money.ZERO.toRupeeString()).isEqualTo("0.00");
-    }
-
-    @Test
-    void keepsTheSignOnNegativeAmounts() {
-      assertThat(Money.ofPaise(-1_234).toRupeeString()).isEqualTo("-12.34");
-      assertThat(Money.ofPaise(-5).toRupeeString()).isEqualTo("-0.05");
-    }
-
-    @Test
-    void refusesToPrintAnAmountItCannotNegate() {
-      assertThatExceptionOfType(ArithmeticException.class)
-          .isThrownBy(() -> Money.ofPaise(Long.MIN_VALUE).toRupeeString());
+    @ParameterizedTest
+    @CsvSource({"1234, 12.34", "5, 0.05", "0, 0.00", "100, 1.00", "99, 0.99"})
+    void formatsRupeesAndPaise(long paise, String expected) {
+      assertThat(Money.ofPaise(paise).toRupeeString()).isEqualTo(expected);
     }
   }
 }

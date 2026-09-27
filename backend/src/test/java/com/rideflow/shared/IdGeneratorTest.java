@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -53,35 +55,24 @@ class IdGeneratorTest {
   }
 
   @Test
-  void ordersIdsCreatedWithinTheSameMillisecond() {
+  void generatesTenThousandUniqueIdsThatSortInCreationOrder() {
     IdGenerator generator = new IdGenerator(FIXED_CLOCK);
 
-    List<UUID> ids = new ArrayList<>();
-    for (int i = 0; i < 1_000; i++) {
-      ids.add(generator.newId());
-    }
-
-    // The timestamp and counter both live in the most significant bits, so comparing
-    // those alone is comparing creation order. The low bits are random and carry no
-    // ordering.
-    for (int i = 1; i < ids.size(); i++) {
-      assertThat(ids.get(i).getMostSignificantBits())
-          .withFailMessage("id %d was not greater than its predecessor", i)
-          .isGreaterThan(ids.get(i - 1).getMostSignificantBits());
-    }
-  }
-
-  @Test
-  void neverRepeatsAnIdWhenTheClockDoesNotMove() {
-    IdGenerator generator = new IdGenerator(FIXED_CLOCK);
-
-    Set<UUID> ids = new java.util.HashSet<>();
+    List<UUID> ids = new ArrayList<>(10_000);
     for (int i = 0; i < 10_000; i++) {
       ids.add(generator.newId());
     }
 
-    // 10,000 exceeds the 12-bit counter, so this also covers the rollover path.
-    assertThat(ids).hasSize(10_000);
+    assertThat(new HashSet<>(ids)).hasSize(10_000);
+
+    // The timestamp and counter both live in the most significant bits, so comparing
+    // those is comparing creation order. The low bits are random and carry no ordering.
+    // 10,000 also exceeds the 12-bit counter, so this covers the rollover path.
+    for (int i = 1; i < ids.size(); i++) {
+      assertThat(ids.get(i).getMostSignificantBits())
+          .withFailMessage("id at %d did not sort after its predecessor", i)
+          .isGreaterThan(ids.get(i - 1).getMostSignificantBits());
+    }
   }
 
   @Test
@@ -90,7 +81,7 @@ class IdGeneratorTest {
     IdGenerator generator = new IdGenerator(clock);
 
     UUID before = generator.newId();
-    clock.set(FIXED_INSTANT.minusSeconds(60));
+    clock.advance(Duration.ofSeconds(-60));
     UUID after = generator.newId();
 
     // An NTP correction must not let a later row sort before an earlier one.
@@ -142,34 +133,5 @@ class IdGeneratorTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> IdGenerator.timestampOf(version4))
         .withMessageContaining("version");
-  }
-
-  /** A clock whose instant the test moves explicitly. */
-  private static final class MutableClock extends Clock {
-
-    private volatile Instant instant;
-
-    private MutableClock(Instant instant) {
-      this.instant = instant;
-    }
-
-    private void set(Instant newInstant) {
-      this.instant = newInstant;
-    }
-
-    @Override
-    public ZoneOffset getZone() {
-      return ZoneOffset.UTC;
-    }
-
-    @Override
-    public Clock withZone(java.time.ZoneId zone) {
-      throw new UnsupportedOperationException("test clock is always UTC");
-    }
-
-    @Override
-    public Instant instant() {
-      return instant;
-    }
   }
 }

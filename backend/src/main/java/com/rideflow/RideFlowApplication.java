@@ -2,6 +2,7 @@ package com.rideflow;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Entry point of the RideFlow backend.
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * the rules that govern their boundaries.
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class RideFlowApplication {
 
   public static void main(String[] args) {

@@ -1,4 +1,4 @@
-# 2. Modular monolith with Spring Modulith
+# 1. Modular monolith with Spring Modulith
 
 - **Status:** Accepted
 - **Date:** 2026-09-23
