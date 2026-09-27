@@ -2,6 +2,9 @@ spring:
   application:
     name: rideflow-backend
 
+  profiles:
+    default: local
+
   datasource:
     url: ${RIDEFLOW_DB_URL:jdbc:postgresql://localhost:5432/rideflow}
     username: ${RIDEFLOW_DB_USER:rideflow}
@@ -10,7 +13,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      # Flyway is the single source of truth for the schema (PROJECT_SPEC section 7).
+      ddl-auto: none
     properties:
       hibernate:
         jdbc:
@@ -34,16 +38,16 @@ spring:
 
   mvc:
     problemdetails:
-      # Spring's own exceptions (405, 415, unreadable body) become RFC 9457
-      # problem details too, so no error escapes without the shape section 10 requires.
+      # Spring's own exceptions (unknown route, unsupported method, unreadable body)
+      # become RFC 9457 problem details too, so no error escapes the shape section 10 wants.
       enabled: true
+
+  # Opt in per profile: on for local, off everywhere else.
+  docker-compose:
+    enabled: false
 
   modulith:
     events:
-      jdbc:
-        schema-initialization:
-          # Flyway owns the event_publication table; Modulith must not create it.
-          enabled: false
       republish-outstanding-events-on-restart: true
 
 management:
@@ -54,27 +58,42 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
+      group:
+        # Liveness must not depend on anything external: a dead Redis is not a reason
+        # for an orchestrator to restart an otherwise healthy process.
+        liveness:
+          include: livenessState
+        # Readiness does depend on them, because without them it cannot serve traffic.
+        readiness:
+          include: readinessState,db,redis
   metrics:
     tags:
       application: ${spring.application.name}
   tracing:
     sampling:
       probability: ${RIDEFLOW_TRACE_SAMPLE:0.1}
+  otlp:
+    tracing:
+      endpoint: ${RIDEFLOW_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 
 logging:
   structured:
     format:
-      console: ${RIDEFLOW_LOG_FORMAT:}
+      # ECS JSON on the console, with trace and span ids attached by Micrometer.
+      console: ${RIDEFLOW_LOG_FORMAT:ecs}
 
 server:
   port: 8080
+  shutdown: graceful
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
 # Business constants - PROJECT_SPEC section 9.
-# Bound with @ConfigurationProperties. Never hard-code these values in code.
+# Bound and validated by RideFlowProperties. Never hard-code these values in code.
 rideflow:
   location:
     min-interval-ms: 1000

@@ -34,7 +34,7 @@ class GeoPointTest {
     }
 
     @ParameterizedTest
-    @ValueSource(doubles = {-90.0001, 90.0001, 91, -1000})
+    @ValueSource(doubles = {-90.0000001, 90.0000001, -90.0001, 90.0001, 91, -1000})
     void rejectsLatitudesOutOfRange(double latitude) {
       assertThatIllegalArgumentException()
           .isThrownBy(() -> new GeoPoint(latitude, 0))
@@ -42,7 +42,7 @@ class GeoPointTest {
     }
 
     @ParameterizedTest
-    @ValueSource(doubles = {-180.0001, 180.0001, 360})
+    @ValueSource(doubles = {-180.0000001, 180.0000001, -180.0001, 180.0001, 360})
     void rejectsLongitudesOutOfRange(double longitude) {
       assertThatIllegalArgumentException()
           .isThrownBy(() -> new GeoPoint(0, longitude))

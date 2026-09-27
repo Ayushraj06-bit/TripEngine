@@ -1,0 +1,23 @@
+# Integration tests. Testcontainers supplies every connection detail through
+# @ServiceConnection, so nothing here may point at a fixed host or port.
+spring:
+  docker-compose:
+    enabled: false
+  jpa:
+    # Fail a test that quietly triggers a query outside an open session.
+    open-in-view: false
+
+management:
+  tracing:
+    sampling:
+      # No collector is running in tests; exporting would just log failures.
+      probability: 0.0
+
+logging:
+  structured:
+    format:
+      console:
+  level:
+    com.rideflow: DEBUG
+    org.testcontainers: INFO
+    com.github.dockerjava: WARN
