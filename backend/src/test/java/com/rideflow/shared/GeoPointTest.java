@@ -114,6 +114,13 @@ class GeoPointTest {
       double distance = new GeoPoint(lat1, lon1).distanceMetersTo(new GeoPoint(lat2, lon2));
       assertThat(distance).isFinite().isCloseTo(20_015_086.0, within(1_000.0));
     }
+
+    @Test
+    void crossesTheAntimeridianTheShortWay() {
+      // 179.9 E to 179.9 W is 0.2 degrees apart, not 359.8: about 22 km, not 40,000.
+      double distance = new GeoPoint(0, 179.9).distanceMetersTo(new GeoPoint(0, -179.9));
+      assertThat(distance).isCloseTo(22_239.0, within(1.0));
+    }
   }
 
   @Nested

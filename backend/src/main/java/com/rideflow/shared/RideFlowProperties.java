@@ -81,7 +81,25 @@ public record RideFlowProperties(
       @Positive int quoteTtlMinutes,
       @Positive int minTripMeters,
       @Positive int maxTripKm,
-      @DecimalMin("0.0") @DecimalMax("1.0") double repriceDeviation) {}
+      @DecimalMin("0.0") @DecimalMax("1.0") double repriceDeviation,
+      /* Not in section 9; added by Phase 3 rather than hard-coded, per section 11. */
+      @NotNull @Valid AverageSpeedKmph averageSpeedKmph,
+      @Positive int quoteRateLimitPerMinute,
+      @Positive int rateCardRefreshSeconds) {
+
+    /** City averages, used to turn an estimated distance into an estimated duration. */
+    public record AverageSpeedKmph(
+        @Positive double bike, @Positive double auto, @Positive double car) {
+
+      public double of(VehicleType type) {
+        return switch (type) {
+          case BIKE -> bike;
+          case AUTO -> auto;
+          case CAR -> car;
+        };
+      }
+    }
+  }
 
   /** Trip lifecycle timers. */
   public record Trip(

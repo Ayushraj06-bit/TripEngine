@@ -48,6 +48,8 @@ class SecurityMatrixTest {
   /** Inside the configured service area, so a permitted caller gets a real answer. */
   private static final String NEARBY = "/api/v1/drivers/nearby?lat=12.9752&lng=77.6064&type=CAR";
 
+  private static final String QUOTES = "/api/v1/fares/quotes";
+
   @Autowired private MockMvc mockMvc;
   @Autowired private AuthService auth;
   @Autowired private JdbcTemplate jdbc;
@@ -124,6 +126,13 @@ class SecurityMatrixTest {
         row(HttpMethod.GET, NEARBY, Caller.DRIVER, 403),
         row(HttpMethod.GET, NEARBY, Caller.ADMIN, 403),
 
+        // --- fare quotes (Phase 3): RIDER only ---
+        row(HttpMethod.POST, QUOTES, Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, QUOTES, Caller.GARBAGE_TOKEN, 401),
+        row(HttpMethod.POST, QUOTES, Caller.RIDER, 200),
+        row(HttpMethod.POST, QUOTES, Caller.DRIVER, 403),
+        row(HttpMethod.POST, QUOTES, Caller.ADMIN, 403),
+
         // --- WebSocket handshake (Phase 2): open over HTTP, because the token travels in
         // the STOMP CONNECT frame. A plain GET without an upgrade is not a WebSocket
         // request, so 400 here shows the path is reachable, not that anything is allowed:
@@ -189,6 +198,10 @@ class SecurityMatrixTest {
     if (path.endsWith("/reject")) {
       return """
           {"reason":"Documents unreadable"}""";
+    }
+    if (path.equals(QUOTES)) {
+      return """
+          {"pickup":{"lat":12.9752,"lng":77.6064},"drop":{"lat":12.9784,"lng":77.6408}}""";
     }
     if (path.endsWith("/login")) {
       // Deliberately empty, so this row asserts the route is open rather than that a

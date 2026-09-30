@@ -1,16 +1,14 @@
 package com.rideflow.identity.internal;
 
-import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Bucket;
-import io.github.bucket4j.ConsumptionProbe;
+import com.rideflow.shared.KeyedRateLimiter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,16 +17,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Brute-force protection on the endpoints that hand out tokens.
+ * Brute-force protection on the endpoints that hand out tokens, per client address.
  *
  * <p>Account lockout alone is not enough: it protects one account from many guesses, but does
- * nothing about one attacker spraying one password across thousands of phone numbers, and nothing
- * about a flood of registrations. So there are two dimensions - per phone and per client address.
- *
- * <p>Buckets are per instance and in memory. PROJECT_SPEC section 3 specifies Bucket4j with a Redis
- * backend, and that is the right answer for a cluster, because a two-instance deployment doubles
- * every limit here. Redis-backed buckets are a small change to this class and no change anywhere
- * else; local buckets are a deliberate Phase 1 simplification, not the final state.
+ * nothing about one attacker spraying a password across thousands of phone numbers, and nothing
+ * about a flood of registrations. The per-phone half of the login limit lives in {@code
+ * PhoneRateLimiter}, because the phone is in the request body.
  */
 @Component
 class RateLimitFilter extends OncePerRequestFilter {
@@ -38,15 +32,16 @@ class RateLimitFilter extends OncePerRequestFilter {
   private static final String LOGIN_PATH = "/api/v1/auth/login";
   private static final String REGISTER_PREFIX = "/api/v1/auth/register";
 
-  /** Higher, because a household or office shares one address. */
-  private static final Bandwidth LOGIN_PER_ADDRESS =
-      Bandwidth.builder().capacity(20).refillGreedy(20, Duration.ofMinutes(1)).build();
+  /** Higher than per phone, because a household or office shares one address. */
+  private final KeyedRateLimiter loginPerAddress;
 
   /** Registration is once per person, so anything more than a trickle is abuse. */
-  private static final Bandwidth REGISTER_PER_ADDRESS =
-      Bandwidth.builder().capacity(3).refillGreedy(3, Duration.ofHours(1)).build();
+  private final KeyedRateLimiter registerPerAddress;
 
-  private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+  RateLimitFilter(Clock clock) {
+    this.loginPerAddress = new KeyedRateLimiter(20, Duration.ofMinutes(1), "login attempts", clock);
+    this.registerPerAddress = new KeyedRateLimiter(3, Duration.ofHours(1), "registrations", clock);
+  }
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -59,24 +54,23 @@ class RateLimitFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
 
-    String path = request.getRequestURI();
     String address = clientAddress(request);
+    OptionalLong wait =
+        request.getRequestURI().equals(LOGIN_PATH)
+            ? loginPerAddress.tryConsume(address)
+            : registerPerAddress.tryConsume(address);
 
-    Bucket bucket =
-        path.equals(LOGIN_PATH)
-            ? bucketFor("login:ip:" + address, LOGIN_PER_ADDRESS)
-            : bucketFor("register:ip:" + address, REGISTER_PER_ADDRESS);
-
-    ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
-    if (!probe.isConsumed()) {
-      reject(response, probe.getNanosToWaitForRefill());
+    if (wait.isPresent()) {
+      reject(response, wait.getAsLong());
       return;
     }
     chain.doFilter(request, response);
   }
 
-  private Bucket bucketFor(String key, Bandwidth bandwidth) {
-    return buckets.computeIfAbsent(key, ignored -> Bucket.builder().addLimit(bandwidth).build());
+  /** For tests; see {@link KeyedRateLimiter#reset()}. */
+  void reset() {
+    loginPerAddress.reset();
+    registerPerAddress.reset();
   }
 
   /**
@@ -92,10 +86,9 @@ class RateLimitFilter extends OncePerRequestFilter {
     return request.getRemoteAddr();
   }
 
-  private void reject(HttpServletResponse response, long nanosToWait) throws IOException {
-    long seconds = secondsToWait(nanosToWait);
+  /** Written here rather than thrown: a filter runs outside the controller advice. */
+  private void reject(HttpServletResponse response, long seconds) throws IOException {
     log.debug("Rate limited; retry after {}s", seconds);
-
     response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
     response.setHeader("Retry-After", Long.toString(seconds));
     response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
@@ -106,10 +99,5 @@ class RateLimitFilter extends OncePerRequestFilter {
             {"type":"about:blank","title":"Too many requests","status":429,\
             "detail":"Too many attempts. Try again in %d seconds.","code":"RATE_LIMITED"}"""
                 .formatted(seconds));
-  }
-
-  private static long secondsToWait(long nanos) {
-    // Round up: telling a client to retry in 0 seconds invites an immediate retry.
-    return Math.max(1, Duration.ofNanos(nanos).toSeconds() + 1);
   }
 }
