@@ -1,6 +1,7 @@
 package com.rideflow.driver.internal;
 
 import com.rideflow.driver.ApprovalStatus;
+import com.rideflow.driver.DriverFlagging;
 import com.rideflow.driver.DriverRegistration;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.driver.DriverStatusChanged;
@@ -20,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** A driver's own profile: vehicle registration and going online or offline. */
 @Service
-public class DriverService implements DriverRegistration {
+public class DriverService implements DriverRegistration, DriverFlagging {
 
   private static final Logger log = LoggerFactory.getLogger(DriverService.class);
 
@@ -55,6 +56,26 @@ public class DriverService implements DriverRegistration {
       return;
     }
     drivers.save(new Driver(userId, clock.instant()));
+  }
+
+  /**
+   * Flags a driver for admin review, called by {@code location} on repeated position spoofing.
+   *
+   * <p>Deliberately does not change their status. Being flagged is a signal for a human, not an
+   * automatic ban: a genuine GPS fault in a tunnel would otherwise throw a working driver off the
+   * road mid-shift on the strength of a heuristic.
+   */
+  @Override
+  @Transactional
+  public void flagForReview(UUID driverId, String reason) {
+    drivers
+        .findByUserId(driverId)
+        .ifPresent(
+            driver -> {
+              if (driver.flagForReview(reason, clock.instant())) {
+                log.warn("Driver {} flagged for review: {}", driverId, reason);
+              }
+            });
   }
 
   /**

@@ -7,6 +7,13 @@ spring:
     # Fail a test that quietly triggers a query outside an open session.
     open-in-view: false
 
+rideflow:
+  location:
+    # Background jobs that mutate shared Redis state race any test that moves the
+    # clock. Tests that need a sweep call it explicitly. It still runs once at
+    # startup, so the scheduling wiring itself stays exercised.
+    stale-sweep-interval: PT1H
+
 management:
   tracing:
     sampling:

@@ -34,6 +34,8 @@ class Driver {
   private int offersReceived;
   private int offersAccepted;
   private String rejectionReason;
+  private String flaggedReason;
+  private Instant flaggedAt;
   private Instant approvalChangedAt;
   private Instant lastStatusChangeAt;
 
@@ -77,6 +79,27 @@ class Driver {
     return ratingCount == 0
         ? java.util.OptionalDouble.empty()
         : java.util.OptionalDouble.of((double) ratingSum / ratingCount);
+  }
+
+  /**
+   * Raises this driver for admin review.
+   *
+   * <p>Keeps the first reason and timestamp: a repeat offender must not overwrite the evidence of
+   * the original offence, and an admin wants to know when it started.
+   *
+   * @return true when this call is what flagged them
+   */
+  boolean flagForReview(String reason, Instant now) {
+    if (flaggedReason != null) {
+      return false;
+    }
+    this.flaggedReason = reason;
+    this.flaggedAt = now;
+    return true;
+  }
+
+  String flaggedReason() {
+    return flaggedReason;
   }
 
   void approve(Instant now) {

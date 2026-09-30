@@ -99,6 +99,15 @@ rideflow:
     stale-after-seconds: 30
     max-speed-kmph: 150
     max-accuracy-meters: 100
+    # Phase 2 additions. Not in section 9, but section 11 forbids magic numbers.
+    spoof-strikes-before-flag: 5
+    stale-sweep-batch-size: 500
+    stale-sweep-interval: PT5S
+    nearby-result-limit: 15
+    nearby-cache-seconds: 2
+    # 3 decimal places is roughly 110 m. Used both to blur the public position and to
+    # decide which riders share a cache entry, so the two can never drift apart.
+    nearby-rounding-decimals: 3
   matching:
     radius-steps-km: [2, 4, 7]
     candidates-per-search: 20
@@ -128,6 +137,16 @@ rideflow:
     ttl-seconds: 90
   payment:
     commission-percent: 20
+
+  # The city RideFlow operates in (PROJECT_SPEC section 1: one configured service
+  # area). This box covers Bengaluru; replace it with the real boundary per
+  # deployment. A point exactly on an edge counts as inside.
+  service-area:
+    vertices:
+      - { lat: 13.1400, lng: 77.4600 }
+      - { lat: 13.1400, lng: 77.7800 }
+      - { lat: 12.8200, lng: 77.7800 }
+      - { lat: 12.8200, lng: 77.4600 }
 
   # Authentication. PROJECT_SPEC section 9 does not cover auth, so this extends it
   # under the same prefix rather than hard-coding the values (section 11).

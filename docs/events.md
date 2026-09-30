@@ -32,7 +32,8 @@ changes an event.
 
 | Event | Published by | Consumed by | Externalized | Phase |
 |---|---|---|---|---|
-| `DriverStatusChanged` | `driver` | `location` (from Phase 2) | no | 1 |
+| `DriverStatusChanged` | `driver` | `location` | no | 1 |
+| `DriverWentStale` | `location` | `trip` (from Phase 4) | no | 2 |
 
 Each phase appends its rows here.
 
@@ -53,6 +54,26 @@ Each phase appends its rows here.
   to remove the driver from when they swap vehicles, so the driver would linger
   in the old type's set and be offered the wrong kind of trip. On a status-only
   change it equals `vehicleType`.
+
+### DriverWentStale
+
+- **Module:** location
+- **Published when:** the stale sweep finds a driver whose last ping is older
+  than `stale-after-seconds`, and has already removed them from every
+  availability set.
+- **Payload:** driverId, lastSeenAt, detectedAt
+- **Consumed by:** `trip` from Phase 4, to notice a driver who vanished mid-trip.
+- **Externalized:** no.
+- **Published once per cluster:** the sweep holds a ShedLock, so two instances
+  cannot both declare the same driver gone.
+- **Published inside a transaction, on purpose.** Every
+  `@ApplicationModuleListener` is a transactional event listener, and Spring
+  skips those entirely for an event published with no transaction active. The
+  sweep first published bare, and the event reached nobody; a test with a real
+  module listener caught it. The Redis sweep itself stays outside the
+  transaction, which holds only the outbox rows.
+- **Not the same as going offline:** the driver's stored status is untouched, so
+  their next ping restores them without a round trip through `driver`.
 
 ### Template for a new entry
 

@@ -45,6 +45,9 @@ class SecurityMatrixTest {
 
   private static final String PASSWORD = "correct-horse-battery";
 
+  /** Inside the configured service area, so a permitted caller gets a real answer. */
+  private static final String NEARBY = "/api/v1/drivers/nearby?lat=12.9752&lng=77.6064&type=CAR";
+
   @Autowired private MockMvc mockMvc;
   @Autowired private AuthService auth;
   @Autowired private JdbcTemplate jdbc;
@@ -113,6 +116,19 @@ class SecurityMatrixTest {
             "/api/v1/admin/drivers/" + UUID.randomUUID() + "/approve",
             Caller.ADMIN,
             404),
+
+        // --- nearby drivers (Phase 2): RIDER only, and anonymous callers never ---
+        row(HttpMethod.GET, NEARBY, Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, NEARBY, Caller.GARBAGE_TOKEN, 401),
+        row(HttpMethod.GET, NEARBY, Caller.RIDER, 200),
+        row(HttpMethod.GET, NEARBY, Caller.DRIVER, 403),
+        row(HttpMethod.GET, NEARBY, Caller.ADMIN, 403),
+
+        // --- WebSocket handshake (Phase 2): open over HTTP, because the token travels in
+        // the STOMP CONNECT frame. A plain GET without an upgrade is not a WebSocket
+        // request, so 400 here shows the path is reachable, not that anything is allowed:
+        // StompSecurityIntegrationTest covers what happens after the upgrade.
+        row(HttpMethod.GET, "/ws", Caller.ANONYMOUS, 400),
 
         // --- auth routes: open, because they are how a caller gets a token ---
         row(HttpMethod.POST, "/api/v1/auth/login", Caller.ANONYMOUS, 400),

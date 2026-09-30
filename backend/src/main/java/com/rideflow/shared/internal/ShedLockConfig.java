@@ -7,6 +7,7 @@ import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Cluster-wide locking for scheduled jobs.
@@ -23,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * individual jobs override it when they need something tighter.
  */
 @Configuration
+@EnableScheduling
 @EnableSchedulerLock(defaultLockAtMostFor = "PT30S")
 class ShedLockConfig {
 
