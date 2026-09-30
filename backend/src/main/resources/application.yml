@@ -122,6 +122,13 @@ rideflow:
     min-trip-meters: 300
     max-trip-km: 60
     reprice-deviation: 0.20
+    # Phase 3 additions. City averages, to turn distance into duration.
+    average-speed-kmph:
+      bike: 25
+      auto: 20
+      car: 22
+    quote-rate-limit-per-minute: 30
+    rate-card-refresh-seconds: 60
   trip:
     arrival-geofence-meters: 150
     free-wait-minutes: 3

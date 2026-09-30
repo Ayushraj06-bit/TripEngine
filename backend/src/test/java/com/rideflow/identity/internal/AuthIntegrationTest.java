@@ -2,6 +2,10 @@ package com.rideflow.identity.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
@@ -24,13 +28,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * Identity against real PostgreSQL.
@@ -45,6 +53,7 @@ import org.springframework.test.context.ActiveProfiles;
       "rideflow.security.access-token-ttl=15m",
       "rideflow.security.refresh-token-ttl=7d"
     })
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 // Imported explicitly: a @TestConfiguration nested in the outer class is silently
 // ignored for @Nested tests, which would leave the real system clock in place.
@@ -72,6 +81,8 @@ class AuthIntegrationTest {
   @Autowired private JwtDecoder jwtDecoder;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private PhoneRateLimiter phoneRateLimiter;
+  @Autowired private RateLimitFilter rateLimitFilter;
+  @Autowired private MockMvc mockMvc;
 
   @BeforeEach
   void reset() {
@@ -79,6 +90,7 @@ class AuthIntegrationTest {
     // The limiter is a singleton whose buckets outlive each test, and a wall-clock
     // bucket does not refill when the clock is moved back to START.
     phoneRateLimiter.reset();
+    rateLimitFilter.reset();
     jdbc.execute("TRUNCATE refresh_tokens, vehicles, drivers, users CASCADE");
   }
 
@@ -487,6 +499,56 @@ class AuthIntegrationTest {
     void isIdempotentForAnUnknownToken() {
       auth.logout("never-issued");
       auth.logout("never-issued");
+    }
+  }
+
+  /** What a throttled client sees over HTTP: a 429 that says when to come back. */
+  @Nested
+  class RateLimitResponses {
+
+    private ResultActions login(String phone, String clientAddress) throws Exception {
+      return mockMvc.perform(
+          post("/api/v1/auth/login")
+              .header("X-Forwarded-For", clientAddress)
+              .contentType(MediaType.APPLICATION_JSON)
+              .content(
+                  """
+                  {"phone":"%s","password":"not-the-password"}"""
+                      .formatted(phone)));
+    }
+
+    @Test
+    void limitsOneNumberToFifteenAttemptsAMinute() throws Exception {
+      // A number nobody registered: the limit must not depend on the account existing.
+      String phone = "+919811100001";
+      for (int attempt = 0; attempt < 15; attempt++) {
+        // A new address each time, so only the per-number limit is in play.
+        login(phone, "203.0.113." + attempt).andExpect(status().isUnauthorized());
+      }
+
+      // Fifteen a minute refills one every four seconds.
+      login(phone, "203.0.113.99")
+          .andExpect(status().isTooManyRequests())
+          .andExpect(header().string("Retry-After", "4"))
+          .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+    }
+
+    @Test
+    void limitsOneAddressToTwentyAttemptsAMinute() throws Exception {
+      for (int attempt = 0; attempt < 20; attempt++) {
+        // A new number each time, so only the per-address limit is in play.
+        login("+9198111%05d".formatted(attempt), "198.51.100.7")
+            .andExpect(status().isUnauthorized());
+      }
+
+      // Twenty a minute refills one every three seconds.
+      login("+919811199999", "198.51.100.7")
+          .andExpect(status().isTooManyRequests())
+          .andExpect(header().string("Retry-After", "3"))
+          .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+
+      // Only that address: another is still let through.
+      login("+919811199999", "198.51.100.8").andExpect(status().isUnauthorized());
     }
   }
 

@@ -1,6 +1,7 @@
 package com.rideflow.shared.internal.web;
 
 import com.rideflow.shared.BusinessException;
+import com.rideflow.shared.KeyedRateLimiter;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Comparator;
 import java.util.List;
@@ -66,7 +67,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       // A 4xx is the caller's mistake, not a fault: log it without a stack trace.
       log.debug("Request rejected with {}: {}", exception.code(), exception.getMessage());
     }
-    return ResponseEntity.status(exception.status()).body(problem);
+    var response = ResponseEntity.status(exception.status());
+    // RFC 9110: a 429 should say when to come back. Emitted here, once, for every
+    // limit raised through BusinessException rather than by each limiter.
+    Object retryAfter = exception.properties().get(KeyedRateLimiter.RETRY_AFTER_SECONDS);
+    if (exception.status() == HttpStatus.TOO_MANY_REQUESTS && retryAfter != null) {
+      response.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfter));
+    }
+    return response.body(problem);
   }
 
   /** Bean Validation failures on {@code @Validated} method parameters. */

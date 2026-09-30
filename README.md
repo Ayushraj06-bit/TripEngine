@@ -19,7 +19,8 @@ the thing.
 | 0 Foundation | done, tagged `phase-0` |
 | 1 Identity and driver onboarding | done |
 | 2 Real-time location | done |
-| 3 Pricing and quotes | next |
+| 3 Pricing and quotes | done |
+| 4 Trip lifecycle | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -27,6 +28,14 @@ counted on `location_updates_total`, one atomic Lua script per update, Redis GEO
 availability sets kept in step with the driver module through events, a
 ShedLock-guarded stale-driver sweep, the rider's blurred "cars around you" view,
 and the exact nearest-driver search matching will use.
+
+**Phase 3** adds fares: versioned rate cards seeded from section 9 and switched on
+by the clock, a pure fare calculator whose breakdown always adds up to the total,
+a haversine route estimate behind an interface a real router can replace
+([ADR 0007](docs/adr/0007-route-estimation.md)), and `POST /api/v1/fares/quotes`,
+which prices every vehicle type at once. Quotes live five minutes in Redis and are
+consumed exactly once by an atomic compare-and-delete script
+([ADR 0008](docs/adr/0008-fare-quotes.md)).
 
 ## Requirements
 
