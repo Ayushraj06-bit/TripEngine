@@ -24,6 +24,11 @@ class RideFlowPropertiesTest {
         "rideflow.location.stale-after-seconds=30",
         "rideflow.location.max-speed-kmph=150",
         "rideflow.location.max-accuracy-meters=100",
+        "rideflow.location.spoof-strikes-before-flag=5",
+        "rideflow.location.stale-sweep-batch-size=500",
+        "rideflow.location.nearby-result-limit=15",
+        "rideflow.location.nearby-cache-seconds=2",
+        "rideflow.location.nearby-rounding-decimals=3",
         "rideflow.matching.radius-steps-km=2,4,7",
         "rideflow.matching.candidates-per-search=20",
         "rideflow.matching.offer-timeout-seconds=12",
@@ -48,6 +53,14 @@ class RideFlowPropertiesTest {
         "rideflow.surge.cap=2.5",
         "rideflow.surge.ttl-seconds=90",
         "rideflow.payment.commission-percent=20",
+        "rideflow.service-area.vertices[0].lat=13.14",
+        "rideflow.service-area.vertices[0].lng=77.46",
+        "rideflow.service-area.vertices[1].lat=13.14",
+        "rideflow.service-area.vertices[1].lng=77.78",
+        "rideflow.service-area.vertices[2].lat=12.82",
+        "rideflow.service-area.vertices[2].lng=77.78",
+        "rideflow.service-area.vertices[3].lat=12.82",
+        "rideflow.service-area.vertices[3].lng=77.46",
       };
 
   private final ApplicationContextRunner runner =
@@ -77,6 +90,9 @@ class RideFlowPropertiesTest {
               assertThat(properties.surge().cap()).isEqualTo(2.5);
               assertThat(properties.surge().geohashPrecision()).isEqualTo(6);
               assertThat(properties.payment().commissionPercent()).isEqualTo(20);
+              assertThat(properties.location().spoofStrikesBeforeFlag()).isEqualTo(5);
+              assertThat(properties.location().nearbyRoundingDecimals()).isEqualTo(3);
+              assertThat(properties.serviceArea().vertices()).hasSize(4);
             });
   }
 
@@ -143,6 +159,16 @@ class RideFlowPropertiesTest {
         .run(
             context ->
                 assertThat(context).hasFailed().getFailure().hasStackTraceContaining("roadFactor"));
+  }
+
+  @Test
+  void failsToStartWithoutAServiceArea() {
+    // The polygon has no sensible default: a service with no boundary would quote
+    // and dispatch anywhere on earth.
+    runner
+        .withPropertyValues(VALID)
+        .withPropertyValues("rideflow.service-area.vertices[0].lat=")
+        .run(context -> assertThat(context).hasFailed());
   }
 
   @Test

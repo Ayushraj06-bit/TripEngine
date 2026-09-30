@@ -30,7 +30,8 @@ public record RideFlowProperties(
     @NotNull @Valid Pricing pricing,
     @NotNull @Valid Trip trip,
     @NotNull @Valid Surge surge,
-    @NotNull @Valid Payment payment) {
+    @NotNull @Valid Payment payment,
+    @NotNull @Valid ServiceAreaProperties serviceArea) {
 
   /** Location ingestion and throttling. */
   public record Location(
@@ -39,7 +40,30 @@ public record RideFlowProperties(
       @Positive int forceWriteSeconds,
       @Positive int staleAfterSeconds,
       @Positive double maxSpeedKmph,
-      @Positive double maxAccuracyMeters) {}
+      @Positive double maxAccuracyMeters,
+      /* Not in section 9; added by Phase 2 rather than hard-coded, per section 11. */
+      @Positive int spoofStrikesBeforeFlag,
+      @Positive int staleSweepBatchSize,
+      @Positive int nearbyResultLimit,
+      @Positive int nearbyCacheSeconds,
+      /** Decimal places to round a public position to. 3 is roughly 110 m. */
+      @Min(1) @Max(6) int nearbyRoundingDecimals) {}
+
+  /**
+   * The polygon the service operates inside.
+   *
+   * @param vertices at least three points, in order around the boundary
+   */
+  public record ServiceAreaProperties(@NotEmpty List<@Valid Vertex> vertices) {
+
+    public record Vertex(double lat, double lng) {}
+
+    /** The validated value object the rest of the application uses. */
+    public com.rideflow.shared.ServiceArea toServiceArea() {
+      return new com.rideflow.shared.ServiceArea(
+          vertices.stream().map(v -> new GeoPoint(v.lat(), v.lng())).toList());
+    }
+  }
 
   /** Candidate search and offers. */
   public record Matching(

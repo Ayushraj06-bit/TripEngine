@@ -61,9 +61,15 @@ class ApplicationIntegrationTest {
           jdbc.queryForList(
               "SELECT version, description FROM flyway_schema_history WHERE success ORDER BY installed_rank");
 
-      assertThat(applied).extracting(row -> row.get("version")).containsSubsequence("1", "2");
-      // The tables those migrations own must actually be there.
-      assertThat(jdbc.queryForObject("SELECT count(*) FROM shedlock", Integer.class)).isZero();
+      assertThat(applied)
+          .extracting(row -> row.get("version"))
+          .containsSubsequence("1", "2", "3", "4", "5");
+      // The tables those migrations own must actually be there. shedlock is only
+      // checked for existence, not emptiness: the stale-driver sweep runs every five
+      // seconds and writes its lock row here, so an empty table would mean the job
+      // never ran rather than that the migration worked.
+      assertThat(jdbc.queryForObject("SELECT count(*) FROM shedlock", Integer.class))
+          .isNotNegative();
       assertThat(jdbc.queryForObject("SELECT count(*) FROM event_publication", Integer.class))
           .isZero();
     }

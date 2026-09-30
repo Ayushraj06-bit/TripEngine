@@ -14,18 +14,19 @@ the thing.
 
 ## Status
 
-**Phase 0 — Foundation. Complete.** `./mvnw verify` passes with 117 tests against
-real PostgreSQL, Redis and Kafka.
+| Phase | State |
+|---|---|
+| 0 Foundation | done, tagged `phase-0` |
+| 1 Identity and driver onboarding | done |
+| 2 Real-time location | done |
+| 3 Pricing and quotes | next |
 
-In place: the multi-module build, all eleven module packages with enforced
-boundaries, the `shared` kernel (`Money`, `GeoPoint`, `VehicleType`, UUIDv7 ids,
-the RFC 9457 error model, an injected UTC `Clock`), `RideFlowProperties` bound and
-validated so bad configuration fails startup, Flyway with ShedLock and the
-Modulith outbox table, the `local`/`test`/`prod` profiles, observability, the
-pinned Docker Compose stack, and CI.
-
-No business logic yet: every module package beyond `shared` is an empty boundary
-waiting for its phase. The `simulator` module arrives in Phase 9.
+**Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
+authentication on CONNECT and per-role destination rules, a validation pipeline
+counted on `location_updates_total`, one atomic Lua script per update, Redis GEO
+availability sets kept in step with the driver module through events, a
+ShedLock-guarded stale-driver sweep, the rider's blurred "cars around you" view,
+and the exact nearest-driver search matching will use.
 
 ## Requirements
 
