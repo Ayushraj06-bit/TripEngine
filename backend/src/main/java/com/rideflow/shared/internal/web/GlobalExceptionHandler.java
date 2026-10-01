@@ -68,10 +68,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       log.debug("Request rejected with {}: {}", exception.code(), exception.getMessage());
     }
     var response = ResponseEntity.status(exception.status());
-    // RFC 9110: a 429 should say when to come back. Emitted here, once, for every
-    // limit raised through BusinessException rather than by each limiter.
+    // RFC 9110: say when to come back - a 429, or a 409 for a request still in flight.
+    // Emitted here, once, for every exception that carries a wait, rather than by each
+    // thrower.
     Object retryAfter = exception.properties().get(KeyedRateLimiter.RETRY_AFTER_SECONDS);
-    if (exception.status() == HttpStatus.TOO_MANY_REQUESTS && retryAfter != null) {
+    if (retryAfter != null) {
       response.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfter));
     }
     return response.body(problem);

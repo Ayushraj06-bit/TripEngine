@@ -110,6 +110,23 @@ held by a dead instance:
 SELECT name, lock_until, locked_at, locked_by FROM shedlock;
 ```
 
+### A booking answers 409 IDEMPOTENCY_KEY_IN_FLIGHT and never recovers
+
+The request that claimed that `Idempotency-Key` died before answering - a crash
+or a kill between claiming the key and storing the response. The claim stays
+until the 24-hour purge (ADR 0009 records this gap).
+
+1. Confirm no trip was created for it: the rider has no trip with a
+   `requested_at` near the key's `created_at`.
+2. Release the key, and the client's retry will go through:
+
+   ```sql
+   DELETE FROM idempotency_keys
+   WHERE user_id = '<rider id>' AND key = '<key>' AND response_status IS NULL;
+   ```
+
+The quote that request consumed is gone; the rider needs a new one.
+
 ### Port already in use
 
 Defaults: backend 8080, simulator 8081, Postgres 5432, Redis 6379, Kafka 9092,

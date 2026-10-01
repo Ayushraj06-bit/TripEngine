@@ -107,7 +107,10 @@ public record RideFlowProperties(
       @Positive int freeWaitMinutes,
       @Positive int noShowAfterMinutes,
       @Positive int otpMaxAttempts,
-      @Positive int riderCancelGraceSeconds) {}
+      @Positive int riderCancelGraceSeconds,
+      /* Not in section 9; added by Phase 4 rather than hard-coded, per section 11. */
+      @Positive int otpLockMinutes,
+      @Positive int idempotencyRetentionHours) {}
 
   /** The surge engine. */
   public record Surge(

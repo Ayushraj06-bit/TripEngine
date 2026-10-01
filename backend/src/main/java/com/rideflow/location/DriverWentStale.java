@@ -12,8 +12,9 @@ import java.util.UUID;
  * made once per cluster - ShedLock guarantees that - and a driver who is merely in a tunnel should
  * not be declared gone by three instances independently.
  *
- * <p>{@code trip} consumes this from Phase 4 to notice a driver who vanished mid-trip; without it a
- * rider would watch a frozen marker with nothing happening.
+ * <p>Nothing consumes it yet. It was meant for {@code trip}, to notice a driver who vanished
+ * mid-trip, but {@code trip} cannot depend on {@code location} without closing a module cycle (see
+ * {@code docs/events.md}); matching or notification will pick it up instead.
  *
  * <p>Going stale is not the same as going offline. The driver never asked to stop working, so their
  * stored status is untouched: reappearing restores them without a round trip through the driver

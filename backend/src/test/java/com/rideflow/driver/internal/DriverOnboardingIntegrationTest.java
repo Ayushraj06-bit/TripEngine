@@ -364,4 +364,49 @@ class DriverOnboardingIntegrationTest {
           .satisfies(e -> assertThat(e.status().value()).isEqualTo(404));
     }
   }
+
+  /**
+   * A driver's status follows whether they have a trip right now, not which trip event arrived
+   * last. These drivers have no trip at all, which is exactly what a late or repeated event looks
+   * like once its trip is over.
+   */
+  @Nested
+  class FollowingTrips {
+
+    private void onlineWithACar() {
+      approve();
+      addVehicle("KA01AB1234");
+      drivers.goOnline(driverId);
+    }
+
+    @Test
+    void doesNotPutADriverOnATripThatHasAlreadyEnded() {
+      onlineWithACar();
+
+      // What a DriverAssigned handled after its trip was handed back amounts to.
+      drivers.followTrips(driverId);
+
+      assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.AVAILABLE);
+    }
+
+    @Test
+    void freesADriverWhoseTripIsOver() {
+      onlineWithACar();
+      jdbc.update("UPDATE drivers SET status = 'ON_TRIP' WHERE user_id = ?", driverId);
+
+      drivers.followTrips(driverId);
+
+      assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.AVAILABLE);
+    }
+
+    @Test
+    void leavesAnOfflineDriverOffline() {
+      approve();
+      addVehicle("KA01AB1234");
+
+      drivers.followTrips(driverId);
+
+      assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.OFFLINE);
+    }
+  }
 }
