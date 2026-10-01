@@ -51,6 +51,8 @@ class RideFlowPropertiesTest {
         "rideflow.trip.no-show-after-minutes=5",
         "rideflow.trip.otp-max-attempts=3",
         "rideflow.trip.rider-cancel-grace-seconds=120",
+        "rideflow.trip.otp-lock-minutes=2",
+        "rideflow.trip.idempotency-retention-hours=24",
         "rideflow.surge.geohash-precision=6",
         "rideflow.surge.window-minutes=5",
         "rideflow.surge.tick-seconds=30",

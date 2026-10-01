@@ -4,6 +4,7 @@ import com.rideflow.location.AvailableDriver;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.DriverPositions;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -20,9 +21,13 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Component;
 
-/** Everything this module keeps in Redis. */
+/**
+ * Everything this module keeps in Redis.
+ *
+ * <p>Also answers {@code trip}'s {@link DriverPositions} port, for the arrival geofence.
+ */
 @Component
-class DriverStateStore {
+class DriverStateStore implements DriverPositions {
 
   /**
    * PROJECT_SPEC section 7: the state hash lives 24 hours, refreshed on every write. Long enough
@@ -224,6 +229,29 @@ class DriverStateStore {
     return Optional.of(
         new GeoPoint(
             Double.parseDouble(String.valueOf(lat)), Double.parseDouble(String.valueOf(lng))));
+  }
+
+  /**
+   * The last accepted position, unless it is as old as {@code stale-after-seconds}: the same
+   * cut-off at which the stale sweep takes a driver off the map.
+   */
+  @Override
+  public Optional<GeoPoint> currentPosition(UUID driverId) {
+    List<Object> fields =
+        redis
+            .opsForHash()
+            .multiGet(LocationKeys.state(driverId), List.<Object>of("lat", "lng", "ts"));
+    if (fields.contains(null)) {
+      return Optional.empty();
+    }
+    long ageMs = clock.millis() - Long.parseLong(String.valueOf(fields.get(2)));
+    if (ageMs >= Duration.ofSeconds(properties.location().staleAfterSeconds()).toMillis()) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new GeoPoint(
+            Double.parseDouble(String.valueOf(fields.get(0))),
+            Double.parseDouble(String.valueOf(fields.get(1)))));
   }
 
   /** Number of drivers currently listed as available for a type, for the gauge. */

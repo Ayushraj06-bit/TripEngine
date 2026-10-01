@@ -50,6 +50,11 @@ class SecurityMatrixTest {
 
   private static final String QUOTES = "/api/v1/fares/quotes";
 
+  private static final String TRIPS = "/api/v1/trips";
+
+  /** A trip nobody has: a permitted caller reaching the route gets 404, not 403. */
+  private static final String TRIP = TRIPS + "/" + UUID.randomUUID();
+
   @Autowired private MockMvc mockMvc;
   @Autowired private AuthService auth;
   @Autowired private JdbcTemplate jdbc;
@@ -133,6 +138,35 @@ class SecurityMatrixTest {
         row(HttpMethod.POST, QUOTES, Caller.DRIVER, 403),
         row(HttpMethod.POST, QUOTES, Caller.ADMIN, 403),
 
+        // --- trips (Phase 4) ---
+        row(HttpMethod.POST, TRIPS, Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, TRIPS, Caller.DRIVER, 403),
+        row(HttpMethod.POST, TRIPS, Caller.ADMIN, 403),
+        // A rider with a made-up quote: 410 shows the booking itself ran.
+        row(HttpMethod.POST, TRIPS, Caller.RIDER, 410),
+        row(HttpMethod.GET, TRIPS + "/active", Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, TRIPS + "/active", Caller.RIDER, 204),
+        row(HttpMethod.GET, TRIPS + "/active", Caller.DRIVER, 204),
+        row(HttpMethod.GET, TRIPS + "/active", Caller.ADMIN, 403),
+        row(HttpMethod.GET, TRIPS, Caller.RIDER, 200),
+        row(HttpMethod.GET, TRIPS, Caller.DRIVER, 200),
+        row(HttpMethod.GET, TRIPS, Caller.ADMIN, 403),
+        row(HttpMethod.GET, TRIP, Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, TRIP, Caller.RIDER, 404),
+        row(HttpMethod.GET, TRIP, Caller.DRIVER, 404),
+        row(HttpMethod.GET, TRIP, Caller.ADMIN, 403),
+        row(HttpMethod.POST, TRIP + "/cancel", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, TRIP + "/cancel", Caller.RIDER, 404),
+        row(HttpMethod.POST, TRIP + "/cancel", Caller.DRIVER, 404),
+        row(HttpMethod.POST, TRIP + "/cancel", Caller.ADMIN, 403),
+        row(HttpMethod.POST, TRIP + "/arrive", Caller.RIDER, 403),
+        row(HttpMethod.POST, TRIP + "/arrive", Caller.DRIVER, 404),
+        row(HttpMethod.POST, TRIP + "/start", Caller.RIDER, 403),
+        row(HttpMethod.POST, TRIP + "/start", Caller.DRIVER, 404),
+        row(HttpMethod.POST, TRIP + "/complete", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, TRIP + "/complete", Caller.RIDER, 403),
+        row(HttpMethod.POST, TRIP + "/complete", Caller.DRIVER, 404),
+
         // --- WebSocket handshake (Phase 2): open over HTTP, because the token travels in
         // the STOMP CONNECT frame. A plain GET without an upgrade is not a WebSocket
         // request, so 400 here shows the path is reachable, not that anything is allowed:
@@ -170,6 +204,9 @@ class SecurityMatrixTest {
     if (method != HttpMethod.GET) {
       request.contentType(MediaType.APPLICATION_JSON).content(bodyFor(path));
     }
+    if (method == HttpMethod.POST && path.equals(TRIPS)) {
+      request.header("Idempotency-Key", UUID.randomUUID().toString());
+    }
     tokenFor(caller).ifPresent(token -> request.header("Authorization", "Bearer " + token));
 
     int actual = mockMvc.perform(request).andReturn().getResponse().getStatus();
@@ -198,6 +235,19 @@ class SecurityMatrixTest {
     if (path.endsWith("/reject")) {
       return """
           {"reason":"Documents unreadable"}""";
+    }
+    if (path.equals(TRIPS)) {
+      return """
+          {"quoteId":"%s","vehicleType":"CAR","paymentMethod":"WALLET"}"""
+          .formatted(UUID.randomUUID());
+    }
+    if (path.endsWith("/cancel")) {
+      return """
+          {"reason":"Plans changed"}""";
+    }
+    if (path.endsWith("/start")) {
+      return """
+          {"otp":"1234"}""";
     }
     if (path.equals(QUOTES)) {
       return """

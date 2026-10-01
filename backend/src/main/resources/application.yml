@@ -135,6 +135,11 @@ rideflow:
     no-show-after-minutes: 5
     otp-max-attempts: 3
     rider-cancel-grace-seconds: 120
+    # Phase 4 additions. Section 6 fixes the OTP lock at 2 minutes; section 7 purges
+    # idempotency keys after 24 hours.
+    otp-lock-minutes: 2
+    idempotency-retention-hours: 24
+    idempotency-purge-interval: PT1H
   surge:
     geohash-precision: 6
     window-minutes: 5

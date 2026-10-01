@@ -20,7 +20,8 @@ the thing.
 | 1 Identity and driver onboarding | done |
 | 2 Real-time location | done |
 | 3 Pricing and quotes | done |
-| 4 Trip lifecycle | next |
+| 4 Trip lifecycle and booking | done |
+| 5 Matching | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -36,6 +37,17 @@ a haversine route estimate behind an interface a real router can replace
 which prices every vehicle type at once. Quotes live five minutes in Redis and are
 consumed exactly once by an atomic compare-and-delete script
 ([ADR 0008](docs/adr/0008-fare-quotes.md)).
+
+**Phase 4** adds trips: `POST /api/v1/trips` books a quote exactly once per
+`Idempotency-Key`, with partial unique indexes as the real guard against a second
+active trip. One state machine - PROJECT_SPEC section 6's table, kept as data -
+decides every change, and each change writes one audit row and one event in the
+same transaction. The events reach Kafka on `rideflow.trip-events`, keyed by trip
+([event catalog](docs/events.md)). Arrival is checked against the driver's live
+position, the start OTP locks after three wrong codes, and drivers move between
+AVAILABLE and ON_TRIP as their trips change
+([ADR 0009](docs/adr/0009-trip-booking-and-lifecycle.md)). The build now fails
+below 80% line coverage in `trip`, `pricing` and `shared`.
 
 ## Requirements
 

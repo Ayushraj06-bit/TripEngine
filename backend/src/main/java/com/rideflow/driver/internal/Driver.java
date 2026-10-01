@@ -162,6 +162,26 @@ class Driver {
     return changeStatus(DriverStatus.OFFLINE, now);
   }
 
+  /**
+   * The driver has a trip. From any status: a driver with a trip is on it, even if a request to go
+   * offline slipped in just before the assignment landed.
+   *
+   * @return true when the status actually moved
+   */
+  boolean startTrip(Instant now) {
+    return changeStatus(DriverStatus.ON_TRIP, now);
+  }
+
+  /**
+   * The driver has no trip any more: back to taking work. Only from ON_TRIP, so it can never put an
+   * offline driver back on the map.
+   *
+   * @return true when the status actually moved
+   */
+  boolean endTrip(Instant now) {
+    return status == DriverStatus.ON_TRIP && changeStatus(DriverStatus.AVAILABLE, now);
+  }
+
   /** True when the status actually moved, so the caller knows whether to publish an event. */
   private boolean changeStatus(DriverStatus next, Instant now) {
     if (status == next) {

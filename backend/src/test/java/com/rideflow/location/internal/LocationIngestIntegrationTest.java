@@ -364,6 +364,38 @@ class LocationIngestIntegrationTest {
     }
   }
 
+  /** {@code trip}'s view, for the arrival geofence: where the driver is, if recently heard from. */
+  @Nested
+  class CurrentPosition {
+
+    @Test
+    void isTheLastAcceptedPositionWhileFresh() {
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 1));
+
+      CLOCK.advance(Duration.ofSeconds(29));
+
+      assertThat(store.currentPosition(driverId)).contains(MG_ROAD);
+    }
+
+    @Test
+    void isEmptyOnceAsOldAsTheStaleSweepCutoff() {
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 1));
+
+      // The sweep takes a driver off the map at exactly this age; a position it would
+      // discard must not count for arrival either.
+      CLOCK.advance(Duration.ofSeconds(30));
+
+      assertThat(store.currentPosition(driverId)).isEmpty();
+    }
+
+    @Test
+    void isEmptyForADriverNeverHeardFrom() {
+      assertThat(store.currentPosition(driverId)).isEmpty();
+    }
+  }
+
   @Nested
   class ScriptCache {
 

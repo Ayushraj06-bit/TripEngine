@@ -8,6 +8,7 @@ import com.rideflow.driver.DriverStatusChanged;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.DriverTrips;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
@@ -30,18 +31,21 @@ public class DriverService implements DriverRegistration, DriverFlagging {
   private final ApplicationEventPublisher events;
   private final IdGenerator ids;
   private final Clock clock;
+  private final DriverTrips driverTrips;
 
   DriverService(
       DriverRepository drivers,
       VehicleRepository vehicles,
       ApplicationEventPublisher events,
       IdGenerator ids,
-      Clock clock) {
+      Clock clock,
+      DriverTrips driverTrips) {
     this.drivers = drivers;
     this.vehicles = vehicles;
     this.events = events;
     this.ids = ids;
     this.clock = clock;
+    this.driverTrips = driverTrips;
   }
 
   /**
@@ -152,6 +156,30 @@ public class DriverService implements DriverRegistration, DriverFlagging {
           driver, previous, vehicles.findByDriverId(driverId).map(Vehicle::type).orElse(null), now);
     }
     return new StatusView(driver.status());
+  }
+
+  /**
+   * Brings the driver's status in line with their trips: ON_TRIP while one holds them, AVAILABLE
+   * once none does.
+   *
+   * <p>Asks {@code trip} for the current state rather than acting on which event arrived. Events
+   * are delivered asynchronously and can be handled out of order: acting on them directly, a {@code
+   * DriverAssigned} handled after its trip had already been handed back would leave the driver
+   * ON_TRIP with no trip - unable to go offline, never offered work again. Reading the state makes
+   * every call converge on the right answer, however many arrive and in whatever order.
+   */
+  @Transactional
+  public void followTrips(UUID driverId) {
+    Driver driver = require(driverId);
+    Instant now = clock.instant();
+    DriverStatus previous = driver.status();
+    boolean changed =
+        driverTrips.hasActiveTrip(driverId) ? driver.startTrip(now) : driver.endTrip(now);
+    if (changed) {
+      // Location takes an ON_TRIP driver off the map, and puts them back when AVAILABLE.
+      publishStatusChange(
+          driver, previous, vehicles.findByDriverId(driverId).map(Vehicle::type).orElse(null), now);
+    }
   }
 
   @Transactional(readOnly = true)

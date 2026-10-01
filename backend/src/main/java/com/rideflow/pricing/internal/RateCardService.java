@@ -1,5 +1,7 @@
 package com.rideflow.pricing.internal;
 
+import com.rideflow.pricing.TripFees;
+import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
 import java.time.Clock;
@@ -7,6 +9,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,7 +31,7 @@ import org.springframework.stereotype.Service;
  * race it.
  */
 @Service
-class RateCardService {
+class RateCardService implements TripFees {
 
   private final RateCardRepository repository;
   private final Clock clock;
@@ -52,6 +55,17 @@ class RateCardService {
         .filter(card -> card.vehicleType() == type)
         .filter(card -> !card.effectiveFrom().isAfter(now))
         .max(Comparator.comparing(RateCard::effectiveFrom).thenComparing(RateCard::version));
+  }
+
+  @Override
+  public Money cancellationFee(UUID rateCardId) {
+    return cards(clock.instant()).stream()
+        .filter(card -> card.id().equals(rateCardId))
+        .findFirst()
+        // A card added since the last refresh: rare, and worth one read rather than a failure.
+        .or(() -> repository.findById(rateCardId).map(RateCardRow::toRateCard))
+        .orElseThrow(() -> new IllegalStateException("No rate card " + rateCardId))
+        .cancellationFee();
   }
 
   /** Forgets the cache, for tests that change the table underneath it. */
