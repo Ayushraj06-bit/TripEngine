@@ -245,8 +245,7 @@
             <!--
               PROJECT_SPEC section 12: the build fails below 80% line coverage. Per
               package, so a well-tested package cannot hide an untested one next to
-              it. Phase 4 gates trip, pricing and shared; matching and payment join
-              when they exist.
+              it. trip, matching, pricing and shared are gated; payment joins in Phase 7.
             -->
             <id>check</id>
             <goals>
@@ -259,6 +258,8 @@
                   <includes>
                     <include>com.rideflow.trip</include>
                     <include>com.rideflow.trip.*</include>
+                    <include>com.rideflow.matching</include>
+                    <include>com.rideflow.matching.*</include>
                     <include>com.rideflow.pricing</include>
                     <include>com.rideflow.pricing.*</include>
                     <include>com.rideflow.shared</include>

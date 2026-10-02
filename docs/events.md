@@ -46,15 +46,15 @@ changes an event.
 
 | Event | Published by | Consumed by | Externalized | Phase |
 |---|---|---|---|---|
-| `DriverStatusChanged` | `driver` | `location` | no | 1 |
-| `DriverWentStale` | `location` | nobody yet | no | 2 |
-| `TripRequested` | `trip` | matching (Phase 5), Kafka | yes | 4 |
-| `TripReturnedToMatching` | `trip` | `driver`; matching (Phase 5), Kafka | yes | 4 |
+| `DriverStatusChanged` | `driver` | `location`, `matching` | no | 1 |
+| `DriverWentStale` | `location` | `matching` | no | 2 |
+| `TripRequested` | `trip` | `matching`, Kafka | yes | 4 |
+| `TripReturnedToMatching` | `trip` | `driver`, `matching`, Kafka | yes | 4 |
 | `DriverAssigned` | `trip` | `driver`, Kafka | yes | 4 |
 | `DriverArrived` | `trip` | Kafka | yes | 4 |
 | `TripStarted` | `trip` | Kafka | yes | 4 |
 | `TripCompleted` | `trip` | `driver`; payment (Phase 7), Kafka | yes | 4 |
-| `TripCancelled` | `trip` | `driver`; payment (Phase 7), Kafka | yes | 4 |
+| `TripCancelled` | `trip` | `driver`, `matching`; payment (Phase 7), Kafka | yes | 4 |
 | `TripNoDriverFound` | `trip` | Kafka | yes | 4 |
 
 Each phase appends its rows here.
@@ -68,7 +68,8 @@ Each phase appends its rows here.
 - **Payload:** driverId, previousStatus, newStatus, vehicleType,
   previousVehicleType, occurredAt
 - **Consumed by:** `location`, which adds the driver to or removes them from the
-  Redis GEO set for their vehicle type.
+  Redis GEO set for their vehicle type; `matching`, which treats a driver going
+  OFFLINE while holding an offer as having rejected it.
 - **Externalized:** no. PROJECT_SPEC section 5 puts only trip and payment events
   on a Kafka topic.
 - **Ordering:** not guaranteed across drivers. Per driver it follows the
@@ -85,11 +86,10 @@ Each phase appends its rows here.
   than `stale-after-seconds`, and has already removed them from every
   availability set.
 - **Payload:** driverId, lastSeenAt, detectedAt
-- **Consumed by:** nobody yet. Phase 2 planned for `trip` to consume it, but
-  `trip` cannot depend on `location`: `driver` reacts to trip events and
-  `location` to driver events, so that dependency would close a module cycle.
-  Whichever module ends up handling a driver who vanishes mid-trip (matching or
-  notification) will consume it.
+- **Consumed by:** `matching` (Phase 5): a driver who goes stale while holding
+  an offer is treated as having rejected it, at once, rather than after the full
+  timeout. Phase 2 had planned for `trip` to consume it, but `trip` cannot depend
+  on `location` without closing a module cycle.
 - **Externalized:** no.
 - **Published once per cluster:** the sweep holds a ShedLock, so two instances
   cannot both declare the same driver gone.
@@ -118,16 +118,19 @@ Each one is published by `TripService` together with exactly one
 - **Published when:** a booking is saved as REQUESTED.
 - **Payload:** riderId, vehicleType, pickupLat, pickupLng, dropLat, dropLng,
   quotedFarePaise, surgeMultiplier, paymentMethod
-- **Consumed by:** matching (Phase 5) starts looking for a driver; surge
-  (Phase 8) may count it as demand.
+- **Consumed by:** `matching`, which starts looking for a driver - reading the
+  trip from the database, so a late duplicate for a trip since assigned does
+  nothing. Surge (Phase 8) may count it as demand.
 
 #### TripReturnedToMatching
 
 - **Published when:** the assigned driver cancels before arriving. The trip goes
   back to REQUESTED instead of ending (PROJECT_SPEC section 6).
 - **Payload:** riderId, previousDriverId, vehicleType, pickupLat, pickupLng
-- **Consumed by:** `driver`, which moves the previous driver back to AVAILABLE;
-  matching (Phase 5), which retries the trip with priority.
+- **Consumed by:** `driver`, which moves the previous driver back to AVAILABLE
+  and counts the back-out against their acceptance rate; `matching`, which
+  restarts at once, with a fresh deadline, never offering the trip back to the
+  driver who left it.
 
 #### DriverAssigned
 
@@ -164,8 +167,9 @@ Each one is published by `TripService` together with exactly one
   `no-show-after-minutes`.
 - **Payload:** riderId, driverId (null if none was assigned), cancelledBy,
   previousStatus, cancellationFeePaise (zero when free), paymentMethod
-- **Consumed by:** `driver` (frees the driver, if there was one); payment
-  (Phase 7) charges a non-zero fee.
+- **Consumed by:** `driver` (frees the driver, if there was one); `matching`,
+  which withdraws the offer that was out if the trip was still waiting, and tells
+  that driver; payment (Phase 7) charges a non-zero fee.
 
 #### TripNoDriverFound
 

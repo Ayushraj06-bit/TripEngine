@@ -1,6 +1,7 @@
 package com.rideflow.driver.internal;
 
 import com.rideflow.driver.ApprovalStatus;
+import com.rideflow.driver.CandidateFacts;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.shared.BusinessException;
 import jakarta.persistence.Column;
@@ -12,10 +13,15 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.http.HttpStatus;
 
 @Entity
 @Table(name = "drivers")
+// Updates write only the columns that changed. Offer counts are incremented by separate
+// UPDATE statements; a status change writing every column back from its stale copy would
+// silently undo them.
+@DynamicUpdate
 class Driver {
 
   /** The driver is the user; there is no separate driver id. */
@@ -100,6 +106,15 @@ class Driver {
 
   String flaggedReason() {
     return flaggedReason;
+  }
+
+  CandidateFacts candidateFacts() {
+    return new CandidateFacts(
+        userId,
+        ratingCount == 0 ? null : (double) ratingSum / ratingCount,
+        offersReceived,
+        offersAccepted,
+        lastStatusChangeAt);
   }
 
   void approve(Instant now) {

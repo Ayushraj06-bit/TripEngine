@@ -73,7 +73,15 @@ public record RideFlowProperties(
       @Positive int deadlineSeconds,
       @Positive int researchIntervalSeconds,
       @Positive int fairnessBucketMeters,
-      @DecimalMin("1.0") @DecimalMax("5.0") double minDriverRating) {}
+      @DecimalMin("1.0") @DecimalMax("5.0") double minDriverRating,
+      /* Not in section 9; added by Phase 5 rather than hard-coded, per section 11. */
+      @Positive int lockGraceSeconds,
+      @Positive int stateTtlMinutes,
+      @Positive int offerPollBatchSize,
+      @Positive int recoveryGraceSeconds,
+      @Positive int recoveryBatchSize,
+      /** Decimal places of the pickup shown in an offer. 3 is roughly 110 m. */
+      @Min(1) @Max(6) int offerPickupRoundingDecimals) {}
 
   /** Route estimation and quotes. */
   public record Pricing(

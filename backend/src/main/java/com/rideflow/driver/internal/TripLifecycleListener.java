@@ -20,9 +20,11 @@ import org.springframework.stereotype.Component;
 class TripLifecycleListener {
 
   private final DriverService drivers;
+  private final DriverOfferStats offerStats;
 
-  TripLifecycleListener(DriverService drivers) {
+  TripLifecycleListener(DriverService drivers, DriverOfferStats offerStats) {
     this.drivers = drivers;
+    this.offerStats = offerStats;
   }
 
   @ApplicationModuleListener
@@ -43,8 +45,13 @@ class TripLifecycleListener {
     }
   }
 
+  /**
+   * Both in this listener's transaction, which also marks the event handled: a redelivered event
+   * finds it already done, so the stats cannot drop twice.
+   */
   @ApplicationModuleListener
   void on(TripReturnedToMatching event) {
     drivers.followTrips(event.previousDriverId());
+    offerStats.recordBackOut(event.previousDriverId());
   }
 }
