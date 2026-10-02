@@ -115,26 +115,24 @@ public class Matcher {
 
   /** The rider cancelled while a driver was being found: withdraw the offer, stop looking. */
   public void stop(UUID tripId) {
-    store
-        .match(tripId)
-        .map(Match::currentOffer)
-        .ifPresent(
-            offerId -> {
-              OfferStore.Closing closing =
-                  store.close(offerId, OfferStatus.WITHDRAWN, OfferStatus.PENDING, null);
-              if (closing.closed()) {
-                store.unlock(closing.driverId(), offerId);
-                metrics.offerResult("withdrawn");
-                bestEffort(
-                    "tell driver " + closing.driverId() + " the offer was withdrawn",
-                    () ->
-                        notifications.sendToUser(
-                            closing.driverId(),
-                            OFFERS_DESTINATION,
-                            new OfferWithdrawn("OFFER_WITHDRAWN", offerId)));
-              }
-            });
-    store.finish(tripId);
+    store.finish(tripId).ifPresent(this::withdraw);
+  }
+
+  /** Withdraws an offer that is still out, freeing its driver and telling them. */
+  private void withdraw(UUID offerId) {
+    OfferStore.Closing closing =
+        store.close(offerId, OfferStatus.WITHDRAWN, OfferStatus.PENDING, null);
+    if (closing.closed()) {
+      store.unlock(closing.driverId(), offerId);
+      metrics.offerResult("withdrawn");
+      bestEffort(
+          "tell driver " + closing.driverId() + " the offer was withdrawn",
+          () ->
+              notifications.sendToUser(
+                  closing.driverId(),
+                  OFFERS_DESTINATION,
+                  new OfferWithdrawn("OFFER_WITHDRAWN", offerId)));
+    }
   }
 
   // --- Searching -------------------------------------------------------------------------------
@@ -242,7 +240,7 @@ public class Matcher {
       // Cancelled or assigned in the meantime: nothing is left to give up on.
       log.debug("Trip {} was no longer waiting at its deadline: {}", tripId, moved.code());
     }
-    store.finish(tripId);
+    store.finish(tripId).ifPresent(this::withdraw);
   }
 
   // --- What happens to an offer ----------------------------------------------------------------
@@ -284,7 +282,7 @@ public class Matcher {
       if ("DRIVER_HAS_ACTIVE_TRIP".equals(refused.code())) {
         advanceQuietly(tripId);
       } else {
-        store.finish(tripId);
+        endMatchingAfter(offerId, tripId);
       }
       throw rideNoLongerAvailable(refused);
     }
@@ -300,7 +298,7 @@ public class Matcher {
           () -> drivers.recordOfferAccepted(driverId));
       // The driver's lock stays until it expires: it keeps other trips off them until the
       // location module has taken them off the map, which follows a moment later.
-      store.finish(tripId);
+      endMatchingAfter(offerId, tripId);
     }
     return new AcceptedOffer(offerId, tripId, "ACCEPTED");
   }
@@ -389,8 +387,7 @@ public class Matcher {
   /** Clears whatever is left of a trip's matching and starts it again from the database. */
   void restart(WaitingTrip trip) {
     store
-        .match(trip.tripId())
-        .map(Match::currentOffer)
+        .finish(trip.tripId())
         .ifPresent(
             offerId -> {
               OfferStore.Closing closing =
@@ -399,7 +396,6 @@ public class Matcher {
                 store.unlock(closing.driverId(), offerId);
               }
             });
-    store.finish(trip.tripId());
     metrics.restart();
     begin(trip, null);
   }
@@ -434,6 +430,14 @@ public class Matcher {
   }
 
   // --- Helpers -------------------------------------------------------------------------------
+
+  /**
+   * Ends matching once the trip is settled by {@code offerId}. Normally that offer was the current
+   * one; if a racing step had sent another, it is withdrawn rather than left out.
+   */
+  private void endMatchingAfter(UUID offerId, UUID tripId) {
+    store.finish(tripId).filter(current -> !current.equals(offerId)).ifPresent(this::withdraw);
+  }
 
   private void advanceQuietly(UUID tripId) {
     try {

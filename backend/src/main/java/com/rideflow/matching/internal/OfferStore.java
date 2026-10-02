@@ -81,6 +81,7 @@ class OfferStore {
 
   private final StringRedisTemplate redis;
   private final RedisScript<Long> matchStartScript;
+  private final RedisScript<String> matchFinishScript;
   private final RedisScript<String> offerCreateScript;
   private final RedisScript<List> offerAcceptScript;
   private final RedisScript<List> offerCloseScript;
@@ -90,6 +91,7 @@ class OfferStore {
   OfferStore(
       StringRedisTemplate redis,
       RedisScript<Long> matchStartScript,
+      RedisScript<String> matchFinishScript,
       RedisScript<String> offerCreateScript,
       RedisScript<List> offerAcceptScript,
       RedisScript<List> offerCloseScript,
@@ -97,6 +99,7 @@ class OfferStore {
       RideFlowProperties properties) {
     this.redis = redis;
     this.matchStartScript = matchStartScript;
+    this.matchFinishScript = matchFinishScript;
     this.offerCreateScript = offerCreateScript;
     this.offerAcceptScript = offerAcceptScript;
     this.offerCloseScript = offerCloseScript;
@@ -167,10 +170,20 @@ class OfferStore {
         : members.stream().map(UUID::fromString).collect(Collectors.toSet());
   }
 
-  /** Ends matching for a trip: its state, its tried set and any pending search. */
-  void finish(UUID tripId) {
-    redis.delete(List.of(matchKey(tripId), triedKey(tripId)));
-    redis.opsForZSet().remove(RETRIES, tripId.toString());
+  /**
+   * Ends matching for a trip - its state, its tried set, any pending search - and returns the offer
+   * that was current at that moment. No offer can be created for the trip afterwards, so the caller
+   * can withdraw the returned one knowing it is the last.
+   */
+  Optional<UUID> finish(UUID tripId) {
+    String current =
+        redis.execute(
+            matchFinishScript,
+            List.of(matchKey(tripId), triedKey(tripId), RETRIES),
+            tripId.toString());
+    return current == null || current.isEmpty()
+        ? Optional.empty()
+        : Optional.of(UUID.fromString(current));
   }
 
   // --- Driver locks ----------------------------------------------------------------------------

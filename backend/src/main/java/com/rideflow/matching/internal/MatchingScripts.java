@@ -33,6 +33,11 @@ class MatchingScripts {
   }
 
   @Bean
+  RedisScript<String> matchFinishScript() {
+    return script("redis/match_finish.lua", String.class);
+  }
+
+  @Bean
   RedisScript<Long> unlockScript() {
     return script("redis/unlock.lua", Long.class);
   }
