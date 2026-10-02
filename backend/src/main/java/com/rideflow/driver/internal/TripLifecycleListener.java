@@ -46,8 +46,9 @@ class TripLifecycleListener {
   }
 
   /**
-   * Both in this listener's transaction, which also marks the event handled: a redelivered event
-   * finds it already done, so the stats cannot drop twice.
+   * Delivery is at least once: Spring Modulith marks the event handled after this transaction
+   * commits, not inside it. Following trips is safe to repeat; the stats drop is not, so a crash in
+   * that moment, replayed on restart, lowers the count by one more. Rare and bounded, so accepted.
    */
   @ApplicationModuleListener
   void on(TripReturnedToMatching event) {

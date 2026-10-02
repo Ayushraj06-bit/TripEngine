@@ -1,6 +1,7 @@
 package com.rideflow.matching.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,7 +12,9 @@ import com.rideflow.driver.DriverStatus;
 import com.rideflow.location.DriverWentStale;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.PaymentMethod;
 import com.rideflow.trip.TripActor;
+import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripStatus;
 import com.rideflow.trip.internal.Caller;
 import com.rideflow.trip.internal.TripService;
@@ -129,9 +132,11 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
       matcher.start(tripId, null);
       OfferView first = awaitOffer(near.id());
       assertThat(locked(near.id())).isTrue();
+      double expiredBefore = count("offers.result", "result", "expired");
 
       advanceAndPoll(Duration.ofSeconds(12));
 
+      assertThat(count("offers.result", "result", "expired")).isEqualTo(expiredBefore + 1);
       assertThat(offerStatus(first.offerId())).isEqualTo("EXPIRED");
       assertThat(locked(near.id())).isFalse();
       assertThat(NOTIFICATIONS.offersTo(far.id())).hasSize(1);
@@ -143,9 +148,11 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
       User far = driverAt(north(1_500));
       UUID tripId = requestedTrip(rider());
       matcher.start(tripId, null);
+      double rejectedBefore = count("offers.result", "result", "rejected");
 
       matcher.reject(awaitOffer(near.id()).offerId(), near.id());
 
+      assertThat(count("offers.result", "result", "rejected")).isEqualTo(rejectedBefore + 1);
       // No clock movement: the next offer does not wait for anything.
       assertThat(locked(near.id())).isFalse();
       assertThat(NOTIFICATIONS.offersTo(far.id())).hasSize(1);
@@ -338,13 +345,99 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
       UUID rider = rider();
       UUID tripId = book(rider);
       OfferView offer = awaitOffer(driver.id());
+      double withdrawnBefore = count("offers.result", "result", "withdrawn");
 
       trips.cancel(tripId, new Caller(rider, TripActor.RIDER), "Plans changed");
 
       await().atMost(EVENTUALLY).until(() -> !NOTIFICATIONS.withdrawalsTo(driver.id()).isEmpty());
+      assertThat(count("offers.result", "result", "withdrawn")).isEqualTo(withdrawnBefore + 1);
       assertThat(offerStatus(offer.offerId())).isEqualTo("WITHDRAWN");
       assertThat(locked(driver.id())).isFalse();
       assertThat(redis.hasKey("match:" + tripId)).isFalse();
+    }
+
+    /** The rider cancelled a moment before the driver accepted - here, behind matching's back. */
+    @Test
+    void releasesTheDriverWhenTheTripCanNoLongerBeAssigned() {
+      UUID driver = driverRow();
+      UUID tripId = requestedTrip(rider());
+      UUID offerId = offerDirectly(tripId, driver);
+      jdbc.update(
+          "UPDATE trips SET status = 'CANCELLED', cancelled_by = 'RIDER', cancelled_at = ?"
+              + " WHERE id = ?",
+          utc(CLOCK.instant()),
+          tripId);
+
+      assertThatExceptionOfType(BusinessException.class)
+          .isThrownBy(() -> matcher.accept(offerId, driver))
+          .satisfies(e -> assertThat(e.code()).isEqualTo("RIDE_NO_LONGER_AVAILABLE"));
+      assertThat(locked(driver)).isFalse();
+      assertThat(offerStatus(offerId)).isEqualTo("WITHDRAWN");
+      assertThat(redis.hasKey("match:" + tripId)).isFalse();
+    }
+
+    /**
+     * Against the locks, the driver already has a trip: the database refuses, matching moves on.
+     */
+    @Test
+    void movesOnWhenTheAcceptingDriverAlreadyHasATrip() {
+      UUID busyDriver = driverRow();
+      UUID earlier = requestedTrip(rider());
+      jdbc.update(
+          "UPDATE trips SET status = 'DRIVER_ASSIGNED', driver_id = ?, assigned_at = ? WHERE id = ?",
+          busyDriver,
+          utc(CLOCK.instant()),
+          earlier);
+      UUID tripId = requestedTrip(rider());
+      UUID offerId = offerDirectly(tripId, busyDriver);
+      User next = driverAt(north(500));
+
+      assertThatExceptionOfType(BusinessException.class)
+          .isThrownBy(() -> matcher.accept(offerId, busyDriver))
+          .satisfies(e -> assertThat(e.code()).isEqualTo("RIDE_NO_LONGER_AVAILABLE"));
+      assertThat(locked(busyDriver)).isFalse();
+      assertThat(NOTIFICATIONS.offersTo(next.id())).hasSize(1);
+    }
+
+    /** The real event bus this time, not a direct call: the second delivery changes nothing. */
+    @Test
+    void ignoresATripRequestedEventDeliveredTwice() {
+      driverAt(north(500));
+      driverAt(north(1_000));
+      UUID rider = rider();
+      UUID tripId = book(rider);
+      await().atMost(EVENTUALLY).until(() -> NOTIFICATIONS.offers().size() == 1);
+      UUID eventId = UUID.randomUUID();
+
+      new TransactionTemplate(transactionManager)
+          .executeWithoutResult(
+              status ->
+                  events.publishEvent(
+                      new TripRequested(
+                          eventId,
+                          CLOCK.instant(),
+                          tripId,
+                          rider,
+                          VehicleType.CAR,
+                          PICKUP.latitude(),
+                          PICKUP.longitude(),
+                          12.9784,
+                          77.6408,
+                          9900,
+                          java.math.BigDecimal.ONE,
+                          PaymentMethod.WALLET)));
+
+      await()
+          .atMost(EVENTUALLY)
+          .until(
+              () ->
+                  jdbc.queryForObject(
+                          "SELECT count(*) FROM event_publication"
+                              + " WHERE serialized_event LIKE ? AND completion_date IS NULL",
+                          Long.class,
+                          "%" + eventId + "%")
+                      == 0);
+      assertThat(NOTIFICATIONS.offers()).hasSize(1);
     }
 
     @Test
@@ -447,6 +540,19 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
     }
 
     @Test
+    void leavesTripsYoungerThanTheGracePeriodAlone() {
+      UUID tripId = requestedTrip(rider());
+      double restartsBefore = count("match.restarts");
+
+      // Its first steps may simply still be running.
+      CLOCK.advance(Duration.ofSeconds(5));
+      sweeper.sweep();
+
+      assertThat(redis.hasKey("match:" + tripId)).isFalse();
+      assertThat(count("match.restarts")).isEqualTo(restartsBefore);
+    }
+
+    @Test
     void givesUpOnATripWhoseDeadlinePassedWhileNobodyWasMatchingIt() {
       UUID tripId = requestedTrip(rider());
 
@@ -454,6 +560,40 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
       sweeper.sweep();
 
       assertThat(statusOf(tripId)).isEqualTo(TripStatus.NO_DRIVER_FOUND);
+    }
+  }
+
+  /** The building blocks the races depend on, checked directly. */
+  @Nested
+  class Store {
+
+    @Test
+    void releasesALockOnlyForTheOfferThatTookIt() {
+      UUID driver = driverRow();
+      UUID mine = UUID.randomUUID();
+      assertThat(store.lock(driver, mine)).isTrue();
+
+      store.unlock(driver, UUID.randomUUID());
+      assertThat(locked(driver)).isTrue();
+
+      store.unlock(driver, mine);
+      assertThat(locked(driver)).isFalse();
+    }
+
+    @Test
+    void endsAMatchSoThatNoOfferCanFollowAndReportsTheLastOne() {
+      UUID driver = driverRow();
+      UUID tripId = requestedTrip(rider());
+      UUID offerId = offerDirectly(tripId, driver);
+      OfferStore.Match ended = store.match(tripId).orElseThrow();
+
+      assertThat(store.finish(tripId)).contains(offerId);
+
+      // A step that read the match before it ended can no longer add to it.
+      UUID late = UUID.randomUUID();
+      assertThat(store.createOffer(ended, late, driverRow(), 2.0, CLOCK.instant().plusSeconds(12)))
+          .isEqualTo(OfferStore.Creation.NO_MATCH);
+      assertThat(store.finish(tripId)).isEmpty();
     }
   }
 
