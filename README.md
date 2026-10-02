@@ -21,7 +21,8 @@ the thing.
 | 2 Real-time location | done |
 | 3 Pricing and quotes | done |
 | 4 Trip lifecycle and booking | done |
-| 5 Matching | next |
+| 5 Matching engine | done |
+| 6 Live trip and final fare | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -48,6 +49,16 @@ position, the start OTP locks after three wrong codes, and drivers move between
 AVAILABLE and ON_TRIP as their trips change
 ([ADR 0009](docs/adr/0009-trip-booking-and-lifecycle.md)). The build now fails
 below 80% line coverage in `trip`, `pricing` and `shared`.
+
+**Phase 5** adds the matching engine. Offers go to one driver at a time, nearest
+first with a fairness tie-break, widening from 2 to 7 km and searching again
+until the deadline. Nothing waits on a thread: offers, locks and timers live in
+Redis, a poller on every instance expires offers, and a recovery sweep rebuilds
+anything Redis loses from PostgreSQL - which, through the partial unique index,
+is the final word on who gets a trip
+([ADR 0010](docs/adr/0010-non-blocking-matching.md)). Offers reach drivers on
+`/user/queue/offers` through the new notification module, which fans messages out
+across instances over Redis Pub/Sub.
 
 ## Requirements
 

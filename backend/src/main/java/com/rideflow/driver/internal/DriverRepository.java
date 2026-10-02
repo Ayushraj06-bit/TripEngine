@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 interface DriverRepository extends JpaRepository<Driver, UUID> {
 
@@ -22,4 +24,24 @@ interface DriverRepository extends JpaRepository<Driver, UUID> {
       ApprovalStatus approvalStatus, UUID cursor, Limit limit);
 
   Optional<Driver> findByUserId(UUID userId);
+
+  @Modifying
+  @Query("update Driver d set d.offersReceived = d.offersReceived + 1 where d.userId = :driverId")
+  int incrementOffersReceived(UUID driverId);
+
+  /**
+   * Guarded so accepted never exceeds received, which the table's CHECK enforces: an offer whose
+   * "sent" count was lost to a failure goes uncounted rather than failing the acceptance.
+   */
+  @Modifying
+  @Query(
+      "update Driver d set d.offersAccepted = d.offersAccepted + 1"
+          + " where d.userId = :driverId and d.offersAccepted < d.offersReceived")
+  int incrementOffersAccepted(UUID driverId);
+
+  @Modifying
+  @Query(
+      "update Driver d set d.offersAccepted = d.offersAccepted - 1"
+          + " where d.userId = :driverId and d.offersAccepted > 0")
+  int decrementOffersAccepted(UUID driverId);
 }

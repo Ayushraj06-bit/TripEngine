@@ -55,6 +55,9 @@ class SecurityMatrixTest {
   /** A trip nobody has: a permitted caller reaching the route gets 404, not 403. */
   private static final String TRIP = TRIPS + "/" + UUID.randomUUID();
 
+  /** Likewise an offer nobody has. */
+  private static final String OFFER = "/api/v1/offers/" + UUID.randomUUID();
+
   @Autowired private MockMvc mockMvc;
   @Autowired private AuthService auth;
   @Autowired private JdbcTemplate jdbc;
@@ -166,6 +169,17 @@ class SecurityMatrixTest {
         row(HttpMethod.POST, TRIP + "/complete", Caller.ANONYMOUS, 401),
         row(HttpMethod.POST, TRIP + "/complete", Caller.RIDER, 403),
         row(HttpMethod.POST, TRIP + "/complete", Caller.DRIVER, 404),
+
+        // --- offers (Phase 5): DRIVER only ---
+        row(HttpMethod.POST, OFFER + "/accept", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, OFFER + "/accept", Caller.RIDER, 403),
+        row(HttpMethod.POST, OFFER + "/accept", Caller.ADMIN, 403),
+        row(HttpMethod.POST, OFFER + "/accept", Caller.DRIVER, 404),
+        row(HttpMethod.POST, OFFER + "/reject", Caller.RIDER, 403),
+        row(HttpMethod.POST, OFFER + "/reject", Caller.DRIVER, 404),
+        row(HttpMethod.GET, "/api/v1/offers/current", Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, "/api/v1/offers/current", Caller.RIDER, 403),
+        row(HttpMethod.GET, "/api/v1/offers/current", Caller.DRIVER, 204),
 
         // --- WebSocket handshake (Phase 2): open over HTTP, because the token travels in
         // the STOMP CONNECT frame. A plain GET without an upgrade is not a WebSocket

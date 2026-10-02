@@ -127,6 +127,23 @@ until the 24-hour purge (ADR 0009 records this gap).
 
 The quote that request consumed is gone; the rider needs a new one.
 
+### A trip sits in REQUESTED and no driver is offered it
+
+Matching state lives in Redis and is rebuilt from PostgreSQL by the recovery
+sweep every 15 s, so a trip should never wait unattended for long (ADR 0010).
+
+1. Is anyone available nearby? `GET /api/v1/drivers/nearby` as a rider at the
+   pickup, or `location_drivers_available` in Grafana.
+2. What does Redis hold? `HGETALL match:<tripId>` shows the deadline and the
+   current offer; `ZSCORE match:retry <tripId>` the next search.
+3. Is the sweep running? Look for `Restarting matching for trip` in the logs and
+   for `match_restarts_total` rising. The sweep holds the `matching-recovery`
+   ShedLock; a row in `shedlock` with a `lock_until` far in the future means an
+   instance died holding it.
+
+A driver lock left behind by a crash (`driver:lock:<driverId>` pointing at an
+offer that no longer exists) needs no action: the next search takes it over.
+
 ### Port already in use
 
 Defaults: backend 8080, simulator 8081, Postgres 5432, Redis 6379, Kafka 9092,

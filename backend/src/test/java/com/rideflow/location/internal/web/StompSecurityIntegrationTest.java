@@ -6,6 +6,7 @@ import static org.awaitility.Awaitility.await;
 import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
 import com.rideflow.identity.internal.AuthService;
+import com.rideflow.notification.Notifications;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -75,6 +76,7 @@ class StompSecurityIntegrationTest {
   @Autowired private StringRedisTemplate redis;
   @Autowired private SimpMessagingTemplate messaging;
   @Autowired private SimpUserRegistry userRegistry;
+  @Autowired private Notifications notifications;
 
   @Value("${rideflow.security.issuer}")
   private String issuer;
@@ -298,6 +300,41 @@ class StompSecurityIntegrationTest {
 
       assertThat(received.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
           .isEqualTo("driver-assigned");
+    }
+
+    /**
+     * The notification module end to end: published to Redis, received by every instance - here,
+     * this one - and delivered to the user's own queue as JSON.
+     */
+    @Test
+    void deliversANotificationPublishedThroughRedis() throws Exception {
+      String token = register(Role.DRIVER, "+919000030004");
+      UUID driverId = idOf("+919000030004");
+      StompSession session = connect(token).established();
+
+      CompletableFuture<String> received = new CompletableFuture<>();
+      session.subscribe(
+          "/user/queue/offers",
+          new StompFrameHandler() {
+            @Override
+            public Type getPayloadType(StompHeaders headers) {
+              return byte[].class;
+            }
+
+            @Override
+            public void handleFrame(StompHeaders headers, Object payload) {
+              received.complete(new String((byte[]) payload, StandardCharsets.UTF_8));
+            }
+          });
+      await()
+          .atMost(EVENTUALLY)
+          .until(() -> isSubscribed(driverId.toString(), "/user/queue/offers"));
+
+      notifications.sendToUser(
+          driverId, "/queue/offers", java.util.Map.of("type", "OFFER", "offerId", "offer-1"));
+
+      String json = received.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS);
+      assertThat(json).contains("\"type\":\"OFFER\"").contains("\"offerId\":\"offer-1\"");
     }
 
     @Test

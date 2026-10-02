@@ -116,6 +116,16 @@ rideflow:
     research-interval-seconds: 5
     fairness-bucket-meters: 300
     min-driver-rating: 3.5
+    # Phase 5 additions. Section 7 gives the lock "offer timeout + 3 s" and the
+    # match and offer state 10 minutes; the intervals are the Phase 5 brief's.
+    lock-grace-seconds: 3
+    state-ttl-minutes: 10
+    offer-poll-interval: PT0.5S
+    offer-poll-batch-size: 100
+    recovery-interval: PT15S
+    recovery-grace-seconds: 10
+    recovery-batch-size: 200
+    offer-pickup-rounding-decimals: 3
   pricing:
     road-factor: 1.3
     quote-ttl-minutes: 5
