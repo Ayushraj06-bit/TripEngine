@@ -4,6 +4,8 @@ import com.rideflow.pricing.ConsumedQuote;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.ActiveTrip;
+import com.rideflow.trip.FlaggedTrips;
 import com.rideflow.trip.PaymentMethod;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripStatus;
@@ -80,6 +82,9 @@ class Trip {
   private Instant cancelledAt;
   private Instant noDriverFoundAt;
 
+  /** Why a human should look at this trip; null for almost every trip. The first reason stands. */
+  private String flaggedReason;
+
   /**
    * Optimistic locking: two changes racing on one trip cannot both win. A wrapper type, so a new
    * trip is recognised as new and inserted without a pointless select first.
@@ -130,11 +135,52 @@ class Trip {
     this.status = TripStatus.IN_PROGRESS;
   }
 
-  /** For now the final fare is the quoted one; Phase 6 reprices from the actual route. */
-  void complete(Instant now) {
-    this.finalFarePaise = quotedFarePaise;
+  /**
+   * Settles the trip. Distance and duration were the quote's estimate until now; from here on they
+   * are what actually happened.
+   */
+  void complete(Instant now, FinalFares.FinalFare fare) {
+    this.finalFarePaise = fare.farePaise();
+    this.distanceMeters = fare.distanceMeters();
+    this.durationSeconds = fare.durationSeconds();
+    if (fare.flag() != null) {
+      flag(fare.flag());
+    }
     this.completedAt = now;
     this.status = TripStatus.COMPLETED;
+  }
+
+  /**
+   * Raises the trip for review. The first reason stands: a later one must not overwrite the
+   * evidence of what was noticed first.
+   *
+   * @return true if this call flagged it
+   */
+  boolean flag(String reason) {
+    if (flaggedReason != null) {
+      return false;
+    }
+    this.flaggedReason = reason;
+    return true;
+  }
+
+  ActiveTrip activeTrip() {
+    return new ActiveTrip(id, riderId, status, pickup(), drop());
+  }
+
+  FlaggedTrips.FlaggedTrip flagged() {
+    return new FlaggedTrips.FlaggedTrip(
+        id,
+        status,
+        riderId,
+        driverId,
+        flaggedReason,
+        quotedFarePaise,
+        finalFarePaise,
+        distanceMeters,
+        durationSeconds,
+        requestedAt,
+        completedAt);
   }
 
   void cancel(TripActor by, String reason, Money fee, Instant now) {
@@ -287,6 +333,18 @@ class Trip {
 
   Instant arrivedAt() {
     return arrivedAt;
+  }
+
+  Instant startedAt() {
+    return startedAt;
+  }
+
+  long distanceMeters() {
+    return distanceMeters;
+  }
+
+  String flaggedReason() {
+    return flaggedReason;
   }
 
   Instant otpLockedUntil() {

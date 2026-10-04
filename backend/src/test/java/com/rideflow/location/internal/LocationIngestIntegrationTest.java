@@ -1,16 +1,24 @@
 package com.rideflow.location.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.MutableClock;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.ActiveTrip;
+import com.rideflow.trip.TripStatus;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,8 +28,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.test.context.ActiveProfiles;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The ingestion pipeline against a real Redis.
@@ -393,6 +405,142 @@ class LocationIngestIntegrationTest {
     @Test
     void isEmptyForADriverNeverHeardFrom() {
       assertThat(store.currentPosition(driverId)).isEmpty();
+    }
+  }
+
+  /** A driver on a trip: the rider sees them coming, the route is recorded, silence is told. */
+  @Nested
+  class OnATrip {
+
+    @Autowired RedisConnectionFactory connections;
+    @Autowired StaleDriverSweeper sweeper;
+    @Autowired JsonMapper json;
+
+    private final UUID tripId = UUID.randomUUID();
+    private final UUID riderId = UUID.randomUUID();
+    private final List<Map<String, Object>> published = new CopyOnWriteArrayList<>();
+    private RedisMessageListenerContainer listener;
+
+    /** 1 km due north of MG Road. */
+    private final GeoPoint pickup =
+        new GeoPoint(MG_ROAD.latitude() + 0.008993, MG_ROAD.longitude());
+
+    private final GeoPoint drop = new GeoPoint(13.0352, 77.6064);
+
+    @BeforeEach
+    @SuppressWarnings("unchecked")
+    void listenToEverythingPublished() {
+      listener = new RedisMessageListenerContainer();
+      listener.setConnectionFactory(connections);
+      listener.addMessageListener(
+          (message, pattern) -> published.add(json.readValue(message.getBody(), Map.class)),
+          new ChannelTopic("rt:events"));
+      listener.afterPropertiesSet();
+      listener.start();
+      // Pub/Sub keeps nothing for a late subscriber: wait until this one hears a probe.
+      await()
+          .atMost(Duration.ofSeconds(10))
+          .until(
+              () -> {
+                // Well formed, for nobody connected: every instance's delivery drops it quietly.
+                redis.convertAndSend(
+                    "rt:events",
+                    "{\"userId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"destination\":\"/queue/probe\",\"envelope\":\"{}\"}");
+                return !published.isEmpty();
+              });
+      published.clear();
+    }
+
+    @AfterEach
+    void stopListening() throws Exception {
+      listener.destroy();
+    }
+
+    private void onTrip(TripStatus status) {
+      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, null);
+      store.applyTripContext(
+          driverId, Optional.of(new ActiveTrip(tripId, riderId, status, pickup, drop)));
+    }
+
+    /** What reached the rider on {@code destination}, as envelopes. */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> toRider(String destination) {
+      return published.stream()
+          .filter(m -> riderId.toString().equals(m.get("userId")))
+          .filter(m -> destination.equals(m.get("destination")))
+          .map(m -> (Map<String, Object>) json.readValue((String) m.get("envelope"), Map.class))
+          .toList();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void showsTheRiderWhereTheirDriverIsAtMostEveryTwoSeconds() {
+      onTrip(TripStatus.DRIVER_ASSIGNED);
+
+      ingest.accept(driverId, at(MG_ROAD, 1));
+      CLOCK.advance(Duration.ofSeconds(1));
+      ingest.accept(
+          driverId, at(new GeoPoint(MG_ROAD.latitude() + 0.0001, MG_ROAD.longitude()), 2));
+      CLOCK.advance(Duration.ofSeconds(1));
+      ingest.accept(
+          driverId, at(new GeoPoint(MG_ROAD.latitude() + 0.0002, MG_ROAD.longitude()), 3));
+
+      await()
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> toRider("/queue/driver-location").size() == 2);
+      Map<String, Object> first = toRider("/queue/driver-location").getFirst();
+      assertThat(first)
+          .containsEntry("type", "DRIVER_LOCATION")
+          .containsEntry("tripId", tripId.toString())
+          .containsEntry("seq", 1);
+      Map<String, Object> position = (Map<String, Object>) first.get("payload");
+      // 1 km straight, 1.3 km by road, at 22 km/h: 213 s to the pickup.
+      assertThat(position).containsEntry("phase", "TO_PICKUP").containsEntry("etaSeconds", 213);
+    }
+
+    @Test
+    void recordsTheRouteOnlyOnceTheRiderIsAboard() {
+      onTrip(TripStatus.DRIVER_ASSIGNED);
+      ingest.accept(driverId, at(MG_ROAD, 1));
+      assertThat(redis.hasKey("trip:route:" + tripId)).isFalse();
+
+      onTrip(TripStatus.IN_PROGRESS);
+      CLOCK.advance(Duration.ofSeconds(5));
+      ingest.accept(
+          driverId, at(new GeoPoint(MG_ROAD.latitude() + 0.0005, MG_ROAD.longitude()), 2));
+      CLOCK.advance(Duration.ofSeconds(5));
+      ingest.accept(
+          driverId, at(new GeoPoint(MG_ROAD.latitude() + 0.0010, MG_ROAD.longitude()), 3));
+
+      assertThat(redis.opsForList().size("trip:route:" + tripId)).isEqualTo(2);
+      assertThat(redis.getExpire("trip:route:" + tripId)).isPositive();
+    }
+
+    @Test
+    void tellsTheRiderWhenTheirDriverGoesQuiet() {
+      onTrip(TripStatus.IN_PROGRESS);
+      ingest.accept(driverId, at(MG_ROAD, 1));
+
+      CLOCK.advance(Duration.ofSeconds(30));
+      sweeper.sweep();
+
+      await().atMost(Duration.ofSeconds(10)).until(() -> !toRider("/queue/trip-updates").isEmpty());
+      assertThat(toRider("/queue/trip-updates").getFirst())
+          .containsEntry("type", "DRIVER_CONNECTION_LOST")
+          .containsEntry("tripId", tripId.toString());
+    }
+
+    @Test
+    void forgetsTheTripOnceItIsOver() {
+      onTrip(TripStatus.IN_PROGRESS);
+      store.applyTripContext(driverId, Optional.empty());
+
+      ingest.accept(driverId, at(MG_ROAD, 1));
+
+      assertThat(redis.hasKey("trip:route:" + tripId)).isFalse();
+      assertThat(redis.opsForHash().get("driver:state:" + driverId, "tripId")).isNull();
     }
   }
 

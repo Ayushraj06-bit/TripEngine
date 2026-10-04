@@ -1,6 +1,7 @@
 package com.rideflow.trip;
 
 import com.rideflow.shared.GeoPoint;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +20,7 @@ public interface DriverPositions {
    * to lie inside the geofence must not count as arrived.
    */
   Optional<GeoPoint> currentPosition(UUID driverId);
+
+  /** When the driver last reported a position that was accepted, however long ago. */
+  Optional<Instant> lastReportedAt(UUID driverId);
 }

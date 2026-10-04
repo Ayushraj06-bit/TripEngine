@@ -181,6 +181,12 @@ class SecurityMatrixTest {
         row(HttpMethod.GET, "/api/v1/offers/current", Caller.RIDER, 403),
         row(HttpMethod.GET, "/api/v1/offers/current", Caller.DRIVER, 204),
 
+        // --- flagged trips (Phase 6): ADMIN only ---
+        row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.RIDER, 403),
+        row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.DRIVER, 403),
+        row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.ADMIN, 200),
+
         // --- WebSocket handshake (Phase 2): open over HTTP, because the token travels in
         // the STOMP CONNECT frame. A plain GET without an upgrade is not a WebSocket
         // request, so 400 here shows the path is reachable, not that anything is allowed:

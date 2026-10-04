@@ -1,9 +1,11 @@
 package com.rideflow.pricing.internal;
 
+import com.rideflow.pricing.FareBreakdown;
 import com.rideflow.pricing.TripFees;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
@@ -59,13 +61,29 @@ class RateCardService implements TripFees {
 
   @Override
   public Money cancellationFee(UUID rateCardId) {
+    return card(rateCardId).cancellationFee();
+  }
+
+  @Override
+  public FareBreakdown fareFor(
+      UUID rateCardId, long distanceMeters, long durationSeconds, BigDecimal surgeMultiplier) {
+    return FareCalculator.calculate(
+        card(rateCardId), distanceMeters, durationSeconds, surgeMultiplier);
+  }
+
+  @Override
+  public Money waitingPerMinute(UUID rateCardId) {
+    return card(rateCardId).waitingPerMinute();
+  }
+
+  /** A card by id, active or not: trips keep the card they were quoted on. */
+  private RateCard card(UUID rateCardId) {
     return cards(clock.instant()).stream()
         .filter(card -> card.id().equals(rateCardId))
         .findFirst()
         // A card added since the last refresh: rare, and worth one read rather than a failure.
         .or(() -> repository.findById(rateCardId).map(RateCardRow::toRateCard))
-        .orElseThrow(() -> new IllegalStateException("No rate card " + rateCardId))
-        .cancellationFee();
+        .orElseThrow(() -> new IllegalStateException("No rate card " + rateCardId));
   }
 
   /** Forgets the cache, for tests that change the table underneath it. */

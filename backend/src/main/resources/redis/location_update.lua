@@ -33,8 +33,10 @@
 -- ARGV[9]  maxSpeedKmph
 -- ARGV[10] inServiceArea               1 or 0, decided in Java
 -- ARGV[11] stateTtlSeconds
+-- ARGV[12] forwardIntervalMs: how often a rider may be sent their driver's position
 --
--- Returns { result, spoofStrikes, geoWritten }
+-- Returns { result, spoofStrikes, geoWritten }, and for a driver on a trip also
+--   tripId, riderId, tripPhase, targetLat, targetLng, forward (1 or 0), vehicleType
 --   result: accepted | ignored_out_of_order | throttled | rejected_spoof
 
 local stateKey    = KEYS[1]
@@ -51,6 +53,7 @@ local forceWriteMs      = tonumber(ARGV[8]) * 1000
 local maxSpeedKmph      = tonumber(ARGV[9])
 local inServiceArea     = ARGV[10] == '1'
 local stateTtlSeconds   = tonumber(ARGV[11])
+local forwardIntervalMs = tonumber(ARGV[12])
 
 -- Great-circle distance in metres. Mirrors GeoPoint.distanceMetersTo so the two
 -- never disagree about whether a driver moved.
@@ -82,7 +85,8 @@ end
 
 -- Previous state. Absent on a driver's first ping after a Redis flush or a restart.
 local stored = redis.call('HMGET', stateKey,
-    'status', 'vehicleType', 'lat', 'lng', 'ts', 'seq', 'lastGeoWriteTs', 'spoofStrikes')
+    'status', 'vehicleType', 'lat', 'lng', 'ts', 'seq', 'lastGeoWriteTs', 'spoofStrikes',
+    'tripId', 'riderId', 'tripPhase', 'targetLat', 'targetLng', 'lastForwardTs')
 
 local status         = stored[1]
 local vehicleType    = stored[2]
@@ -151,6 +155,21 @@ if status == 'AVAILABLE' and inServiceArea then
   end
 else
   removeFromEveryAvailableSet()
+end
+
+-- 6. On a trip. Phase 6: the caller records the route and shows the rider where their
+--    driver is - the latter at most every forwardIntervalMs, decided here, against the
+--    same clock, so two instances cannot both decide to send.
+local tripId = stored[9]
+if tripId then
+  local lastForwardTs = tonumber(stored[14])
+  local forward = 0
+  if lastForwardTs == nil or (nowMs - lastForwardTs) >= forwardIntervalMs then
+    redis.call('HSET', stateKey, 'lastForwardTs', nowMs)
+    forward = 1
+  end
+  return { 'accepted', spoofStrikes, geoWritten, tripId, stored[10] or '', stored[11] or '',
+           stored[12] or '', stored[13] or '', forward, vehicleType or '' }
 end
 
 return { 'accepted', spoofStrikes, geoWritten }

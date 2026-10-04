@@ -66,6 +66,7 @@ abstract class TripIntegrationTestBase {
   @Autowired DriverService drivers;
   @Autowired DriverAdministration driverAdministration;
   @Autowired TripTestConfiguration.PausableFees fees;
+  @Autowired TripTestConfiguration.BreakableRoutes routes;
 
   private final AtomicInteger sequence = new AtomicInteger();
 
@@ -85,7 +86,9 @@ abstract class TripIntegrationTestBase {
   void resetWorld() {
     CLOCK.set(START);
     TripTestConfiguration.POSITIONS.clear();
+    TripTestConfiguration.PUSHES.clear();
     fees.reset();
+    routes.reset();
     truncateEverything();
   }
 

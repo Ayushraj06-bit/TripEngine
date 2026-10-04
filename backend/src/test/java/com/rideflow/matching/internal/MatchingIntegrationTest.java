@@ -215,8 +215,7 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
 
       getAs(offered, "/api/v1/offers/current")
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.offerId").value(offerId.toString()))
-          .andExpect(jsonPath("$.type").value("OFFER"));
+          .andExpect(jsonPath("$.offerId").value(offerId.toString()));
       getAs(other, "/api/v1/offers/current").andExpect(status().isNoContent());
     }
   }
@@ -571,13 +570,47 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
     void releasesALockOnlyForTheOfferThatTookIt() {
       UUID driver = driverRow();
       UUID mine = UUID.randomUUID();
-      assertThat(store.lock(driver, mine)).isTrue();
+      redis.opsForValue().set(OfferStore.lockKey(driver), mine.toString());
 
       store.unlock(driver, UUID.randomUUID());
       assertThat(locked(driver)).isTrue();
 
       store.unlock(driver, mine);
       assertThat(locked(driver)).isFalse();
+    }
+
+    /**
+     * The lock and the offer are written in one script, so there is never a lock without its offer
+     * for a second trip to mistake for an orphan.
+     */
+    @Test
+    void givesADriverOneLiveOfferAtATime() {
+      UUID driver = driverRow();
+      UUID first = offerDirectly(requestedTrip(rider()), driver);
+
+      UUID tripId = requestedTrip(rider());
+      matcher.start(tripId, null);
+      assertThat(
+              store.createOffer(
+                  store.match(tripId).orElseThrow(),
+                  UUID.randomUUID(),
+                  driver,
+                  2.0,
+                  CLOCK.instant().plusSeconds(12)))
+          .isEqualTo(OfferStore.Creation.DRIVER_BUSY);
+      assertThat(store.lockedOffer(driver)).contains(first);
+    }
+
+    @Test
+    void takesOverALockLeftOnAClosedOffer() {
+      UUID driver = driverRow();
+      UUID first = offerDirectly(requestedTrip(rider()), driver);
+      // Closed, then a crash before the lock was released.
+      store.close(first, OfferStore.OfferStatus.REJECTED, OfferStore.OfferStatus.PENDING, null);
+
+      UUID second = offerDirectly(requestedTrip(rider()), driver);
+
+      assertThat(store.lockedOffer(driver)).contains(second);
     }
 
     @Test

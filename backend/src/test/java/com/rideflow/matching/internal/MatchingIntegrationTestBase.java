@@ -181,10 +181,11 @@ abstract class MatchingIntegrationTestBase {
     matcher.start(tripId, null);
     OfferStore.Match match = store.match(tripId).orElseThrow();
     UUID offerId = UUID.randomUUID();
-    if (!store.lock(driverId, offerId)) {
-      throw new IllegalStateException("driver " + driverId + " is already locked");
+    OfferStore.Creation created =
+        store.createOffer(match, offerId, driverId, 2.0, CLOCK.instant().plusSeconds(12));
+    if (created != OfferStore.Creation.CREATED) {
+      throw new IllegalStateException("No offer to driver " + driverId + ": " + created);
     }
-    store.createOffer(match, offerId, driverId, 2.0, CLOCK.instant().plusSeconds(12));
     return offerId;
   }
 

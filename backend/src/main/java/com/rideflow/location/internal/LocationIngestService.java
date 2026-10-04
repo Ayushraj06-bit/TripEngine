@@ -6,6 +6,7 @@ import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.ServiceArea;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.time.Clock;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -39,6 +40,8 @@ public class LocationIngestService {
   static final String OUTSIDE_SERVICE_AREA = "outside_service_area";
 
   private final DriverStateStore store;
+  private final LiveTripRelay liveTrips;
+  private final Clock clock;
   private final ServiceArea serviceArea;
   private final DriverFlagging driverFlagging;
   private final RideFlowProperties properties;
@@ -47,11 +50,15 @@ public class LocationIngestService {
 
   LocationIngestService(
       DriverStateStore store,
+      LiveTripRelay liveTrips,
+      Clock clock,
       ServiceArea serviceArea,
       DriverFlagging driverFlagging,
       RideFlowProperties properties,
       MeterRegistry meters) {
     this.store = store;
+    this.liveTrips = liveTrips;
+    this.clock = clock;
     this.serviceArea = serviceArea;
     this.driverFlagging = driverFlagging;
     this.properties = properties;
@@ -110,6 +117,9 @@ public class LocationIngestService {
 
     if ("rejected_spoof".equals(outcome.result())) {
       flagIfPersistent(driverId, outcome.spoofStrikes());
+    }
+    if (outcome.accepted() && outcome.onTrip() != null) {
+      liveTrips.relay(driverId, position, clock.instant(), outcome.onTrip());
     }
 
     // An accepted update from outside the area is counted separately, because "we

@@ -50,15 +50,41 @@ and is slow; later runs reuse them.
 
 Used to exercise the cross-instance real-time path and to load-test.
 
+Both instances must sign and check tokens with the same RSA key pair, or a
+token from one is rejected by the other. The compose file refuses to start
+without one. Generate a throwaway pair for local use. Never commit it.
+
 ```bash
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up -d --build
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/rideflow.pem
+export RIDEFLOW_RSA_PRIVATE_KEY="$(grep -v -- ----- /tmp/rideflow.pem | tr -d '\n')"
+export RIDEFLOW_RSA_PUBLIC_KEY="$(openssl pkey -in /tmp/rideflow.pem -pubout | grep -v -- ----- | tr -d '\n')"
+
 ```
 
 nginx listens on 8080 and round-robins between the instances, which are also
 reachable directly on 8091 and 8092. Round robin is deliberate: real-time
-delivery goes through Redis Pub/Sub, so no sticky sessions are needed. If a
-client only receives messages when it happens to hit one instance, the Pub/Sub
-fan-out is broken — check the `rt:events` channel first.
+delivery goes through Redis Pub/Sub, so no sticky sessions are needed
+([ADR 0011](adr/0011-realtime-fan-out-over-redis-pub-sub.md)).
+
+### Proving the fan-out
+
+1. Watch the channel: `docker exec -it rideflow-redis redis-cli SUBSCRIBE rt:events`.
+2. Connect a rider's STOMP session directly to instance 1
+   (`ws://localhost:8091/ws`) and subscribe to `/user/queue/trip-updates`.
+3. Book and progress a trip through instance 2 (`http://localhost:8092`).
+4. Each change appears once on `rt:events` and reaches the rider on instance 1.
+   Instance 2 drops it, because the rider has no session there.
+
+If a client receives messages only when it happens to land on one instance, the
+fan-out is broken. `PUBSUB NUMSUB rt:events` in redis-cli should count one subscriber per instance.
+
+### Proving the scheduled jobs run once
+
+The stale-driver sweep, the matching recovery sweep and the silent-driver check
+each run on every instance, but under ShedLock only one instance holds each
+lock at a time: `SELECT name, locked_by, lock_until FROM shedlock;` shows the
+holder. Stop that instance (`docker compose ... stop backend-1`), and the other
+takes the lock once `lock_until` passes.
 
 ## Health and diagnostics
 
@@ -143,6 +169,35 @@ sweep every 15 s, so a trip should never wait unattended for long (ADR 0010).
 
 A driver lock left behind by a crash (`driver:lock:<driverId>` pointing at an
 offer that no longer exists) needs no action: the next search takes it over.
+
+### A rider stops seeing their driver move
+
+Positions are forwarded only while the driver has an active trip, and at most
+every 2 s.
+
+1. `HGETALL driver:state:<driverId>`. `tripId`, `riderId` and `tripPhase` should
+   be set. If they are missing, the trip-context listener has not caught up.
+   Look for incomplete rows in `event_publication`.
+2. Is the driver still sending? `ts` in the same hash is their last accepted
+   update. Silence for 30 s makes them stale, and the rider is told
+   `DRIVER_CONNECTION_LOST`. The trip carries on.
+3. Is the rider connected? A message to a user with no session anywhere is
+   dropped by design. The app re-reads `GET /api/v1/trips/active` on reconnect.
+
+### A trip is flagged
+
+`GET /api/v1/admin/trips/flagged` lists flagged trips, newest first, with the
+first reason found. Flags never change a fare or a status. They ask a human to
+look.
+
+- `Completed in N s over M m`: a trip that barely happened, charged the minimum
+  fare.
+- `Repriced from X to Y paise...`: the route driven was much longer than
+  estimated. Compare with the quote.
+- `No route was recorded...`: the phone sent nothing during the ride, or Redis
+  lost the list. The quote was charged.
+- `Driver silent for over 10 minutes...`: the driver's phone stopped reporting
+  mid-ride.
 
 ### Port already in use
 

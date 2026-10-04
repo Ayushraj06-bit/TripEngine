@@ -14,7 +14,6 @@ import java.util.UUID;
  * exact point by accepting; someone who only browses offers learns nothing precise.
  */
 public record OfferView(
-    String type,
     UUID offerId,
     Point pickup,
     VehicleType vehicleType,
@@ -25,7 +24,6 @@ public record OfferView(
 
   static OfferView of(UUID offerId, OfferStore.Match match, Instant expiresAt, int decimals) {
     return new OfferView(
-        "OFFER",
         offerId,
         new Point(
             round(match.pickup().latitude(), decimals),

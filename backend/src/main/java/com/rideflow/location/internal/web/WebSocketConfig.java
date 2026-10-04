@@ -9,6 +9,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 /**
  * STOMP over WebSocket at {@code /ws}.
@@ -29,9 +30,11 @@ class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
   private static final long HEARTBEAT_MS = 10_000;
 
   private final StompAuthInterceptor authInterceptor;
+  private final ExpiringSessions expiringSessions;
 
-  WebSocketConfig(StompAuthInterceptor authInterceptor) {
+  WebSocketConfig(StompAuthInterceptor authInterceptor, ExpiringSessions expiringSessions) {
     this.authInterceptor = authInterceptor;
+    this.expiringSessions = expiringSessions;
   }
 
   /**
@@ -73,6 +76,12 @@ class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     // Spring rewrites /user/** to the session's own queue, which is what makes
     // "subscribe only to your own destinations" enforceable.
     registry.setUserDestinationPrefix("/user");
+  }
+
+  /** Every session passes through ExpiringSessions, which closes it when its token expires. */
+  @Override
+  public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+    registration.addDecoratorFactory(expiringSessions);
   }
 
   @Override

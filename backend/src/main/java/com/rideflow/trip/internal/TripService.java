@@ -8,11 +8,13 @@ import com.rideflow.shared.IdGenerator;
 import com.rideflow.shared.KeyedRateLimiter;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
+import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.DriverArrived;
 import com.rideflow.trip.DriverAssigned;
 import com.rideflow.trip.DriverPositions;
 import com.rideflow.trip.DriverTrips;
 import com.rideflow.trip.PaymentMethod;
+import com.rideflow.trip.RoutePoint;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripAssignment;
 import com.rideflow.trip.TripCancelled;
@@ -21,6 +23,7 @@ import com.rideflow.trip.TripEvent;
 import com.rideflow.trip.TripNoDriverFound;
 import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripReturnedToMatching;
+import com.rideflow.trip.TripRoutes;
 import com.rideflow.trip.TripStarted;
 import com.rideflow.trip.TripStatus;
 import jakarta.persistence.EntityManager;
@@ -34,6 +37,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Limit;
@@ -59,6 +64,8 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class TripService implements TripAssignment, DriverTrips {
 
+  private static final Logger log = LoggerFactory.getLogger(TripService.class);
+
   static final String ONE_ACTIVE_TRIP_PER_DRIVER = "trips_one_active_per_driver";
 
   private static final List<TripStatus> ACTIVE =
@@ -75,6 +82,8 @@ public class TripService implements TripAssignment, DriverTrips {
   private final ApplicationEventPublisher events;
   private final DriverPositions positions;
   private final TripFees fees;
+  private final TripRoutes routes;
+  private final FinalFares finalFares;
   private final IdGenerator ids;
   private final Clock clock;
   private final RideFlowProperties properties;
@@ -87,6 +96,8 @@ public class TripService implements TripAssignment, DriverTrips {
       ApplicationEventPublisher events,
       DriverPositions positions,
       TripFees fees,
+      TripRoutes routes,
+      FinalFares finalFares,
       IdGenerator ids,
       Clock clock,
       RideFlowProperties properties,
@@ -97,6 +108,8 @@ public class TripService implements TripAssignment, DriverTrips {
     this.events = events;
     this.positions = positions;
     this.fees = fees;
+    this.routes = routes;
+    this.finalFares = finalFares;
     this.ids = ids;
     this.clock = clock;
     this.properties = properties;
@@ -120,6 +133,12 @@ public class TripService implements TripAssignment, DriverTrips {
   @Transactional(readOnly = true)
   public boolean hasActiveTrip(UUID driverId) {
     return trips.findFirstByDriverIdAndStatusIn(driverId, HOLDING_A_DRIVER).isPresent();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<ActiveTrip> activeTrip(UUID driverId) {
+    return trips.findFirstByDriverIdAndStatusIn(driverId, HOLDING_A_DRIVER).map(Trip::activeTrip);
   }
 
   /**
@@ -371,34 +390,76 @@ public class TripService implements TripAssignment, DriverTrips {
     return attempt.orThrow(clock.instant());
   }
 
+  /**
+   * Completes the trip at its final fare: the quote, repriced if the route driven was far from the
+   * estimate, plus waiting (see {@link FinalFares}).
+   */
   public TripView complete(UUID tripId, Caller caller) {
-    return reportingConflicts(
-        tripId,
-        () -> {
-          Trip trip = load(tripId);
-          TripActor actor = partOf(trip, caller);
-          TripStatus from = trip.status();
-          TripStatus to = TripStateMachine.next(from, TripAction.COMPLETE, actor);
-          Instant now = clock.instant();
-          trip.complete(now);
-          record(
-              trip,
-              from,
-              to,
-              actor,
-              caller.userId(),
-              now,
-              Map.of("finalFarePaise", trip.finalFarePaise()),
-              new TripCompleted(
-                  ids.newId(),
+    // A Redis read, so before the transaction opens (PROJECT_SPEC section 11).
+    List<RoutePoint> route = recordedRoute(tripId);
+    TripView completed =
+        reportingConflicts(
+            tripId,
+            () -> {
+              Trip trip = load(tripId);
+              TripActor actor = partOf(trip, caller);
+              TripStatus from = trip.status();
+              TripStatus to = TripStateMachine.next(from, TripAction.COMPLETE, actor);
+              Instant now = clock.instant();
+              FinalFares.FinalFare fare = finalFares.settle(trip, route, now);
+              trip.complete(now, fare);
+              record(
+                  trip,
+                  from,
+                  to,
+                  actor,
+                  caller.userId(),
                   now,
-                  trip.id(),
-                  trip.riderId(),
-                  trip.driverId(),
-                  trip.finalFarePaise(),
-                  trip.paymentMethod()));
-          return trip.view(actor);
-        });
+                  Map.of(
+                      "finalFarePaise", fare.farePaise(),
+                      "distanceMeters", fare.distanceMeters(),
+                      "durationSeconds", fare.durationSeconds(),
+                      "repriced", fare.repriced(),
+                      "waitingChargePaise", fare.waitingChargePaise()),
+                  new TripCompleted(
+                      ids.newId(),
+                      now,
+                      trip.id(),
+                      trip.riderId(),
+                      trip.driverId(),
+                      fare.farePaise(),
+                      trip.paymentMethod()));
+              return trip.view(actor);
+            });
+    try {
+      // The route has done its job; its TTL would clear it anyway.
+      routes.forget(tripId);
+    } catch (RuntimeException e) {
+      log.warn("Could not delete the route of trip {}", tripId, e);
+    }
+    return completed;
+  }
+
+  /**
+   * The route driven, or none when Redis cannot say: a driver must be able to finish a trip while
+   * Redis is down, and with no route the quote stands and the trip is flagged for review.
+   */
+  private List<RoutePoint> recordedRoute(UUID tripId) {
+    try {
+      return routes.route(tripId);
+    } catch (RuntimeException e) {
+      log.warn("Could not read the route of trip {}; charging the quoted fare", tripId, e);
+      return List.of();
+    }
+  }
+
+  /**
+   * Flags the trip for review. The first reason stands.
+   *
+   * @return true if this call flagged it
+   */
+  boolean flag(UUID tripId, String reason) {
+    return Boolean.TRUE.equals(transactions.execute(status -> load(tripId).flag(reason)));
   }
 
   // --- System actions (TripAssignment) ---------------------------------------------------------

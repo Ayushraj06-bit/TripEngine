@@ -7,7 +7,8 @@ import com.rideflow.location.AvailableDriverFinder;
 import com.rideflow.matching.internal.CandidateRanker.Candidate;
 import com.rideflow.matching.internal.OfferStore.Match;
 import com.rideflow.matching.internal.OfferStore.OfferStatus;
-import com.rideflow.notification.Notifications;
+import com.rideflow.notification.RealtimeMessage;
+import com.rideflow.notification.RealtimePublisher;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
 import com.rideflow.shared.RideFlowProperties;
@@ -53,7 +54,7 @@ public class Matcher {
   private final DriverCandidates drivers;
   private final WaitingTrips waitingTrips;
   private final TripAssignment trips;
-  private final Notifications notifications;
+  private final RealtimePublisher realtime;
   private final MatchingMetrics metrics;
   private final IdGenerator ids;
   private final Clock clock;
@@ -66,7 +67,7 @@ public class Matcher {
       DriverCandidates drivers,
       WaitingTrips waitingTrips,
       TripAssignment trips,
-      Notifications notifications,
+      RealtimePublisher realtime,
       MatchingMetrics metrics,
       IdGenerator ids,
       Clock clock,
@@ -76,7 +77,7 @@ public class Matcher {
     this.drivers = drivers;
     this.waitingTrips = waitingTrips;
     this.trips = trips;
-    this.notifications = notifications;
+    this.realtime = realtime;
     this.metrics = metrics;
     this.ids = ids;
     this.clock = clock;
@@ -90,7 +91,7 @@ public class Matcher {
   public record RejectedOffer(UUID offerId, String status) {}
 
   /** Pushed to a driver whose offer the rider withdrew by cancelling. */
-  record OfferWithdrawn(String type, UUID offerId) {}
+  record OfferWithdrawn(UUID offerId) {}
 
   // --- Starting and stopping -------------------------------------------------------------------
 
@@ -128,10 +129,10 @@ public class Matcher {
       bestEffort(
           "tell driver " + closing.driverId() + " the offer was withdrawn",
           () ->
-              notifications.sendToUser(
+              realtime.toUser(
                   closing.driverId(),
                   OFFERS_DESTINATION,
-                  new OfferWithdrawn("OFFER_WITHDRAWN", offerId)));
+                  RealtimeMessage.of("OFFER_WITHDRAWN", new OfferWithdrawn(offerId))));
     }
   }
 
@@ -209,25 +210,30 @@ public class Matcher {
 
   private Attempt offer(Match match, UUID driverId, double radiusKm, Instant now) {
     UUID offerId = ids.newId();
-    if (!store.lock(driverId, offerId)) {
-      // Another trip's offer reached this driver first.
-      return Attempt.NOBODY;
-    }
     Instant expiresAt = now.plusSeconds(rules.offerTimeoutSeconds());
-    if (store.createOffer(match, offerId, driverId, radiusKm, expiresAt)
-        != OfferStore.Creation.CREATED) {
-      store.unlock(driverId, offerId);
-      return Attempt.ENDED;
+    switch (store.createOffer(match, offerId, driverId, radiusKm, expiresAt)) {
+      case CREATED -> {
+        // Locked and offered.
+      }
+      // Another trip's offer reached this driver first.
+      case DRIVER_BUSY -> {
+        return Attempt.NOBODY;
+      }
+      case SUPERSEDED, NO_MATCH -> {
+        return Attempt.ENDED;
+      }
     }
     metrics.offerSent();
     // The offer stands whatever happens below: unseen, it simply expires.
     bestEffort(
         "push an offer to driver " + driverId,
         () ->
-            notifications.sendToUser(
+            realtime.toUser(
                 driverId,
                 OFFERS_DESTINATION,
-                OfferView.of(offerId, match, expiresAt, rules.offerPickupRoundingDecimals())));
+                RealtimeMessage.of(
+                    "OFFER",
+                    OfferView.of(offerId, match, expiresAt, rules.offerPickupRoundingDecimals()))));
     bestEffort("count an offer for driver " + driverId, () -> drivers.recordOfferSent(driverId));
     return Attempt.SENT;
   }
