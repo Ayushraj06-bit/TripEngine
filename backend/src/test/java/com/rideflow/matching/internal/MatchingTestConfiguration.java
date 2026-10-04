@@ -1,6 +1,7 @@
 package com.rideflow.matching.internal;
 
-import com.rideflow.notification.Notifications;
+import com.rideflow.notification.RealtimeMessage;
+import com.rideflow.notification.RealtimePublisher;
 import com.rideflow.shared.MutableClock;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,7 +30,7 @@ class MatchingTestConfiguration {
 
   @Bean
   @Primary
-  Notifications testNotifications() {
+  RealtimePublisher testNotifications() {
     return NOTIFICATIONS;
   }
 
@@ -37,15 +38,20 @@ class MatchingTestConfiguration {
    * Pushes recorded instead of sent: a test sees who was offered what, and plays the driver's app.
    * The real, Redis-fanned-out implementation is tested over a real WebSocket elsewhere.
    */
-  static final class RecordingNotifications implements Notifications {
+  static final class RecordingNotifications implements RealtimePublisher {
 
-    record Sent(UUID userId, String destination, Object payload) {}
+    record Sent(UUID userId, String destination, RealtimeMessage message) {
+
+      Object payload() {
+        return message.payload();
+      }
+    }
 
     private final List<Sent> sent = new CopyOnWriteArrayList<>();
 
     @Override
-    public void sendToUser(UUID userId, String destination, Object payload) {
-      sent.add(new Sent(userId, destination, payload));
+    public void toUser(UUID userId, String destination, RealtimeMessage message) {
+      sent.add(new Sent(userId, destination, message));
     }
 
     /** Every offer pushed so far, oldest first. */

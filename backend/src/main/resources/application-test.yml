@@ -13,6 +13,11 @@ rideflow:
     # clock. Tests that need a sweep call it explicitly. It still runs once at
     # startup, so the scheduling wiring itself stays exercised.
     stale-sweep-interval: PT1H
+    session-expiry-check-interval: PT1H
+  trip:
+    driver-silence-check-interval: PT1H
+    # Small, so a test with a few trips crosses a window boundary.
+    silence-check-batch-size: 2
   matching:
     # Same reasoning: the offer poller and recovery sweep would race tests that move
     # the clock, so tests call them explicitly.

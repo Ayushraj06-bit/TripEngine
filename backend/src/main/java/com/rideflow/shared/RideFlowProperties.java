@@ -31,6 +31,7 @@ public record RideFlowProperties(
     @NotNull @Valid Trip trip,
     @NotNull @Valid Surge surge,
     @NotNull @Valid Payment payment,
+    @NotNull @Valid Notification notification,
     @NotNull @Valid ServiceAreaProperties serviceArea) {
 
   /** Location ingestion and throttling. */
@@ -47,7 +48,13 @@ public record RideFlowProperties(
       @Positive int nearbyResultLimit,
       @Positive int nearbyCacheSeconds,
       /** Decimal places to round a public position to. 3 is roughly 110 m. */
-      @Min(1) @Max(6) int nearbyRoundingDecimals) {}
+      @Min(1) @Max(6) int nearbyRoundingDecimals,
+      /* Phase 6. */
+      /** At most one live position a rider is sent, per this many milliseconds. */
+      @Positive long driverLocationForwardMs,
+      /** Route points kept per trip; older ones are trimmed. */
+      @Positive int routeMaxPoints,
+      @Positive int routeTtlHours) {}
 
   /**
    * The polygon the service operates inside.
@@ -118,7 +125,14 @@ public record RideFlowProperties(
       @Positive int riderCancelGraceSeconds,
       /* Not in section 9; added by Phase 4 rather than hard-coded, per section 11. */
       @Positive int otpLockMinutes,
-      @Positive int idempotencyRetentionHours) {}
+      @Positive int idempotencyRetentionHours,
+      /* Phase 6: when a finished or running trip is flagged for a human to look at. */
+      @Positive int driverSilenceFlagMinutes,
+      @Positive int shortTripFlagSeconds,
+      @Positive int shortTripFlagMeters,
+      /** Repricing that raises the fare by more than this fraction is flagged. 0.5 is +50%. */
+      @DecimalMin("0.0") double repriceFlagIncrease,
+      @Positive int silenceCheckBatchSize) {}
 
   /** The surge engine. */
   public record Surge(
@@ -128,6 +142,11 @@ public record RideFlowProperties(
       @Positive double maxStepPerTick,
       @DecimalMin("1.0") double cap,
       @Positive int ttlSeconds) {}
+
+  /** Real-time delivery. */
+  public record Notification(
+      /** Section 7: a trip's message counter lives 24 hours. */
+      @Positive int sequenceTtlHours) {}
 
   /** Commission. */
   public record Payment(@Min(0) @Max(100) int commissionPercent) {}

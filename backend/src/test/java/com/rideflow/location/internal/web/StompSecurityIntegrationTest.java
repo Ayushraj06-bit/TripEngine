@@ -6,12 +6,14 @@ import static org.awaitility.Awaitility.await;
 import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
 import com.rideflow.identity.internal.AuthService;
-import com.rideflow.notification.Notifications;
+import com.rideflow.notification.RealtimeMessage;
+import com.rideflow.notification.RealtimePublisher;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -76,7 +78,8 @@ class StompSecurityIntegrationTest {
   @Autowired private StringRedisTemplate redis;
   @Autowired private SimpMessagingTemplate messaging;
   @Autowired private SimpUserRegistry userRegistry;
-  @Autowired private Notifications notifications;
+  @Autowired private RealtimePublisher realtime;
+  @Autowired private ExpiringSessions expiringSessions;
 
   @Value("${rideflow.security.issuer}")
   private String issuer;
@@ -272,6 +275,29 @@ class StompSecurityIntegrationTest {
   }
 
   @Nested
+  class SessionLifetime {
+
+    @Test
+    void closesASessionOnceTheTokenItConnectedWithHasExpired() throws Exception {
+      StompSession session = connect(register(Role.RIDER, "+919000040001")).established();
+
+      // Long after the 15-minute access token: as the periodic check would find it.
+      expiringSessions.closeExpired(Instant.now().plus(Duration.ofDays(1)));
+
+      await().atMost(EVENTUALLY).until(() -> !session.isConnected());
+    }
+
+    @Test
+    void leavesASessionWithAValidTokenOpen() throws Exception {
+      StompSession session = connect(register(Role.RIDER, "+919000040002")).established();
+
+      expiringSessions.closeExpired(Instant.now());
+
+      assertThat(session.isConnected()).isTrue();
+    }
+  }
+
+  @Nested
   class Subscribing {
 
     @Test
@@ -330,11 +356,75 @@ class StompSecurityIntegrationTest {
           .atMost(EVENTUALLY)
           .until(() -> isSubscribed(driverId.toString(), "/user/queue/offers"));
 
-      notifications.sendToUser(
-          driverId, "/queue/offers", java.util.Map.of("type", "OFFER", "offerId", "offer-1"));
+      realtime.toUser(
+          driverId,
+          "/queue/offers",
+          RealtimeMessage.of("OFFER", java.util.Map.of("offerId", "offer-1")));
 
+      // The envelope: type, no trip and so no seq, and the payload inside.
       String json = received.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS);
-      assertThat(json).contains("\"type\":\"OFFER\"").contains("\"offerId\":\"offer-1\"");
+      assertThat(json)
+          .contains("\"type\":\"OFFER\"")
+          .contains("\"seq\":null")
+          .contains("\"payload\":{\"offerId\":\"offer-1\"}");
+    }
+
+    @Test
+    void deliversToEverySessionOfOneUser() throws Exception {
+      String token = register(Role.RIDER, "+919000030005");
+      UUID riderId = idOf("+919000030005");
+      List<CompletableFuture<String>> received =
+          List.of(new CompletableFuture<>(), new CompletableFuture<>());
+      // A phone and a laptop.
+      for (CompletableFuture<String> sink : received) {
+        connect(token)
+            .established()
+            .subscribe(
+                "/user/queue/trip-updates",
+                new StompFrameHandler() {
+                  @Override
+                  public Type getPayloadType(StompHeaders headers) {
+                    return byte[].class;
+                  }
+
+                  @Override
+                  public void handleFrame(StompHeaders headers, Object payload) {
+                    sink.complete(new String((byte[]) payload, StandardCharsets.UTF_8));
+                  }
+                });
+      }
+      await()
+          .atMost(EVENTUALLY)
+          .until(
+              () -> {
+                var user = userRegistry.getUser(riderId.toString());
+                return user != null
+                    && user.getSessions().stream()
+                            .filter(s -> !s.getSubscriptions().isEmpty())
+                            .count()
+                        == 2;
+              });
+
+      realtime.toUser(
+          riderId,
+          "/queue/trip-updates",
+          RealtimeMessage.forTrip("TripStarted", UUID.randomUUID(), java.util.Map.of()));
+
+      for (CompletableFuture<String> sink : received) {
+        assertThat(sink.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS)).contains("\"seq\":1");
+      }
+    }
+
+    @Test
+    void refusesSubscribingToAnotherRidersTripUpdates() throws Exception {
+      Connection connection = connect(register(Role.RIDER, "+919000030006"));
+      StompSession session = connection.established();
+
+      session.subscribe(
+          "/user/" + UUID.randomUUID() + "/queue/trip-updates", new NoOpFrameHandler());
+
+      assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
+          .contains("own /user/queue");
     }
 
     @Test

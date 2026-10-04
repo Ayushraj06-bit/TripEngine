@@ -97,6 +97,10 @@ class StompAuthInterceptor implements ChannelInterceptor {
     // Bound to the session: every later frame is checked against this, not against
     // anything the client repeats.
     accessor.setUser(authentication);
+    // The session lives no longer than the token it was opened with; see ExpiringSessions.
+    if (accessor.getSessionAttributes() != null && jwt.getExpiresAt() != null) {
+      accessor.getSessionAttributes().put(ExpiringSessions.TOKEN_EXPIRES_AT, jwt.getExpiresAt());
+    }
     return message;
   }
 

@@ -22,7 +22,8 @@ the thing.
 | 3 Pricing and quotes | done |
 | 4 Trip lifecycle and booking | done |
 | 5 Matching engine | done |
-| 6 Live trip and final fare | next |
+| 6 Live trip and final fare | done |
+| 7 Payments | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -59,6 +60,21 @@ is the final word on who gets a trip
 ([ADR 0010](docs/adr/0010-non-blocking-matching.md)). Offers reach drivers on
 `/user/queue/offers` through the new notification module, which fans messages out
 across instances over Redis Pub/Sub.
+
+**Phase 6** makes the trip live. Every change reaches the rider and the driver on
+`/user/queue/trip-updates`, each with their own view of the trip. While the
+driver is on a trip, the rider sees their position every 2 s with an ETA to the
+pickup or the drop. Every message carries a per-trip `seq` numbered by Redis, so
+a client can ignore anything old, whichever instance sent it
+([ADR 0011](docs/adr/0011-realtime-fan-out-over-redis-pub-sub.md)). The route is
+recorded once the rider is aboard. At completion it settles the fare: the quote,
+unless the distance driven differs by more than 20%, in which case the trip is
+repriced with the rate card it was booked on, plus waiting beyond 3 free minutes.
+GPS jumps are dropped first. Suspicious trips are flagged for review at
+`GET /api/v1/admin/trips/flagged`: too short, repriced by more than half, no
+route, or a driver silent for 10 minutes. A driver who loses connection does not
+cancel the trip; the rider is told. WebSocket sessions close when their token
+expires.
 
 ## Requirements
 

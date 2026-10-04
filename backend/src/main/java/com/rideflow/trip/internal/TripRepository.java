@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.ScrollPosition;
+import org.springframework.data.domain.Window;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -25,6 +27,18 @@ interface TripRepository extends JpaRepository<Trip, UUID> {
   List<Trip> findByRiderIdOrderByRequestedAtDescIdDesc(UUID riderId, Limit limit);
 
   List<Trip> findByDriverIdOrderByRequestedAtDescIdDesc(UUID driverId, Limit limit);
+
+  /**
+   * Trips under way since before {@code startedBefore} and not yet flagged, longest-running first,
+   * a window at a time, for the silence check: a keyset scan of {@code trips_in_progress_idx}.
+   */
+  Window<Trip> findByStatusAndFlaggedReasonIsNullAndStartedAtBeforeOrderByStartedAtAscIdAsc(
+      TripStatus status, Instant startedBefore, ScrollPosition position, Limit limit);
+
+  /** Flagged trips, newest first: an index scan on {@code trips_flagged_idx}. */
+  List<Trip> findByFlaggedReasonIsNotNullOrderByIdDesc(Limit limit);
+
+  List<Trip> findByFlaggedReasonIsNotNullAndIdLessThanOrderByIdDesc(UUID cursor, Limit limit);
 
   @Query(
       """

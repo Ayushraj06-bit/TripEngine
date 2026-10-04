@@ -20,6 +20,11 @@ final class LocationKeys {
     return "driver:state:" + driverId;
   }
 
+  /** Section 7: the route a trip takes while IN_PROGRESS. */
+  static String route(UUID tripId) {
+    return "trip:route:" + tripId;
+  }
+
   static String available(VehicleType type) {
     return "drivers:available:" + type.name();
   }

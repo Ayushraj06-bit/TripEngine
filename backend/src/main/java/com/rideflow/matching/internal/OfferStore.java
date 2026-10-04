@@ -65,7 +65,9 @@ class OfferStore {
     /** Another instance moved the trip on first. */
     SUPERSEDED,
     /** Matching ended: the trip was assigned, cancelled or given up on. */
-    NO_MATCH
+    NO_MATCH,
+    /** Another trip's live offer holds the driver. */
+    DRIVER_BUSY
   }
 
   /** What {@code offer_accept.lua} decided. {@code first} is false on a repeated accept. */
@@ -205,28 +207,6 @@ class OfferStore {
     return busy;
   }
 
-  /**
-   * Locks the driver for {@code offerId}: {@code SET NX PX}, for the offer timeout plus a grace.
-   *
-   * <p>A lock whose offer no longer holds the driver - left behind by a crash, or by offer state
-   * Redis lost - is taken over rather than waited out. Nothing would ever release it, and its TTL
-   * runs on Redis's own clock.
-   */
-  boolean lock(UUID driverId, UUID offerId) {
-    if (setLock(driverId, offerId)) {
-      return true;
-    }
-    String holder = redis.opsForValue().get(lockKey(driverId));
-    if (holder != null && holdsDriver(holder)) {
-      return false;
-    }
-    if (holder != null) {
-      // Compare-and-delete, so a lock taken by a live offer in the meantime survives.
-      unlock(driverId, UUID.fromString(holder));
-    }
-    return setLock(driverId, offerId);
-  }
-
   /** Releases the driver, if the lock is still the one taken for {@code offerId}. */
   void unlock(UUID driverId, UUID offerId) {
     redis.execute(unlockScript, List.of(lockKey(driverId)), offerId.toString());
@@ -237,13 +217,6 @@ class OfferStore {
     return Optional.ofNullable(redis.opsForValue().get(lockKey(driverId))).map(UUID::fromString);
   }
 
-  private boolean setLock(UUID driverId, UUID offerId) {
-    Duration ttl =
-        Duration.ofSeconds((long) rules.offerTimeoutSeconds() + rules.lockGraceSeconds());
-    return Boolean.TRUE.equals(
-        redis.opsForValue().setIfAbsent(lockKey(driverId), offerId.toString(), ttl));
-  }
-
   private boolean holdsDriver(String offerId) {
     Object status = redis.opsForHash().get(offerKey(UUID.fromString(offerId)), "status");
     return status != null && OfferStatus.valueOf((String) status).holdsDriver();
@@ -251,7 +224,12 @@ class OfferStore {
 
   // --- Offers ----------------------------------------------------------------------------------
 
-  /** Records an offer, replacing the match's current one only if no one else has. */
+  /**
+   * Locks the driver and records the offer, in one script: replacing the match's current offer only
+   * if no one else has, and only if no other live offer holds the driver. The lock lasts the offer
+   * timeout plus a grace; a lock whose offer is closed or missing is taken over (see {@code
+   * offer_create.lua}).
+   */
   Creation createOffer(
       Match match, UUID offerId, UUID driverId, double radiusKm, Instant expiresAt) {
     String result =
@@ -262,17 +240,22 @@ class OfferStore {
                 triedKey(match.tripId()),
                 offerKey(offerId),
                 OFFERS_EXPIRY,
-                RETRIES),
+                RETRIES,
+                lockKey(driverId)),
             offerId.toString(),
             match.currentOffer() == null ? "" : match.currentOffer().toString(),
             match.tripId().toString(),
             driverId.toString(),
             Long.toString(expiresAt.toEpochMilli()),
             Long.toString(stateTtl().toMillis()),
-            Double.toString(radiusKm));
+            Double.toString(radiusKm),
+            Long.toString(
+                Duration.ofSeconds((long) rules.offerTimeoutSeconds() + rules.lockGraceSeconds())
+                    .toMillis()));
     return switch (String.valueOf(result)) {
       case "created" -> Creation.CREATED;
       case "superseded" -> Creation.SUPERSEDED;
+      case "driver_busy" -> Creation.DRIVER_BUSY;
       default -> Creation.NO_MATCH;
     };
   }

@@ -2,7 +2,7 @@
 # path (PROJECT_SPEC section 5: Redis Pub/Sub fan-out) and to load-test with
 # more than one node.
 #
-#   ./mvnw -pl backend -am package
+#   export RIDEFLOW_RSA_PRIVATE_KEY=... RIDEFLOW_RSA_PUBLIC_KEY=...   (docs/runbook.md)
 #   docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up -d --build
 #
 # The load balancer listens on 8080; the instances are on 8091 and 8092 so they
@@ -23,6 +23,10 @@ services:
       RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
       RIDEFLOW_LOG_FORMAT: ecs
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      # One key pair for both, or a token signed by one is rejected by the other.
+      # Never committed: generate it as docs/runbook.md "Two-instance setup" shows.
+      RIDEFLOW_RSA_PRIVATE_KEY: ${RIDEFLOW_RSA_PRIVATE_KEY:?generate a shared key pair first, see docs/runbook.md}
+      RIDEFLOW_RSA_PUBLIC_KEY: ${RIDEFLOW_RSA_PUBLIC_KEY:?generate a shared key pair first, see docs/runbook.md}
     ports:
       - "8091:8080"
     depends_on:

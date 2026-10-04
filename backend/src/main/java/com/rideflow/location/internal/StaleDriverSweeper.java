@@ -1,10 +1,13 @@
 package com.rideflow.location.internal;
 
 import com.rideflow.location.DriverWentStale;
+import com.rideflow.notification.RealtimeMessage;
+import com.rideflow.notification.RealtimePublisher;
 import com.rideflow.shared.RideFlowProperties;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +42,14 @@ class StaleDriverSweeper {
    */
   private static final int MAX_BATCHES_PER_RUN = 20;
 
+  /** The rider's trip channel, where the trip module's own updates go too. */
+  static final String TRIP_UPDATES = "/queue/trip-updates";
+
+  /** What a rider is told when their driver goes quiet. The trip is not cancelled. */
+  record DriverConnectionLost(UUID driverId, Instant lastSeenAt, String message) {}
+
   private final DriverStateStore store;
+  private final RealtimePublisher realtime;
   private final ApplicationEventPublisher events;
   private final RideFlowProperties properties;
   private final Clock clock;
@@ -47,11 +57,13 @@ class StaleDriverSweeper {
 
   StaleDriverSweeper(
       DriverStateStore store,
+      RealtimePublisher realtime,
       ApplicationEventPublisher events,
       RideFlowProperties properties,
       Clock clock,
       TransactionTemplate transactions) {
     this.store = store;
+    this.realtime = realtime;
     this.events = events;
     this.properties = properties;
     this.clock = clock;
@@ -72,6 +84,7 @@ class StaleDriverSweeper {
         break;
       }
       publishStale(stale, clock.instant());
+      tellRiders(stale);
       swept += stale.size();
 
       if (stale.size() < properties.location().staleSweepBatchSize()) {
@@ -81,6 +94,33 @@ class StaleDriverSweeper {
     }
     if (swept > 0) {
       log.info("Removed {} stale driver(s) from the live map", swept);
+    }
+  }
+
+  /**
+   * A driver who goes quiet mid-trip has usually lost signal, not abandoned the rider: the rider is
+   * told, and the trip carries on. Best effort - the rider's app also sees positions stop.
+   */
+  private void tellRiders(List<DriverStateStore.StaleDriver> stale) {
+    for (var driver : stale) {
+      try {
+        store
+            .tripContext(driver.driverId())
+            .ifPresent(
+                trip ->
+                    realtime.toUser(
+                        trip.riderId(),
+                        TRIP_UPDATES,
+                        RealtimeMessage.forTrip(
+                            "DRIVER_CONNECTION_LOST",
+                            trip.tripId(),
+                            new DriverConnectionLost(
+                                driver.driverId(),
+                                Instant.ofEpochMilli(driver.lastSeenMs()),
+                                "Your driver's connection was lost. The trip continues."))));
+      } catch (RuntimeException e) {
+        log.warn("Could not tell the rider that driver {} went quiet", driver.driverId(), e);
+      }
     }
   }
 

@@ -4,9 +4,12 @@ import com.rideflow.location.AvailableDriver;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
+import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.DriverPositions;
+import com.rideflow.trip.TripStatus;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,10 @@ class DriverStateStore implements DriverPositions {
    * disappears.
    */
   private static final Duration STATE_TTL = Duration.ofHours(24);
+
+  /** The state-hash fields that say which trip a driver is on. */
+  private static final List<Object> TRIP_FIELDS =
+      List.of("tripId", "riderId", "tripPhase", "targetLat", "targetLng", "lastForwardTs");
 
   private final StringRedisTemplate redis;
   private final RedisScript<List> locationUpdateScript;
@@ -86,7 +93,8 @@ class DriverStateStore implements DriverPositions {
             Integer.toString(location.forceWriteSeconds()),
             Double.toString(location.maxSpeedKmph()),
             inServiceArea ? "1" : "0",
-            Long.toString(STATE_TTL.toSeconds()));
+            Long.toString(STATE_TTL.toSeconds()),
+            Long.toString(location.driverLocationForwardMs()));
 
     return UpdateOutcome.from(result);
   }
@@ -254,6 +262,55 @@ class DriverStateStore implements DriverPositions {
             Double.parseDouble(String.valueOf(fields.get(1)))));
   }
 
+  @Override
+  public Optional<Instant> lastReportedAt(UUID driverId) {
+    Object ts = redis.opsForHash().get(LocationKeys.state(driverId), "ts");
+    return Optional.ofNullable(ts)
+        .map(t -> Instant.ofEpochMilli(Long.parseLong(String.valueOf(t))));
+  }
+
+  /**
+   * Records which trip the driver is on, for the update script to hand back with each position - or
+   * clears it. Written from the trip module's answer, not from whichever event arrived, so a late
+   * or repeated event cannot attach a driver to a trip that is over.
+   */
+  void applyTripContext(UUID driverId, Optional<ActiveTrip> trip) {
+    String key = LocationKeys.state(driverId);
+    if (trip.isEmpty()) {
+      redis.opsForHash().delete(key, TRIP_FIELDS.toArray());
+      return;
+    }
+    ActiveTrip active = trip.get();
+    boolean underWay = active.status() == TripStatus.IN_PROGRESS;
+    GeoPoint target = underWay ? active.drop() : active.pickup();
+    redis
+        .opsForHash()
+        .putAll(
+            key,
+            Map.of(
+                "tripId", active.tripId().toString(),
+                "riderId", active.riderId().toString(),
+                "tripPhase", (underWay ? TripPhase.TO_DROP : TripPhase.TO_PICKUP).name(),
+                "targetLat", Double.toString(target.latitude()),
+                "targetLng", Double.toString(target.longitude())));
+    redis.expire(key, STATE_TTL);
+  }
+
+  /** The trip a driver was on, as last recorded here: who to tell when they go quiet. */
+  Optional<TripContext> tripContext(UUID driverId) {
+    List<Object> fields =
+        redis
+            .opsForHash()
+            .multiGet(LocationKeys.state(driverId), List.<Object>of("tripId", "riderId"));
+    if (fields.contains(null)) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new TripContext(
+            UUID.fromString(String.valueOf(fields.get(0))),
+            UUID.fromString(String.valueOf(fields.get(1)))));
+  }
+
   /** Number of drivers currently listed as available for a type, for the gauge. */
   long availableCount(VehicleType type) {
     Long size = redis.opsForZSet().size(LocationKeys.available(type));
@@ -262,17 +319,56 @@ class DriverStateStore implements DriverPositions {
 
   record StaleDriver(UUID driverId, long lastSeenMs) {}
 
+  /** Before pickup the rider waits for the driver; after it they ride together. */
+  enum TripPhase {
+    TO_PICKUP,
+    TO_DROP
+  }
+
+  record TripContext(UUID tripId, UUID riderId) {}
+
+  /**
+   * A position accepted for a driver on a trip: what to record, and whether to show the rider.
+   *
+   * @param vehicleType null if the driver's state never recorded one
+   */
+  record OnTrip(
+      UUID tripId,
+      UUID riderId,
+      TripPhase phase,
+      GeoPoint target,
+      boolean forward,
+      VehicleType vehicleType) {}
+
   /** What the update script decided, and what it did. */
-  record UpdateOutcome(String result, int spoofStrikes, boolean geoWritten) {
+  /**
+   * @param onTrip set when an accepted position belongs to a driver on a trip
+   */
+  record UpdateOutcome(String result, int spoofStrikes, boolean geoWritten, OnTrip onTrip) {
 
     static UpdateOutcome from(List<Object> raw) {
       if (raw == null || raw.size() < 3) {
         throw new IllegalStateException("location_update.lua returned an unexpected shape: " + raw);
       }
+      OnTrip onTrip = null;
+      if (raw.size() >= 10 && !String.valueOf(raw.get(5)).isEmpty()) {
+        String vehicleType = String.valueOf(raw.get(9));
+        onTrip =
+            new OnTrip(
+                UUID.fromString(String.valueOf(raw.get(3))),
+                UUID.fromString(String.valueOf(raw.get(4))),
+                TripPhase.valueOf(String.valueOf(raw.get(5))),
+                new GeoPoint(
+                    Double.parseDouble(String.valueOf(raw.get(6))),
+                    Double.parseDouble(String.valueOf(raw.get(7)))),
+                "1".equals(String.valueOf(raw.get(8))),
+                vehicleType.isEmpty() ? null : VehicleType.valueOf(vehicleType));
+      }
       return new UpdateOutcome(
           String.valueOf(raw.get(0)),
           Integer.parseInt(String.valueOf(raw.get(1))),
-          "1".equals(String.valueOf(raw.get(2))));
+          "1".equals(String.valueOf(raw.get(2))),
+          onTrip);
     }
 
     boolean accepted() {

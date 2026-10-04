@@ -48,16 +48,18 @@ changes an event.
 |---|---|---|---|---|
 | `DriverStatusChanged` | `driver` | `location`, `matching` | no | 1 |
 | `DriverWentStale` | `location` | `matching` | no | 2 |
-| `TripRequested` | `trip` | `matching`, Kafka | yes | 4 |
-| `TripReturnedToMatching` | `trip` | `driver`, `matching`, Kafka | yes | 4 |
-| `DriverAssigned` | `trip` | `driver`, Kafka | yes | 4 |
-| `DriverArrived` | `trip` | Kafka | yes | 4 |
-| `TripStarted` | `trip` | Kafka | yes | 4 |
-| `TripCompleted` | `trip` | `driver`; payment (Phase 7), Kafka | yes | 4 |
-| `TripCancelled` | `trip` | `driver`, `matching`; payment (Phase 7), Kafka | yes | 4 |
-| `TripNoDriverFound` | `trip` | Kafka | yes | 4 |
+| `TripRequested` | `trip` | `matching`, `trip` (push), `location`, Kafka | yes | 4 |
+| `TripReturnedToMatching` | `trip` | `driver`, `matching`, `trip` (push), `location`, Kafka | yes | 4 |
+| `DriverAssigned` | `trip` | `driver`, `trip` (push), `location`, Kafka | yes | 4 |
+| `DriverArrived` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
+| `TripStarted` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
+| `TripCompleted` | `trip` | `driver`, `trip` (push), `location`; payment (Phase 7), Kafka | yes | 4 |
+| `TripCancelled` | `trip` | `driver`, `matching`, `trip` (push), `location`; payment (Phase 7), Kafka | yes | 4 |
+| `TripNoDriverFound` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
 
-Each phase appends its rows here.
+Each phase appends its rows here. From Phase 6, every trip event also has two
+consumers that react to it the same way whatever its type. They are described
+once, under [Trip events](#trip-events), rather than eight times.
 
 ### DriverStatusChanged
 
@@ -90,6 +92,12 @@ Each phase appends its rows here.
   an offer is treated as having rejected it, at once, rather than after the full
   timeout. Phase 2 had planned for `trip` to consume it, but `trip` cannot depend
   on `location` without closing a module cycle.
+- **The rider is told by the sweep itself** (Phase 6), not by a listener. For a
+  stale driver who is on a trip, the sweep sends the rider
+  `DRIVER_CONNECTION_LOST` on `/user/queue/trip-updates`, using the trip context
+  it already holds in Redis. The trip is not cancelled. If the driver stays
+  silent through the ride, `trip`'s own scheduled check flags the trip after
+  `driver-silence-flag-minutes` for an admin to review.
 - **Externalized:** no.
 - **Published once per cluster:** the sweep holds a ShedLock, so two instances
   cannot both declare the same driver gone.
@@ -112,6 +120,25 @@ All eight share a sealed interface, `TripEvent`, and three fields:
 
 Each one is published by `TripService` together with exactly one
 `trip_events` audit row, in the transaction that made the change.
+
+Every trip event, whatever its type, also goes to two listeners (Phase 6):
+
+- **`trip`'s `TripUpdatePusher`** sends the rider and the current driver each
+  their own view of the trip, as it is now, on `/user/queue/trip-updates`. The
+  message type is the event's name. The payload is the same as
+  `GET /api/v1/trips/{id}` would return to that person, so the OTP appears only
+  in the rider's copy. A driver who backed out is no longer on the trip and gets
+  nothing. Because the payload is a state, not a change, a repeat is harmless.
+  The envelope's `seq` lets the client drop anything older than what it already
+  shows ([ADR 0011](adr/0011-realtime-fan-out-over-redis-pub-sub.md)).
+- **`location`'s `TripContextListener`** finds the trip's driver in the event and
+  asks `trip` for that driver's active trip, now. It stores the answer in the
+  driver's Redis state: the rider to show the driver's position to, the point
+  they are heading for (the pickup until the trip starts, then the drop), and
+  whether to record the route. Nothing is taken from the event itself, so events
+  handled out of order still leave the right answer, as with `driver` in Phase 4.
+
+Both run without a surrounding transaction: one database read, then Redis.
 
 #### TripRequested
 
@@ -156,8 +183,9 @@ Each one is published by `TripService` together with exactly one
 #### TripCompleted
 
 - **Published when:** the driver completes the trip.
-- **Payload:** riderId, driverId, finalFarePaise, paymentMethod. Until Phase 6
-  adds repricing, the final fare is the quoted fare.
+- **Payload:** riderId, driverId, finalFarePaise, paymentMethod. From Phase 6
+  the final fare is settled at completion: the quoted fare, or a reprice for the
+  route actually driven, plus any waiting charge (PROJECT_SPEC section 8).
 - **Consumed by:** `driver` (back to AVAILABLE); payment (Phase 7) charges it,
   idempotently by trip id.
 
@@ -176,3 +204,31 @@ Each one is published by `TripService` together with exactly one
 - **Published when:** matching's deadline passes with no driver: REQUESTED to
   NO_DRIVER_FOUND.
 - **Payload:** riderId
+
+## Real-time messages
+
+Not domain events: these are messages to a person's WebSocket session, sent
+through `notification`'s `RealtimePublisher` and fanned out across instances
+over Redis Pub/Sub ([ADR 0011](adr/0011-realtime-fan-out-over-redis-pub-sub.md)).
+They are delivered at most once. A client that reconnects re-reads the REST API
+rather than expecting to have seen every message.
+
+Every message has the same envelope:
+
+```json
+{"type": "TripStarted", "tripId": "...", "seq": 7, "sentAt": "2026-10-03T10:15:00Z", "payload": {}}
+```
+
+`seq` increases strictly per trip, across instances. It is null for messages
+that are not about a trip.
+
+| Destination | Type | Sent by | To | Payload |
+|---|---|---|---|---|
+| `/user/queue/offers` | `OFFER` | `matching` | the driver offered a trip | the offer |
+| `/user/queue/offers` | `OFFER_WITHDRAWN` | `matching` | that driver, once the offer is gone | offerId |
+| `/user/queue/trip-updates` | each trip event's name | `trip` | the rider and the current driver | the recipient's view of the trip |
+| `/user/queue/trip-updates` | `DRIVER_CONNECTION_LOST` | `location` | the rider | driverId, lastSeenAt, message |
+| `/user/queue/driver-location` | `DRIVER_LOCATION` | `location` | the rider | lat, lng, phase (`TO_PICKUP` or `TO_DROP`), etaSeconds |
+
+`DRIVER_LOCATION` is sent at most every `driver-location-forward-ms` (2 s) per
+driver, and only while the driver has an active trip.

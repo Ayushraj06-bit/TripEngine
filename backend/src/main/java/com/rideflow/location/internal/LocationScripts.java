@@ -29,6 +29,15 @@ class LocationScripts {
   }
 
   @Bean
+  RedisScript<Long> routeAppendScript() {
+    DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+    script.setScriptSource(
+        new ResourceScriptSource(new ClassPathResource("redis/route_append.lua")));
+    script.setResultType(Long.class);
+    return script;
+  }
+
+  @Bean
   RedisScript<List> staleDriversScript() {
     DefaultRedisScript<List> script = new DefaultRedisScript<>();
     script.setScriptSource(

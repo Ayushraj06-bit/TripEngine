@@ -47,8 +47,12 @@ and cleaned the same way.)
   driver going stale all compete for that change; whoever makes it owns the next
   step, and the others see it already gone. This is what settles accept against
   timeout, without a lock.
-- A driver's lock is `SET NX PX` and released by compare-and-delete, so a
-  release never removes a lock that has since been taken for another offer.
+- A driver's lock is taken in the same script that writes their offer, and
+  released by compare-and-delete, so a release never removes a lock that has
+  since been taken for another offer. (Amended 2026-10-04: the lock was first a
+  separate `SET NX PX` before the offer was written. In that moment a second trip
+  found a lock with no offer, took it for an orphan, and offered the same driver
+  a second trip - caught by the database, and by the hundred-riders test.)
 
 **PostgreSQL is the final guard and the source of truth.** An accepted offer
 still has to pass `assignDriver`: the trip's version and the
@@ -64,10 +68,11 @@ one sweep interval plus the grace period.
 
 ### Smaller decisions
 
-- **A lock counts only while its offer is PENDING or ACCEPTED.** One that guards
-  a missing or closed offer was left by a crash and is taken over at once rather
-  than waited out: nothing would ever release it, and its TTL runs on Redis's
-  own clock.
+- **A lock counts only while its offer is PENDING or ACCEPTED.** Lock and offer
+  are written together, so one that guards a missing or closed offer can only
+  have been left by a crash or lost state. It is taken over at once rather than
+  waited out: nothing would ever release it, and its TTL runs on Redis's own
+  clock.
 - **After acceptance the driver's lock stays until it expires.** The driver
   leaves the map through two asynchronous events (assigned, then ON_TRIP); the
   lock keeps other trips off them in that moment.
