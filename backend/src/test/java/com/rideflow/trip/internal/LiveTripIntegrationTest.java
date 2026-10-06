@@ -254,6 +254,31 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
       assertThat(flaggedReason(tripId)).isNull();
     }
 
+    /**
+     * Flagging leaves the version alone, so a driver completing at that moment gets no 409 - and
+     * what the completion finds is added to the flag, not lost.
+     */
+    @Test
+    void staysOutOfTheDriversWayAndKeepsWhatCompletionAdds() {
+      User driver = userRow(Role.DRIVER);
+      UUID tripId = tripIn(TripStatus.IN_PROGRESS, userRow(Role.RIDER), driver);
+      long version = versionOf(tripId);
+
+      CLOCK.advance(Duration.ofMinutes(11));
+      silenceCheck.check();
+
+      assertThat(versionOf(tripId)).isEqualTo(version);
+      trips.complete(tripId, driver.asDriver());
+      assertThat(flaggedReason(tripId))
+          .isEqualTo(
+              "Driver silent for over 10 minutes during the trip"
+                  + " | No route was recorded; charged the quoted fare");
+    }
+
+    private long versionOf(UUID tripId) {
+      return jdbc.queryForObject("SELECT version FROM trips WHERE id = ?", Long.class, tripId);
+    }
+
     /** More silent trips than one window holds (two, in tests): every one is still found. */
     @Test
     void checksEveryTripInProgressNotOnlyTheFirstWindow() {
@@ -329,11 +354,16 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
     }
 
     @Test
-    void keepsTheFirstReason() {
+    void keepsEveryReasonOnce() {
       UUID tripId = tripIn(TripStatus.COMPLETED, userRow(Role.RIDER), userRow(Role.DRIVER));
 
       assertThat(trips.flag(tripId, "First")).isTrue();
-      assertThat(trips.flag(tripId, "Second")).isFalse();
+      assertThat(trips.flag(tripId, "Second")).isTrue();
+      assertThat(trips.flag(tripId, "First")).isFalse();
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT flagged_reason FROM trips WHERE id = ?", String.class, tripId))
+          .isEqualTo("First | Second");
     }
   }
 }

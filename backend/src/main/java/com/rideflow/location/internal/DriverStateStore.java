@@ -46,6 +46,7 @@ class DriverStateStore implements DriverPositions {
   private final StringRedisTemplate redis;
   private final RedisScript<List> locationUpdateScript;
   private final RedisScript<List> staleDriversScript;
+  private final RedisScript<Long> tripContextScript;
   private final RideFlowProperties properties;
   private final Clock clock;
 
@@ -53,11 +54,13 @@ class DriverStateStore implements DriverPositions {
       StringRedisTemplate redis,
       RedisScript<List> locationUpdateScript,
       RedisScript<List> staleDriversScript,
+      RedisScript<Long> tripContextScript,
       RideFlowProperties properties,
       Clock clock) {
     this.redis = redis;
     this.locationUpdateScript = locationUpdateScript;
     this.staleDriversScript = staleDriversScript;
+    this.tripContextScript = tripContextScript;
     this.properties = properties;
     this.clock = clock;
   }
@@ -283,17 +286,20 @@ class DriverStateStore implements DriverPositions {
     ActiveTrip active = trip.get();
     boolean underWay = active.status() == TripStatus.IN_PROGRESS;
     GeoPoint target = underWay ? active.drop() : active.pickup();
-    redis
-        .opsForHash()
-        .putAll(
-            key,
-            Map.of(
-                "tripId", active.tripId().toString(),
-                "riderId", active.riderId().toString(),
-                "tripPhase", (underWay ? TripPhase.TO_DROP : TripPhase.TO_PICKUP).name(),
-                "targetLat", Double.toString(target.latitude()),
-                "targetLng", Double.toString(target.longitude())));
-    redis.expire(key, STATE_TTL);
+    redis.execute(
+        tripContextScript,
+        List.of(key),
+        Long.toString(STATE_TTL.toSeconds()),
+        "tripId",
+        active.tripId().toString(),
+        "riderId",
+        active.riderId().toString(),
+        "tripPhase",
+        (underWay ? TripPhase.TO_DROP : TripPhase.TO_PICKUP).name(),
+        "targetLat",
+        Double.toString(target.latitude()),
+        "targetLng",
+        Double.toString(target.longitude()));
   }
 
   /** The trip a driver was on, as last recorded here: who to tell when they go quiet. */

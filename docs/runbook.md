@@ -186,8 +186,8 @@ every 2 s.
 
 ### A trip is flagged
 
-`GET /api/v1/admin/trips/flagged` lists flagged trips, newest first, with the
-first reason found. Flags never change a fare or a status. They ask a human to
+`GET /api/v1/admin/trips/flagged` lists flagged trips, newest first, with
+every reason found, oldest first, separated by ` | `. Flags never change a fare or a status. They ask a human to
 look.
 
 - `Completed in N s over M m`: a trip that barely happened, charged the minimum

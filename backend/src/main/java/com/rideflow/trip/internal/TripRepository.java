@@ -10,6 +10,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.ScrollPosition;
 import org.springframework.data.domain.Window;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 interface TripRepository extends JpaRepository<Trip, UUID> {
@@ -34,6 +35,28 @@ interface TripRepository extends JpaRepository<Trip, UUID> {
    */
   Window<Trip> findByStatusAndFlaggedReasonIsNullAndStartedAtBeforeOrderByStartedAtAscIdAsc(
       TripStatus status, Instant startedBefore, ScrollPosition position, Limit limit);
+
+  /**
+   * Adds a reason to the trip's flag, unless it is already there. The only way the column is
+   * written.
+   *
+   * <p>One conditional UPDATE. Two flaggers at once both keep their reason, a repeat changes
+   * nothing, and the version is left alone - so the silence check flagging a trip never turns the
+   * driver's own completion into a 409.
+   *
+   * @return 1 if the reason was added, 0 if it was already there or there is no such trip
+   */
+  @Modifying
+  @Query(
+      """
+      update Trip t
+      set t.flaggedReason =
+          case when t.flaggedReason is null then :reason
+               else concat(t.flaggedReason, ' | ', :reason) end
+      where t.id = :id
+        and (t.flaggedReason is null or locate(:reason, t.flaggedReason) = 0)
+      """)
+  int flag(UUID id, String reason);
 
   /** Flagged trips, newest first: an index scan on {@code trips_flagged_idx}. */
   List<Trip> findByFlaggedReasonIsNotNullOrderByIdDesc(Limit limit);

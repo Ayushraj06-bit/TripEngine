@@ -81,7 +81,7 @@ class SilentDriverCheck {
               "Driver silent for over %d minutes during the trip"
                   .formatted(rules.driverSilenceFlagMinutes()));
         } catch (RuntimeException e) {
-          // Most likely the trip changed under us; the next run looks again.
+          // The database, most likely; the trip is still unflagged, so the next run looks again.
           log.warn("Could not flag trip {} for a silent driver", trip.id(), e);
         }
       }
