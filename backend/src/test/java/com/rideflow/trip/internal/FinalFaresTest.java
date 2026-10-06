@@ -155,6 +155,18 @@ class FinalFaresTest {
       assertThat(fare.farePaise()).isEqualTo(QUOTED);
     }
 
+    /** Strictly more than 20% reprices: exactly 20% is still the quote. */
+    @Test
+    void keepsTheQuoteAtExactlyTheAllowedDeviation() {
+      Trip trip = startedTrip(Duration.ZERO);
+
+      var fare = settle(trip, routeOf(12_000, trip.startedAt()));
+
+      assertThat(fare.distanceMeters()).isEqualTo(12_000);
+      assertThat(fare.repriced()).isFalse();
+      assertThat(fare.farePaise()).isEqualTo(QUOTED);
+    }
+
     @Test
     void repricesAThirtyPercentDetourWithTheStoredCardAndTheQuotedSurge() {
       Trip trip = startedTrip(Duration.ZERO);
@@ -217,6 +229,37 @@ class FinalFaresTest {
 
       assertThat(fare.farePaise()).isGreaterThan((long) (QUOTED * 1.5));
       assertThat(fare.flag()).startsWith("Repriced from 15400 to");
+    }
+
+    /**
+     * Started and completed at once, before a second position arrived: not "no route", which would
+     * charge the whole quote, but a trip that went nowhere.
+     */
+    @Test
+    void chargesTheMinimumForATripOverInSecondsWithAlmostNoRoute() {
+      Trip trip = startedTrip(Duration.ZERO);
+      Instant start = trip.startedAt();
+
+      var onePoint =
+          finalFares.settle(trip, List.of(new RoutePoint(PICKUP, start)), start.plusSeconds(20));
+      var none = finalFares.settle(trip, List.of(), start.plusSeconds(20));
+
+      for (var fare : List.of(onePoint, none)) {
+        assertThat(fare.distanceMeters()).isZero();
+        assertThat(fare.farePaise()).isEqualTo(8_000);
+        assertThat(fare.flag()).isEqualTo("Completed in 20 s over 0 m");
+      }
+    }
+
+    /** Raised by exactly half: flagged only beyond that. */
+    @Test
+    void doesNotFlagARepricingOfExactlyHalfAgain() {
+      Trip trip = startedTrip(Duration.ZERO);
+
+      var fare = settle(trip, routeOf(18_100, trip.startedAt()));
+
+      assertThat(fare.farePaise()).isEqualTo(QUOTED * 3 / 2);
+      assertThat(fare.flag()).isNull();
     }
 
     @Test

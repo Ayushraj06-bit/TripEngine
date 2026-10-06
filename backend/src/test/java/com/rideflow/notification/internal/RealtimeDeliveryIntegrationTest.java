@@ -200,14 +200,35 @@ class RealtimeDeliveryIntegrationTest {
     void dropsAMessageForSomeoneConnectedNowhereWithoutAnError() {
       publisher.toUser(
           UUID.randomUUID(), "/queue/trip-updates", RealtimeMessage.of("TripStarted", Map.of()));
-      // Sent after it on the same channel, so once this arrives the other has been and gone.
       publisher.toUser(rider, "/queue/trip-updates", RealtimeMessage.of("Marker", Map.of()));
 
       await().atMost(EVENTUALLY).until(() -> !real(onInstanceA).isEmpty());
+      // Messages are handed on concurrently, so the stranger's may land after the marker:
+      // watch a while for it to turn up anywhere.
+      await()
+          .during(Duration.ofMillis(500))
+          .atMost(EVENTUALLY)
+          .until(() -> real(onInstanceA).size() == 1 && real(onInstanceB).isEmpty());
+      assertThat(real(onInstanceA).getFirst().envelope()).contains("Marker");
+    }
+
+    @Test
+    void sendsAReservedSeqAsItIs() {
+      UUID tripId = UUID.randomUUID();
+      long reserved = publisher.nextSeq(tripId);
+
+      publisher.toUser(
+          rider, "/queue/trip-updates", RealtimeMessage.forTrip("Later", tripId, Map.of()));
+      publisher.toUser(
+          rider,
+          "/queue/trip-updates",
+          RealtimeMessage.forTrip("Reserved", tripId, reserved, Map.of()));
+
+      await().atMost(EVENTUALLY).until(() -> real(onInstanceA).size() == 2);
       assertThat(real(onInstanceA))
-          .singleElement()
-          .satisfies(d -> assertThat(d.envelope()).contains("Marker"));
-      assertThat(real(onInstanceB)).isEmpty();
+          .extracting(Delivered::envelope)
+          .anySatisfy(e -> assertThat(e).contains("\"type\":\"Reserved\"", "\"seq\":1"))
+          .anySatisfy(e -> assertThat(e).contains("\"type\":\"Later\"", "\"seq\":2"));
     }
   }
 }

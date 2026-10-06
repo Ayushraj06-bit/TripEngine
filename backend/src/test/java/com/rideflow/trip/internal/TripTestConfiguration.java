@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -51,10 +52,16 @@ class TripTestConfiguration {
     record Push(UUID userId, String destination, RealtimeMessage message) {}
 
     private final List<Push> pushes = new CopyOnWriteArrayList<>();
+    private final AtomicLong seq = new AtomicLong();
 
     @Override
     public void toUser(UUID userId, String destination, RealtimeMessage message) {
       pushes.add(new Push(userId, destination, message));
+    }
+
+    @Override
+    public long nextSeq(UUID tripId) {
+      return seq.incrementAndGet();
     }
 
     List<Push> to(UUID userId, String destination) {

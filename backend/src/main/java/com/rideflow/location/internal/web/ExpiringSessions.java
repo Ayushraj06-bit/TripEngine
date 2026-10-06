@@ -73,7 +73,8 @@ class ExpiringSessions implements WebSocketHandlerDecoratorFactory {
       if (expiresAt instanceof Instant expiry && !now.isBefore(expiry)) {
         try {
           session.close(TOKEN_EXPIRED);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+          // Closed under us, or mid-send: either way it is going. The others still are.
           log.debug("Could not close expired session {}", session.getId(), e);
         }
         open.remove(session.getId());

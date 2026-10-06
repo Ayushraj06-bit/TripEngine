@@ -122,6 +122,22 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
       assertThat(assigned(driver).otp()).isNull();
     }
 
+    /** Pushes are best effort: whoever missed them reads the trip as it is now, on reconnecting. */
+    @Test
+    void leavesTheTripReadableForWhoeverMissedThePushes() throws Exception {
+      User rider = rider();
+      User driver = driver();
+      UUID tripId = tripUnderWay(rider, driver);
+
+      for (User user : List.of(rider, driver)) {
+        mockMvc
+            .perform(get("/api/v1/trips/active").header("Authorization", "Bearer " + user.token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(tripId.toString()))
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+      }
+    }
+
     private TripView assigned(User user) {
       return PUSHES.to(user.id(), TRIP_UPDATES).stream()
           .filter(push -> push.message().type().equals("DriverAssigned"))
@@ -181,6 +197,8 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
           .isNotEqualTo(
               tripFees.fareFor(dearer, distance, duration, BigDecimal.ONE).total().paise());
       assertThat(redis.hasKey("trip:route:" + tripId)).isFalse();
+      // And location forgets the trip, so the rider stops seeing where the driver goes next.
+      await().atMost(EVENTUALLY).until(() -> stateOf(driver, "tripId") == null);
 
       List<Push> positions = PUSHES.to(rider.id(), "/queue/driver-location");
       assertThat(positions).isNotEmpty();
@@ -191,6 +209,8 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
     void completesAtTheQuoteAndFlagsTheTripWhenTheRouteCannotBeRead() throws Exception {
       User driver = driver();
       UUID tripId = tripUnderWay(rider(), driver);
+      // A real ride, not one over in seconds, which is priced on whatever was recorded.
+      CLOCK.advance(Duration.ofMinutes(20));
       routes.breakReads();
 
       TripView completed = trips.complete(tripId, driver.asDriver());
@@ -291,6 +311,21 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
           .andExpect(jsonPath("$.trips.length()").value(1))
           .andExpect(jsonPath("$.trips[0].tripId").value(older.toString()))
           .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    @Test
+    void refusesALimitOutsideOneToFifty() throws Exception {
+      String admin =
+          auth.register("+919999900002", "Admin", "correct-horse-battery", Role.ADMIN)
+              .accessToken();
+
+      for (String limit : List.of("0", "51")) {
+        mockMvc
+            .perform(
+                get("/api/v1/admin/trips/flagged?limit=" + limit)
+                    .header("Authorization", "Bearer " + admin))
+            .andExpect(status().isBadRequest());
+      }
     }
 
     @Test

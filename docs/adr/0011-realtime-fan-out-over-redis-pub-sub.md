@@ -60,8 +60,14 @@ How it works:
   set in the same Lua script). Redis numbers them, not an instance, so they are
   strictly increasing even when two instances send for the same trip. Pub/Sub
   does not guarantee order across publishers, and a client may reconnect and
-  re-read. A client keeps the highest `seq` it has seen per trip and ignores
-  anything at or below it.
+  re-read. A client keeps the highest `seq` it has seen per trip **and
+  destination**, and ignores anything at or below it there. Not per trip alone:
+  one counter numbers both `trip-updates` and `driver-location`, and a trip
+  update overtaken by a position would otherwise be dropped.
+- A message whose payload is a state read from the database reserves its `seq`
+  *before* reading (`RealtimePublisher.nextSeq`). Numbered after reading, the
+  slower of two listeners could send an older state under a newer number, and
+  the client would keep the old state and drop the new one.
 - Messages not about a trip (offers) carry `seq: null`. An offer has its own id,
   and the driver acts on it at most once anyway.
 

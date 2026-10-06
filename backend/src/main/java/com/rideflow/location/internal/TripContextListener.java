@@ -1,5 +1,6 @@
 package com.rideflow.location.internal;
 
+import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.DriverArrived;
 import com.rideflow.trip.DriverAssigned;
 import com.rideflow.trip.DriverTrips;
@@ -10,6 +11,7 @@ import com.rideflow.trip.TripNoDriverFound;
 import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripReturnedToMatching;
 import com.rideflow.trip.TripStarted;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
@@ -23,10 +25,19 @@ import org.springframework.transaction.annotation.Propagation;
  * trip is now. Events can arrive late or out of order; the answer cannot. The Phase 4 driver-status
  * bug came from trusting the event.
  *
- * <p>No surrounding transaction: one read, then Redis.
+ * <p>Asking is not enough on its own: two events for one driver are handled at once, and the slower
+ * answer could land last - start followed at once by complete would leave a finished trip attached,
+ * and its rider watching the driver. So each write is checked by asking again, and redone if the
+ * answer moved. The last write is then always confirmed by a read made after it, and any change
+ * after that read brings an event whose own write comes later still.
+ *
+ * <p>No surrounding transaction: short reads, then Redis.
  */
 @Component
 class TripContextListener {
+
+  /** Enough for any real burst; past it, the next event's listener settles the answer. */
+  private static final int MAX_WRITES = 3;
 
   private final DriverTrips driverTrips;
   private final DriverStateStore store;
@@ -49,8 +60,17 @@ class TripContextListener {
           case TripRequested requested -> null;
           case TripNoDriverFound noDriver -> null;
         };
-    if (driverId != null) {
-      store.applyTripContext(driverId, driverTrips.activeTrip(driverId));
+    if (driverId == null) {
+      return;
+    }
+    Optional<ActiveTrip> trip = driverTrips.activeTrip(driverId);
+    for (int write = 0; write < MAX_WRITES; write++) {
+      store.applyTripContext(driverId, trip);
+      Optional<ActiveTrip> now = driverTrips.activeTrip(driverId);
+      if (now.equals(trip)) {
+        return;
+      }
+      trip = now;
     }
   }
 }

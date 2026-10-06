@@ -42,7 +42,13 @@ class LiveTripRelay {
 
   void relay(UUID driverId, GeoPoint position, Instant at, OnTrip trip) {
     if (trip.phase() == TripPhase.TO_DROP) {
-      routes.append(trip.tripId(), position, at);
+      try {
+        routes.append(trip.tripId(), position, at);
+      } catch (RuntimeException e) {
+        // One point missing from the route; the update itself was accepted, and the rider
+        // should still see it.
+        log.warn("Could not record a route point for trip {}", trip.tripId(), e);
+      }
     }
     if (!trip.forward()) {
       return;
