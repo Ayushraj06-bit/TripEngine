@@ -27,7 +27,10 @@ import org.springframework.stereotype.Component;
  *
  * <p>But no route at all is not a route of zero metres. A phone that died, or Redis losing the
  * list, would otherwise cut the fare to the minimum and underpay the driver; with nothing to
- * measure, the quote stands and the trip is flagged for a human.
+ * measure, the quote stands and the trip is flagged for a human. Except for a trip over within
+ * {@code short-trip-flag-seconds}: it had no time to cover its estimate, so it is priced at what
+ * was recorded - nothing, the minimum fare - and flagged as short. Otherwise a driver who starts
+ * and completes at once, before a single position arrives, would charge the whole quote.
  */
 @Component
 class FinalFares {
@@ -55,7 +58,8 @@ class FinalFares {
     var rules = properties.trip();
     long seconds = Duration.between(trip.startedAt(), completedAt).toSeconds();
     // Two points at least: one alone has no length, and is no more evidence than none.
-    boolean recorded = route.size() >= 2;
+    // A trip shorter than the flag threshold is measured whatever was recorded.
+    boolean recorded = route.size() >= 2 || seconds < rules.shortTripFlagSeconds();
     long meters =
         recorded
             ? RouteDistance.meters(route, properties.location().maxSpeedKmph())

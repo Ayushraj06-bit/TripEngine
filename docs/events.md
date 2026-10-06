@@ -129,8 +129,8 @@ Every trip event, whatever its type, also goes to two listeners (Phase 6):
   `GET /api/v1/trips/{id}` would return to that person, so the OTP appears only
   in the rider's copy. A driver who backed out is no longer on the trip and gets
   nothing. Because the payload is a state, not a change, a repeat is harmless.
-  The envelope's `seq` lets the client drop anything older than what it already
-  shows ([ADR 0011](adr/0011-realtime-fan-out-over-redis-pub-sub.md)).
+  The envelope's `seq`, reserved before the trip is read, lets the client drop
+  anything older than what it already shows on that destination ([ADR 0011](adr/0011-realtime-fan-out-over-redis-pub-sub.md)).
 - **`location`'s `TripContextListener`** finds the trip's driver in the event and
   asks `trip` for that driver's active trip, now. It stores the answer in the
   driver's Redis state: the rider to show the driver's position to, the point

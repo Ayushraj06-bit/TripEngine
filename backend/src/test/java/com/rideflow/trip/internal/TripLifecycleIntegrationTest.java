@@ -309,6 +309,9 @@ class TripLifecycleIntegrationTest extends TripIntegrationTestBase {
       User driver = driver();
       UUID tripId = arrivedTrip(rider, driver);
       trips.start(tripId, driver.asDriver(), otpOf(tripId));
+      // No route recorded here, and a ride longer than the short-trip threshold: the quote
+      // stands. (Not so long that the driver's 15-minute token runs out.)
+      CLOCK.advance(Duration.ofMinutes(2));
 
       String body =
           act(driver, "complete", tripId, "")

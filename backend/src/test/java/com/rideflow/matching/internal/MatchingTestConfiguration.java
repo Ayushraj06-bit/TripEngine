@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -48,10 +49,17 @@ class MatchingTestConfiguration {
     }
 
     private final List<Sent> sent = new CopyOnWriteArrayList<>();
+    private final AtomicLong seq = new AtomicLong();
 
     @Override
     public void toUser(UUID userId, String destination, RealtimeMessage message) {
       sent.add(new Sent(userId, destination, message));
+    }
+
+    /** Offers carry no seq; trip updates, which share this context, do. */
+    @Override
+    public long nextSeq(UUID tripId) {
+      return seq.incrementAndGet();
     }
 
     /** Every offer pushed so far, oldest first. */

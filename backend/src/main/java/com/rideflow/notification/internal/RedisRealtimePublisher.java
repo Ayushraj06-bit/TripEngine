@@ -42,12 +42,20 @@ class RedisRealtimePublisher implements RealtimePublisher {
 
   @Override
   public void toUser(UUID userId, String destination, RealtimeMessage message) {
-    Long seq = message.tripId() == null ? null : sequence.next(message.tripId());
+    Long seq = message.seq();
+    if (seq == null && message.tripId() != null) {
+      seq = sequence.next(message.tripId());
+    }
     String envelope =
         json.writeValueAsString(
             new Envelope(
                 message.type(), message.tripId(), seq, clock.instant(), message.payload()));
     redis.convertAndSend(
         CHANNEL, json.writeValueAsString(new Delivery(userId, destination, envelope)));
+  }
+
+  @Override
+  public long nextSeq(UUID tripId) {
+    return sequence.next(tripId);
   }
 }
