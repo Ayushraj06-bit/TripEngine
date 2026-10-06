@@ -38,6 +38,14 @@ class RouteDistanceTest {
     assertThat(RouteDistance.meters(route, MAX_KMPH)).isCloseTo(200, within(1L));
   }
 
+  /** A bad first fix would anchor every later point; the good ones after it start the route. */
+  @Test
+  void skipsABadFirstFix() {
+    List<RoutePoint> route = List.of(at(3_000, 0), at(0, 5), at(100, 15), at(200, 25));
+
+    assertThat(RouteDistance.meters(route, MAX_KMPH)).isCloseTo(200, within(1L));
+  }
+
   @Test
   void ignoresARepeatedTimestamp() {
     assertThat(RouteDistance.meters(List.of(at(0, 0), at(100, 10), at(100, 10)), MAX_KMPH))

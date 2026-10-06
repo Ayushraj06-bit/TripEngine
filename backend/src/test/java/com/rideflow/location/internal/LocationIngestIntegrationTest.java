@@ -532,6 +532,20 @@ class LocationIngestIntegrationTest {
           .containsEntry("tripId", tripId.toString());
     }
 
+    /** The context and the hash's expiry in one step, even on a hash that did not exist. */
+    @Test
+    void neverLeavesTheStateWithoutAnExpiry() {
+      UUID fresh = UUID.randomUUID();
+
+      store.applyTripContext(
+          fresh,
+          Optional.of(new ActiveTrip(tripId, riderId, TripStatus.DRIVER_ASSIGNED, pickup, drop)));
+
+      assertThat(redis.opsForHash().get("driver:state:" + fresh, "tripPhase"))
+          .isEqualTo("TO_PICKUP");
+      assertThat(redis.getExpire("driver:state:" + fresh)).isPositive();
+    }
+
     @Test
     void forgetsTheTripOnceItIsOver() {
       onTrip(TripStatus.IN_PROGRESS);

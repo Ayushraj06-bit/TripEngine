@@ -408,6 +408,9 @@ public class TripService implements TripAssignment, DriverTrips {
               Instant now = clock.instant();
               FinalFares.FinalFare fare = finalFares.settle(trip, route, now);
               trip.complete(now, fare);
+              if (fare.flag() != null) {
+                trips.flag(trip.id(), fare.flag());
+              }
               record(
                   trip,
                   from,
@@ -454,12 +457,12 @@ public class TripService implements TripAssignment, DriverTrips {
   }
 
   /**
-   * Flags the trip for review. The first reason stands.
+   * Adds a reason to the trip's flag for review, keeping any already there.
    *
-   * @return true if this call flagged it
+   * @return true if this call added it
    */
   boolean flag(UUID tripId, String reason) {
-    return Boolean.TRUE.equals(transactions.execute(status -> load(tripId).flag(reason)));
+    return Boolean.TRUE.equals(transactions.execute(status -> trips.flag(tripId, reason) == 1));
   }
 
   // --- System actions (TripAssignment) ---------------------------------------------------------

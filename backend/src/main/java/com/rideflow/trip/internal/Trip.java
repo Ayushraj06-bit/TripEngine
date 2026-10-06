@@ -82,7 +82,11 @@ class Trip {
   private Instant cancelledAt;
   private Instant noDriverFoundAt;
 
-  /** Why a human should look at this trip; null for almost every trip. The first reason stands. */
+  /**
+   * Why a human should look at this trip; null for almost every trip. Read-only here: only {@link
+   * TripRepository#flag} writes it, so that flagging never touches the version.
+   */
+  @Column(insertable = false, updatable = false)
   private String flaggedReason;
 
   /**
@@ -143,25 +147,8 @@ class Trip {
     this.finalFarePaise = fare.farePaise();
     this.distanceMeters = fare.distanceMeters();
     this.durationSeconds = fare.durationSeconds();
-    if (fare.flag() != null) {
-      flag(fare.flag());
-    }
     this.completedAt = now;
     this.status = TripStatus.COMPLETED;
-  }
-
-  /**
-   * Raises the trip for review. The first reason stands: a later one must not overwrite the
-   * evidence of what was noticed first.
-   *
-   * @return true if this call flagged it
-   */
-  boolean flag(String reason) {
-    if (flaggedReason != null) {
-      return false;
-    }
-    this.flaggedReason = reason;
-    return true;
   }
 
   ActiveTrip activeTrip() {
@@ -341,10 +328,6 @@ class Trip {
 
   long distanceMeters() {
     return distanceMeters;
-  }
-
-  String flaggedReason() {
-    return flaggedReason;
   }
 
   Instant otpLockedUntil() {
