@@ -262,6 +262,8 @@
                     <include>com.rideflow.matching.*</include>
                     <include>com.rideflow.pricing</include>
                     <include>com.rideflow.pricing.*</include>
+                    <include>com.rideflow.payment</include>
+                    <include>com.rideflow.payment.*</include>
                     <include>com.rideflow.shared</include>
                     <include>com.rideflow.shared.*</include>
                   </includes>
