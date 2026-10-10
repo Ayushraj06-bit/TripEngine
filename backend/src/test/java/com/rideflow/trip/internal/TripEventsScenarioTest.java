@@ -1,20 +1,24 @@
 package com.rideflow.trip.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.DriverArrived;
 import com.rideflow.trip.DriverAssigned;
 import com.rideflow.trip.PaymentMethod;
+import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripCancelled;
 import com.rideflow.trip.TripCompleted;
 import com.rideflow.trip.TripEvent;
 import com.rideflow.trip.TripNoDriverFound;
+import com.rideflow.trip.TripPaymentStatusChanged;
 import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripReturnedToMatching;
 import com.rideflow.trip.TripStarted;
 import com.rideflow.trip.TripStatus;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -38,7 +42,12 @@ class TripEventsScenarioTest extends TripIntegrationTestBase {
 
   private void assertRecorded(UUID tripId, int steps) {
     assertThat(auditRows(tripId)).as("trip_events rows").isEqualTo(steps);
-    assertThat(events.stream(TripEvent.class).filter(event -> event.tripId().equals(tripId)))
+    // State changes only: payment's status follows some of them, outside the state machine and
+    // with no audit row of its own.
+    assertThat(
+            events.stream(TripEvent.class)
+                .filter(event -> event.tripId().equals(tripId))
+                .filter(event -> !(event instanceof TripPaymentStatusChanged)))
         .as("published trip events")
         .hasSize(steps);
   }
@@ -89,6 +98,18 @@ class TripEventsScenarioTest extends TripIntegrationTestBase {
         .matchingMappedValue(TripCompleted::tripId, tripId)
         .toArriveAndVerify(event -> assertThat(event.finalFarePaise()).isPositive());
     assertRecorded(tripId, 5);
+
+    // Then payment charges it. This rider never topped up, so the fare waits on a top-up.
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () ->
+                assertThat(
+                        events.stream(TripPaymentStatusChanged.class)
+                            .filter(event -> event.tripId().equals(tripId)))
+                    .singleElement()
+                    .extracting(TripPaymentStatusChanged::paymentStatus)
+                    .isEqualTo(PaymentStatus.PENDING_SETTLEMENT));
   }
 
   @Test

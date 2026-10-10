@@ -55,6 +55,13 @@ class SecurityMatrixTest {
   /** A trip nobody has: a permitted caller reaching the route gets 404, not 403. */
   private static final String TRIP = TRIPS + "/" + UUID.randomUUID();
 
+  private static final String TOPUPS = "/api/v1/wallet/topups";
+
+  private static final String WEBHOOK = "/api/v1/webhooks/payment-gateway";
+
+  /** A ledger transaction nobody has. */
+  private static final String REFUND = "/api/v1/admin/payments/" + UUID.randomUUID() + "/refund";
+
   /** Likewise an offer nobody has. */
   private static final String OFFER = "/api/v1/offers/" + UUID.randomUUID();
 
@@ -181,6 +188,37 @@ class SecurityMatrixTest {
         row(HttpMethod.GET, "/api/v1/offers/current", Caller.RIDER, 403),
         row(HttpMethod.GET, "/api/v1/offers/current", Caller.DRIVER, 204),
 
+        // --- wallet (Phase 7): riders and drivers, each their own account ---
+        row(HttpMethod.GET, "/api/v1/wallet", Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, "/api/v1/wallet", Caller.GARBAGE_TOKEN, 401),
+        row(HttpMethod.GET, "/api/v1/wallet", Caller.RIDER, 200),
+        row(HttpMethod.GET, "/api/v1/wallet", Caller.DRIVER, 200),
+        row(HttpMethod.GET, "/api/v1/wallet", Caller.ADMIN, 403),
+        row(HttpMethod.POST, TOPUPS, Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, TOPUPS, Caller.RIDER, 201),
+        row(HttpMethod.POST, TOPUPS, Caller.DRIVER, 403),
+        row(HttpMethod.POST, TOPUPS, Caller.ADMIN, 403),
+        // The gateway carries no token: its signature is its credential, whoever else calls.
+        row(HttpMethod.POST, WEBHOOK, Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, WEBHOOK, Caller.RIDER, 401),
+        row(HttpMethod.POST, WEBHOOK, Caller.ADMIN, 401),
+
+        // --- ratings (Phase 7): either side of the trip ---
+        row(HttpMethod.POST, TRIP + "/rating", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, TRIP + "/rating", Caller.ADMIN, 403),
+        row(HttpMethod.POST, TRIP + "/rating", Caller.RIDER, 404),
+        row(HttpMethod.POST, TRIP + "/rating", Caller.DRIVER, 404),
+
+        // --- refunds and reconciliation (Phase 7): ADMIN only ---
+        row(HttpMethod.POST, REFUND, Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, REFUND, Caller.RIDER, 403),
+        row(HttpMethod.POST, REFUND, Caller.DRIVER, 403),
+        row(HttpMethod.POST, REFUND, Caller.ADMIN, 404),
+        row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.RIDER, 403),
+        row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.DRIVER, 403),
+        row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.ADMIN, 200),
+
         // --- flagged trips (Phase 6): ADMIN only ---
         row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.ANONYMOUS, 401),
         row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.RIDER, 403),
@@ -224,7 +262,7 @@ class SecurityMatrixTest {
     if (method != HttpMethod.GET) {
       request.contentType(MediaType.APPLICATION_JSON).content(bodyFor(path));
     }
-    if (method == HttpMethod.POST && path.equals(TRIPS)) {
+    if (method == HttpMethod.POST && (path.equals(TRIPS) || path.equals(TOPUPS))) {
       request.header("Idempotency-Key", UUID.randomUUID().toString());
     }
     tokenFor(caller).ifPresent(token -> request.header("Authorization", "Bearer " + token));
@@ -251,6 +289,14 @@ class SecurityMatrixTest {
     if (path.endsWith("/vehicle")) {
       return """
           {"type":"CAR","plateNumber":"KA01AB1234","model":"Swift","colour":"White"}""";
+    }
+    if (path.equals(TOPUPS)) {
+      return """
+          {"amountPaise":50000}""";
+    }
+    if (path.endsWith("/rating")) {
+      return """
+          {"stars":5}""";
     }
     if (path.endsWith("/reject")) {
       return """
