@@ -1,5 +1,6 @@
 package com.rideflow.trip.internal;
 
+import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.TripStatus;
 import java.time.Instant;
 import java.util.Collection;
@@ -57,6 +58,22 @@ interface TripRepository extends JpaRepository<Trip, UUID> {
         and (t.flaggedReason is null or locate(:reason, t.flaggedReason) = 0)
       """)
   int flag(UUID id, String reason);
+
+  /**
+   * Sets the trip's payment status, if it is not that already. The only way the column changes; the
+   * version is left alone (see {@link TripPaymentRecorder}).
+   *
+   * @return 1 if it changed
+   */
+  @Modifying
+  @Query(
+      "update Trip t set t.paymentStatus = :status where t.id = :id and t.paymentStatus <> :status")
+  int setPaymentStatus(UUID id, PaymentStatus status);
+
+  /** A partial-index lookup on {@code trips_outstanding_idx}. */
+  List<Trip> findByRiderIdAndPaymentStatus(UUID riderId, PaymentStatus paymentStatus);
+
+  boolean existsByRiderIdAndPaymentStatus(UUID riderId, PaymentStatus paymentStatus);
 
   /** Flagged trips, newest first: an index scan on {@code trips_flagged_idx}. */
   List<Trip> findByFlaggedReasonIsNotNullOrderByIdDesc(Limit limit);
