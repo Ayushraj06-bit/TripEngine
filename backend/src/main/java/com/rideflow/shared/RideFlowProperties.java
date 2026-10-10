@@ -1,10 +1,12 @@
 package com.rideflow.shared;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -32,6 +34,7 @@ public record RideFlowProperties(
     @NotNull @Valid Surge surge,
     @NotNull @Valid Payment payment,
     @NotNull @Valid Notification notification,
+    @NotNull @Valid Rating rating,
     @NotNull @Valid ServiceAreaProperties serviceArea) {
 
   /** Location ingestion and throttling. */
@@ -148,6 +151,52 @@ public record RideFlowProperties(
       /** Section 7: a trip's message counter lives 24 hours. */
       @Positive int sequenceTtlHours) {}
 
-  /** Commission. */
-  public record Payment(@Min(0) @Max(100) int commissionPercent) {}
+  /** Commission, wallet top-ups, the gateway, and the ledger. */
+  public record Payment(
+      @Min(0) @Max(100) int commissionPercent,
+      /* Phase 7. */
+      @Positive long minTopupPaise,
+      @Positive long maxTopupPaise,
+      /** The gateway's webhook signing secret. Blank generates one per process (ADR 0013). */
+      String webhookSecret,
+      /** How far a webhook's signed timestamp may be from now; further is a replay. */
+      @Positive int webhookToleranceSeconds,
+      /** Tries at a posting that keeps losing optimistic-lock races before it gives up. */
+      @Positive int postingMaxAttempts,
+      /** Most mismatches one reconciliation lists; its counts are always complete. */
+      @Positive int reconcileReportLimit,
+      @NotNull @Valid MockGateway mockGateway) {
+
+    @AssertTrue(message = "min-topup-paise must not exceed max-topup-paise")
+    public boolean isTopupRangeValid() {
+      return minTopupPaise <= maxTopupPaise;
+    }
+
+    /**
+     * The stand-in for a real gateway, which PROJECT_SPEC section 2 puts out of scope.
+     *
+     * @param baseUrl where its "hosted payment page" lives, for the URL a top-up returns
+     * @param webhookUrl where it delivers webhooks; blank means this instance's own endpoint
+     * @param outcome what a payment does unless the call to pay says otherwise
+     * @param unavailable refuse to create payments, as a gateway outage would
+     */
+    public record MockGateway(
+        boolean enabled,
+        @NotBlank String baseUrl,
+        String webhookUrl,
+        @NotNull Outcome outcome,
+        @Min(0) long delayMs,
+        boolean unavailable) {}
+
+    /** How a payment at the gateway ends. */
+    public enum Outcome {
+      SUCCEEDED,
+      FAILED
+    }
+  }
+
+  /** Ratings. */
+  public record Rating(
+      /** How long after a trip completes either side may rate it. */
+      @Positive int windowDays) {}
 }
