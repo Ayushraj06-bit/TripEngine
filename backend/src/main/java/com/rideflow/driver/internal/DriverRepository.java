@@ -41,6 +41,12 @@ interface DriverRepository extends JpaRepository<Driver, UUID> {
 
   @Modifying
   @Query(
+      "update Driver d set d.ratingSum = d.ratingSum + :stars, d.ratingCount = d.ratingCount + 1"
+          + " where d.userId = :driverId")
+  int addRating(UUID driverId, int stars);
+
+  @Modifying
+  @Query(
       "update Driver d set d.offersAccepted = d.offersAccepted - 1"
           + " where d.userId = :driverId and d.offersAccepted > 0")
   int decrementOffersAccepted(UUID driverId);
