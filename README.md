@@ -23,7 +23,8 @@ the thing.
 | 4 Trip lifecycle and booking | done |
 | 5 Matching engine | done |
 | 6 Live trip and final fare | done |
-| 7 Payments | next |
+| 7 Payments and ratings | done |
+| 8 Surge pricing | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -75,6 +76,22 @@ GPS jumps are dropped first. Suspicious trips are flagged for review at
 route, or a driver silent for 10 minutes. A driver who loses connection does not
 cancel the trip; the rider is told. WebSocket sessions close when their token
 expires.
+
+**Phase 7** adds money and ratings. Every movement is a double-entry ledger
+transaction whose debits equal its credits. It is unique by type and reference,
+so a redelivered event or webhook moves nothing twice. The database refuses to
+change an entry or to commit a transaction that does not balance
+([ADR 0012](docs/adr/0012-double-entry-ledger.md)).
+- Riders top up through a mock gateway whose webhooks are signed with HMAC
+  ([ADR 0013](docs/adr/0013-mock-payment-gateway-and-webhooks.md)).
+- Wallet trips are split between the driver and a 20% commission; cash trips
+  owe the commission from the driver's earnings.
+- A fare the wallet cannot cover is still charged, leaving the rider owing.
+  They cannot book until a top-up settles it.
+- Admins refund with reversing transactions and reconcile the ledger, which a
+  nightly job also does.
+- Each side of a completed trip rates the other once within 7 days. The
+  driver's average is kept as a running sum and count.
 
 ## Requirements
 

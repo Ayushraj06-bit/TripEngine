@@ -53,9 +53,10 @@ changes an event.
 | `DriverAssigned` | `trip` | `driver`, `trip` (push), `location`, Kafka | yes | 4 |
 | `DriverArrived` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
 | `TripStarted` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
-| `TripCompleted` | `trip` | `driver`, `trip` (push), `location`; payment (Phase 7), Kafka | yes | 4 |
-| `TripCancelled` | `trip` | `driver`, `matching`, `trip` (push), `location`; payment (Phase 7), Kafka | yes | 4 |
+| `TripCompleted` | `trip` | `driver`, `payment`, `trip` (push), `location`, Kafka | yes | 4 |
+| `TripCancelled` | `trip` | `driver`, `matching`, `payment`, `trip` (push), `location`, Kafka | yes | 4 |
 | `TripNoDriverFound` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
+| `TripPaymentStatusChanged` | `trip` | `trip` (push), `location`, Kafka | yes | 7 |
 
 Each phase appends its rows here. From Phase 6, every trip event also has two
 consumers that react to it the same way whatever its type. They are described
@@ -186,8 +187,13 @@ Both run without a surrounding transaction: one database read, then Redis.
 - **Payload:** riderId, driverId, finalFarePaise, paymentMethod. From Phase 6
   the final fare is settled at completion: the quoted fare, or a reprice for the
   route actually driven, plus any waiting charge (PROJECT_SPEC section 8).
-- **Consumed by:** `driver` (back to AVAILABLE); payment (Phase 7) charges it,
-  idempotently by trip id.
+- **Consumed by:** `driver` (back to AVAILABLE); `payment`, which charges the
+  fare ([ADR 0012](adr/0012-double-entry-ledger.md)):
+  - a wallet trip: from the rider's wallet, split between the driver's earnings
+    and the platform's commission
+  - a cash trip: the commission from the driver's earnings to platform revenue
+
+  Once only: the ledger transaction is unique by type and trip.
 
 #### TripCancelled
 
@@ -197,13 +203,31 @@ Both run without a surrounding transaction: one database read, then Redis.
   previousStatus, cancellationFeePaise (zero when free), paymentMethod
 - **Consumed by:** `driver` (frees the driver, if there was one); `matching`,
   which withdraws the offer that was out if the trip was still waiting, and tells
-  that driver; payment (Phase 7) charges a non-zero fee.
+  that driver; `payment`, which charges a non-zero fee to the rider's wallet,
+  whatever the payment method, split as a fare is. Once only.
 
 #### TripNoDriverFound
 
 - **Published when:** matching's deadline passes with no driver: REQUESTED to
   NO_DRIVER_FOUND.
 - **Payload:** riderId
+
+#### TripPaymentStatusChanged
+
+- **Published when:** where the money for a trip stands changes. `payment`
+  decides it and calls `trip`'s `TripPayments` in the same transaction that
+  moved the money:
+  - PAID: charged in full, or a cash trip's commission taken
+  - PENDING_SETTLEMENT: charged to a wallet that went below zero
+  - PAID again: a later top-up or refund brought the wallet back to zero or
+    above
+  - REFUNDED: an admin refunded the charge
+- **Payload:** riderId, driverId, paymentStatus
+- **Consumed by:** the push to the rider and the driver, so their apps show the
+  trip paid or waiting; `location` ignores it. While any trip of a rider is
+  PENDING_SETTLEMENT, booking answers 422 `OUTSTANDING_BALANCE`.
+- **Not in `trip_events`:** that log is of the state machine, and payment
+  status is not a state. The ledger is the record of the money.
 
 ## Real-time messages
 
