@@ -21,7 +21,8 @@ public sealed interface TripEvent
         TripStarted,
         TripCompleted,
         TripCancelled,
-        TripNoDriverFound {
+        TripNoDriverFound,
+        TripPaymentStatusChanged {
 
   String TOPIC = "rideflow.trip-events";
 

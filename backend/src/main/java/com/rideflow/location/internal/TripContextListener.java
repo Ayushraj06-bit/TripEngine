@@ -8,6 +8,7 @@ import com.rideflow.trip.TripCancelled;
 import com.rideflow.trip.TripCompleted;
 import com.rideflow.trip.TripEvent;
 import com.rideflow.trip.TripNoDriverFound;
+import com.rideflow.trip.TripPaymentStatusChanged;
 import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripReturnedToMatching;
 import com.rideflow.trip.TripStarted;
@@ -59,6 +60,8 @@ class TripContextListener {
           case TripReturnedToMatching returned -> returned.previousDriverId();
           case TripRequested requested -> null;
           case TripNoDriverFound noDriver -> null;
+          // Money, not movement: the trip ended before it.
+          case TripPaymentStatusChanged payment -> null;
         };
     if (driverId == null) {
       return;
