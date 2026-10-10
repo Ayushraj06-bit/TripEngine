@@ -1,6 +1,7 @@
 package com.rideflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -56,6 +57,8 @@ class SecurityMatrixTest {
   private static final String TRIP = TRIPS + "/" + UUID.randomUUID();
 
   private static final String TOPUPS = "/api/v1/wallet/topups";
+
+  private static final String SURGE = "/api/v1/admin/surge";
 
   private static final String WEBHOOK = "/api/v1/webhooks/payment-gateway";
 
@@ -219,6 +222,21 @@ class SecurityMatrixTest {
         row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.DRIVER, 403),
         row(HttpMethod.GET, "/api/v1/admin/ledger/reconcile", Caller.ADMIN, 200),
 
+        // --- surge (Phase 8): ADMIN only ---
+        row(HttpMethod.GET, SURGE, Caller.ANONYMOUS, 401),
+        row(HttpMethod.GET, SURGE, Caller.RIDER, 403),
+        row(HttpMethod.GET, SURGE, Caller.DRIVER, 403),
+        row(HttpMethod.GET, SURGE, Caller.ADMIN, 200),
+        row(HttpMethod.POST, SURGE + "/overrides", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, SURGE + "/overrides", Caller.RIDER, 403),
+        row(HttpMethod.POST, SURGE + "/overrides", Caller.ADMIN, 201),
+        row(HttpMethod.DELETE, SURGE + "/overrides/tdr1v9", Caller.ANONYMOUS, 401),
+        row(HttpMethod.DELETE, SURGE + "/overrides/tdr1v9", Caller.DRIVER, 403),
+        row(HttpMethod.DELETE, SURGE + "/overrides/tdr1v9", Caller.ADMIN, 204),
+        row(HttpMethod.POST, SURGE + "/kill-switch", Caller.ANONYMOUS, 401),
+        row(HttpMethod.POST, SURGE + "/kill-switch", Caller.RIDER, 403),
+        row(HttpMethod.POST, SURGE + "/kill-switch", Caller.ADMIN, 200),
+
         // --- flagged trips (Phase 6): ADMIN only ---
         row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.ANONYMOUS, 401),
         row(HttpMethod.GET, "/api/v1/admin/trips/flagged", Caller.RIDER, 403),
@@ -255,6 +273,7 @@ class SecurityMatrixTest {
           case "GET" -> get(path);
           case "POST" -> post(path);
           case "PUT" -> put(path);
+          case "DELETE" -> delete(path);
           default -> throw new IllegalArgumentException("unhandled method " + method);
         };
 
@@ -289,6 +308,16 @@ class SecurityMatrixTest {
     if (path.endsWith("/vehicle")) {
       return """
           {"type":"CAR","plateNumber":"KA01AB1234","model":"Swift","colour":"White"}""";
+    }
+    if (path.endsWith("/surge/overrides")) {
+      return """
+          {"cell":"tdr1v9","multiplier":1.5,"expiresAt":"%s"}"""
+          .formatted(java.time.Instant.now().plus(java.time.Duration.ofHours(1)));
+    }
+    if (path.endsWith("/kill-switch")) {
+      // Off: the matrix only checks who may call it, and must not leave surge switched off.
+      return """
+          {"on":false}""";
     }
     if (path.equals(TOPUPS)) {
       return """
