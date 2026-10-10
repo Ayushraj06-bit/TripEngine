@@ -1,6 +1,6 @@
 # Build context is the repository root:
 #   docker build -f infra/backend.Dockerfile .
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:25-jdk-alpine AS build
 WORKDIR /workspace
 
 # Copy the build descriptors first so dependency download is cached separately
@@ -15,7 +15,7 @@ COPY backend/src backend/src
 RUN ./mvnw -B -ntp -pl backend -am -DskipTests package \
     && cp backend/target/rideflow-backend-*.jar /workspace/app.jar
 
-FROM eclipse-temurin:21-jre-alpine AS runtime
+FROM eclipse-temurin:25-jre-alpine AS runtime
 WORKDIR /app
 
 # Never run the application as root.
