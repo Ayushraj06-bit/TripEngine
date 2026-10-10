@@ -48,7 +48,7 @@ changes an event.
 |---|---|---|---|---|
 | `DriverStatusChanged` | `driver` | `location`, `matching` | no | 1 |
 | `DriverWentStale` | `location` | `matching` | no | 2 |
-| `TripRequested` | `trip` | `matching`, `trip` (push), `location`, Kafka | yes | 4 |
+| `TripRequested` | `trip` | `matching`, `trip` (push, surge demand), `location`, Kafka | yes | 4 |
 | `TripReturnedToMatching` | `trip` | `driver`, `matching`, `trip` (push), `location`, Kafka | yes | 4 |
 | `DriverAssigned` | `trip` | `driver`, `trip` (push), `location`, Kafka | yes | 4 |
 | `DriverArrived` | `trip` | `trip` (push), `location`, Kafka | yes | 4 |
@@ -148,7 +148,9 @@ Both run without a surrounding transaction: one database read, then Redis.
   quotedFarePaise, surgeMultiplier, paymentMethod
 - **Consumed by:** `matching`, which starts looking for a driver - reading the
   trip from the database, so a late duplicate for a trip since assigned does
-  nothing. Surge (Phase 8) may count it as demand.
+  nothing. `trip`'s `SurgeDemandRecorder` counts it as demand in its pickup's
+  geohash cell, through `pricing`'s `SurgeDemand`, once per event id
+  ([ADR 0014](adr/0014-surge-engine.md)).
 
 #### TripReturnedToMatching
 

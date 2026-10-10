@@ -250,6 +250,28 @@ means something went around it: a manual UPDATE of `ledger_accounts`, or a
 restore. Find what changed before touching anything. Never edit an entry: the
 trigger refuses it, and the fix is a reversing transaction.
 
+### Fares are not surging, or will not stop surging
+
+Check these in order: they are the precedence quotes apply
+([ADR 0014](adr/0014-surge-engine.md)).
+
+1. `GET /api/v1/admin/surge`, as an admin. `killSwitchOn: true` prices
+   everything at 1.0. Turn it off with
+   `POST /api/v1/admin/surge/kill-switch {"on": false}`.
+2. In the same response, an override for the cell beats the computed value until
+   it expires. Remove it with `DELETE /api/v1/admin/surge/overrides/{cell}`.
+3. Is the job running? `surge_tick` should count up every 30 seconds. The
+   `surge-tick` row in `shedlock` shows who ran it last. With the job stopped,
+   `surge:{cell}` keys lapse within 90 seconds and every fare is 1.0. That is by
+   design.
+4. Is demand arriving? `ZRANGE surge:demand:cells 0 -1 WITHSCORES` lists cells
+   with requests in the last 5 minutes. Requests are counted from
+   `TripRequested`; check `event_publication` for incomplete
+   `SurgeDemandRecorder` rows.
+
+A price falls 0.25 per tick once its demand eases, so a cell at 2.5 takes three
+minutes to return to 1.0. That is smoothing, not a fault.
+
 ### Port already in use
 
 Defaults: backend 8080, simulator 8081, Postgres 5432, Redis 6379, Kafka 9092,

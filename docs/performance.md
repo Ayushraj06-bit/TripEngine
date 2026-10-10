@@ -7,9 +7,8 @@
 
 ## Status
 
-**No measurements have been taken yet.** Phase 0 built the repository scaffold
-only — there is no running system to measure. This page is filled in during
-Phase 10.
+One benchmark so far: the surge tick (Phase 8), below. The load-test targets
+are measured in Phase 10.
 
 ## Targets
 
@@ -43,4 +42,28 @@ it passes, or quietly dropped.
 
 ## Runs
 
-_None yet._
+### Surge tick, 2026-10-10
+
+- **Date and commit:** 2026-10-10, branch `phase-8-surge` as tagged `phase-8`.
+- **Hardware:** Intel Core i7-13650HX (14 cores, 20 threads), 16 GB RAM,
+  Windows 11. Redis 7.4 in Docker Desktop through Testcontainers, on the same
+  machine.
+- **Topology:** one backend, in the integration-test context.
+- **Command:** `./mvnw -pl backend test -Dtest=SurgeIntegrationTest`. The test is
+  `pricesThreeHundredBusyCellsWellInsideATick`, and the result is in its log
+  line "Surge tick over ...".
+- **Workload:**
+  - 2,000 available drivers spread across Bengaluru, a third in each
+    vehicle-type GEO set
+  - 300 distinct geohash-6 cells with two requests each
+  - 1,112 cells priced: the busy cells and their neighbours
+
+**Raw output:**
+
+```
+Surge tick over 300 busy cells, 1112 priced, 2,000 drivers: first 94 ms, then 75 ms
+```
+
+**Reading:** one tick takes under 0.5% of its 30-second interval. The first tick
+includes loading the Lua scripts. The test fails above 3,000 ms (a tenth of a
+tick), which leaves a wide margin for a busier city or a slower Redis.

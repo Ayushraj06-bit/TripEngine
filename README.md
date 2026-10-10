@@ -24,7 +24,8 @@ the thing.
 | 5 Matching engine | done |
 | 6 Live trip and final fare | done |
 | 7 Payments and ratings | done |
-| 8 Surge pricing | next |
+| 8 Surge pricing | done |
+| 9 Simulator and live map | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -92,6 +93,20 @@ change an entry or to commit a transaction that does not balance
   nightly job also does.
 - Each side of a completed trip rates the other once within 7 days. The
   driver's average is kept as a running sum and count.
+
+**Phase 8** adds surge pricing per geohash cell
+([ADR 0014](docs/adr/0014-surge-engine.md)).
+- Every ride request is counted in its cell's current minute. Every 30 seconds
+  a ShedLock-guarded job prices the busy cells and their neighbours from demand
+  over supply.
+- Both are summed over each cell's three-by-three block, so riders either side
+  of a cell border pay alike.
+- A step table sets the target. The price moves 0.25 a tick towards it, up and
+  down, never below 1.0 or above the 2.5 cap.
+- If the job stops, its keys lapse and fares fall back to 1.0.
+- Quotes read the multiplier through a 5-second cache. Admins see a heatmap and
+  can override a cell or switch surge off everywhere.
+- One tick over 300 busy cells and 2,000 drivers takes about 80 ms.
 
 ## Requirements
 
