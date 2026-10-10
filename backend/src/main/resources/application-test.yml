@@ -14,6 +14,11 @@ rideflow:
     # startup, so the scheduling wiring itself stays exercised.
     stale-sweep-interval: PT1H
     session-expiry-check-interval: PT1H
+  payment:
+    # Fixed, so a test can sign a webhook of its own.
+    webhook-secret: test-webhook-secret
+    # Tests reconcile when they mean to.
+    reconcile-cron: "-"
   trip:
     driver-silence-check-interval: PT1H
     # Small, so a test with a few trips crosses a window boundary.

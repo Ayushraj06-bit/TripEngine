@@ -74,7 +74,18 @@ class RideFlowPropertiesTest {
         "rideflow.surge.cap=2.5",
         "rideflow.surge.ttl-seconds=90",
         "rideflow.payment.commission-percent=20",
+        "rideflow.payment.min-topup-paise=1000",
+        "rideflow.payment.max-topup-paise=1000000",
+        "rideflow.payment.webhook-tolerance-seconds=300",
+        "rideflow.payment.posting-max-attempts=10",
+        "rideflow.payment.reconcile-report-limit=100",
+        "rideflow.payment.mock-gateway.enabled=true",
+        "rideflow.payment.mock-gateway.base-url=http://localhost:8080",
+        "rideflow.payment.mock-gateway.outcome=SUCCEEDED",
+        "rideflow.payment.mock-gateway.delay-ms=0",
+        "rideflow.payment.mock-gateway.unavailable=false",
         "rideflow.notification.sequence-ttl-hours=24",
+        "rideflow.rating.window-days=7",
         "rideflow.service-area.vertices[0].lat=13.14",
         "rideflow.service-area.vertices[0].lng=77.46",
         "rideflow.service-area.vertices[1].lat=13.14",
@@ -161,6 +172,19 @@ class RideFlowPropertiesTest {
                     .hasFailed()
                     .getFailure()
                     .hasStackTraceContaining("commissionPercent"));
+  }
+
+  @Test
+  void failsToStartWhenTheSmallestTopUpExceedsTheLargest() {
+    runner
+        .withPropertyValues(VALID)
+        .withPropertyValues("rideflow.payment.min-topup-paise=2000000")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .hasStackTraceContaining("min-topup-paise must not exceed max-topup-paise"));
   }
 
   @Test

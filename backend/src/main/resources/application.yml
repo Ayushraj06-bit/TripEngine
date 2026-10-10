@@ -16,6 +16,9 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+        # Updates in primary-key order: two ledger postings touching the same accounts lock
+        # them in the same order, so they wait for each other instead of deadlocking.
+        order_updates: true
 
   flyway:
     enabled: true
@@ -171,8 +174,28 @@ rideflow:
     ttl-seconds: 90
   payment:
     commission-percent: 20
+    # Phase 7: wallet top-ups, ₹10 to ₹10,000.
+    min-topup-paise: 1000
+    max-topup-paise: 1000000
+    # Signs and verifies gateway webhooks. Never committed: set RIDEFLOW_GATEWAY_WEBHOOK_SECRET.
+    # Blank generates one per process, which only works while there is one instance.
+    webhook-secret: ${RIDEFLOW_GATEWAY_WEBHOOK_SECRET:}
+    webhook-tolerance-seconds: 300
+    posting-max-attempts: 10
+    reconcile-report-limit: 100
+    # Nightly, after the evening peak and before the morning one.
+    reconcile-cron: "0 30 3 * * *"
+    mock-gateway:
+      enabled: true
+      base-url: http://localhost:8080
+      webhook-url: ""
+      outcome: SUCCEEDED
+      delay-ms: 0
+      unavailable: false
   notification:
     sequence-ttl-hours: 24
+  rating:
+    window-days: 7
 
   # The city RideFlow operates in (PROJECT_SPEC section 1: one configured service
   # area). This box covers Bengaluru; replace it with the real boundary per
