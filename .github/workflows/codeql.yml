@@ -15,6 +15,9 @@ permissions:
 jobs:
   analyze:
     name: analyze java
+    # Code scanning needs GitHub Code Security on a private repository; without it the
+    # upload fails every time. Runs as soon as the repository is public.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
