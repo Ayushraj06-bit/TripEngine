@@ -144,7 +144,38 @@ public record RideFlowProperties(
       @Positive int tickSeconds,
       @Positive double maxStepPerTick,
       @DecimalMin("1.0") double cap,
-      @Positive int ttlSeconds) {}
+      @Positive int ttlSeconds,
+      /* Phase 8. */
+      /** Demand-to-supply ratio up to which each multiplier applies; above the last, the cap. */
+      @NotEmpty List<@Valid Step> steps,
+      /** How long a looked-up multiplier is kept locally before Redis is asked again. */
+      @Min(0) int cacheSeconds,
+      /** Section 7: how long a minute's demand counter lives. */
+      @Positive int demandTtlMinutes,
+      /** The longest an admin override may last. */
+      @Positive int overrideMaxHours) {
+
+    /**
+     * @param maxRatio the highest demand-to-supply ratio this step covers, inclusive
+     */
+    public record Step(@DecimalMin("0.0") double maxRatio, @DecimalMin("1.0") double multiplier) {}
+
+    @AssertTrue(message = "surge steps must rise in ratio and stay within the cap")
+    public boolean isStepTableValid() {
+      if (steps == null) {
+        return true;
+      }
+      for (int i = 0; i < steps.size(); i++) {
+        Step step = steps.get(i);
+        if (step == null
+            || step.multiplier() > cap
+            || (i > 0 && step.maxRatio() <= steps.get(i - 1).maxRatio())) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
 
   /** Real-time delivery. */
   public record Notification(

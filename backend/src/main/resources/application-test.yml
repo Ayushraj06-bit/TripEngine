@@ -14,6 +14,10 @@ rideflow:
     # startup, so the scheduling wiring itself stays exercised.
     stale-sweep-interval: PT1H
     session-expiry-check-interval: PT1H
+  surge:
+    # Tests tick the surge job themselves, as often as they need.
+    tick-interval: PT1H
+    lock-at-least-for: PT0S
   payment:
     # Fixed, so a test can sign a webhook of its own.
     webhook-secret: test-webhook-secret

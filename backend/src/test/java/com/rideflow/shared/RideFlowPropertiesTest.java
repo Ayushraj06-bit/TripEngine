@@ -73,6 +73,13 @@ class RideFlowPropertiesTest {
         "rideflow.surge.max-step-per-tick=0.25",
         "rideflow.surge.cap=2.5",
         "rideflow.surge.ttl-seconds=90",
+        "rideflow.surge.steps[0].max-ratio=1.0",
+        "rideflow.surge.steps[0].multiplier=1.0",
+        "rideflow.surge.steps[1].max-ratio=2.0",
+        "rideflow.surge.steps[1].multiplier=1.5",
+        "rideflow.surge.cache-seconds=5",
+        "rideflow.surge.demand-ttl-minutes=10",
+        "rideflow.surge.override-max-hours=24",
         "rideflow.payment.commission-percent=20",
         "rideflow.payment.min-topup-paise=1000",
         "rideflow.payment.max-topup-paise=1000000",
@@ -172,6 +179,23 @@ class RideFlowPropertiesTest {
                     .hasFailed()
                     .getFailure()
                     .hasStackTraceContaining("commissionPercent"));
+  }
+
+  @Test
+  void failsToStartWhenSurgeStepsDoNotRiseOrExceedTheCap() {
+    runner
+        .withPropertyValues(VALID)
+        .withPropertyValues("rideflow.surge.steps[1].max-ratio=0.5")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .hasStackTraceContaining("surge steps must rise in ratio"));
+    runner
+        .withPropertyValues(VALID)
+        .withPropertyValues("rideflow.surge.steps[1].multiplier=3.0")
+        .run(context -> assertThat(context).hasFailed());
   }
 
   @Test

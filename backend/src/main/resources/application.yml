@@ -172,6 +172,23 @@ rideflow:
     max-step-per-tick: 0.25
     cap: 2.5
     ttl-seconds: 90
+    # Phase 8. Ratio of demand to supply -> target multiplier; above the last step, the cap.
+    steps:
+      - max-ratio: 1.0
+        multiplier: 1.0
+      - max-ratio: 1.5
+        multiplier: 1.2
+      - max-ratio: 2.0
+        multiplier: 1.5
+      - max-ratio: 3.0
+        multiplier: 2.0
+    cache-seconds: 5
+    demand-ttl-minutes: 10
+    override-max-hours: 24
+    # How often the job runs, and how long it holds the lock: most of a tick, so a second
+    # instance whose schedule is a few seconds off cannot step the multiplier twice.
+    tick-interval: PT${rideflow.surge.tick-seconds}S
+    lock-at-least-for: PT20S
   payment:
     commission-percent: 20
     # Phase 7: wallet top-ups, ₹10 to ₹10,000.
