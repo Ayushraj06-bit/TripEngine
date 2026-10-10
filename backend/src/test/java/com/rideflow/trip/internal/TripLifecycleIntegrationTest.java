@@ -545,7 +545,7 @@ class TripLifecycleIntegrationTest extends TripIntegrationTestBase {
 
       try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
         for (int round = 0; round < 50; round++) {
-          jdbc.execute("TRUNCATE trip_events, trips");
+          jdbc.execute("TRUNCATE trip_events, trips CASCADE");
           UUID tripId = tripIn(TripStatus.DRIVER_ASSIGNED, rider, driver);
           CountDownLatch go = new CountDownLatch(1);
 
