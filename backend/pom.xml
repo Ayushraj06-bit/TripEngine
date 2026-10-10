@@ -110,6 +110,11 @@
       <artifactId>bucket4j_jdk17-lettuce</artifactId>
       <version>${bucket4j.version}</version>
     </dependency>
+    <!-- Phase 8: the surge multiplier's 5-second local cache. Version managed by Spring Boot. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+    </dependency>
     <dependency>
       <groupId>net.javacrumbs.shedlock</groupId>
       <artifactId>shedlock-spring</artifactId>
