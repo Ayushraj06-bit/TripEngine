@@ -27,6 +27,8 @@ services:
       # Never committed: generate it as docs/runbook.md "Two-instance setup" shows.
       RIDEFLOW_RSA_PRIVATE_KEY: ${RIDEFLOW_RSA_PRIVATE_KEY:?generate a shared key pair first, see docs/runbook.md}
       RIDEFLOW_RSA_PUBLIC_KEY: ${RIDEFLOW_RSA_PUBLIC_KEY:?generate a shared key pair first, see docs/runbook.md}
+      # Likewise one webhook secret, or a webhook signed for one is refused by the other.
+      RIDEFLOW_GATEWAY_WEBHOOK_SECRET: ${RIDEFLOW_GATEWAY_WEBHOOK_SECRET:?set a shared webhook secret, see docs/runbook.md}
     ports:
       - "8091:8080"
     depends_on:
