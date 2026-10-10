@@ -14,6 +14,7 @@ import com.rideflow.trip.DriverAssigned;
 import com.rideflow.trip.DriverPositions;
 import com.rideflow.trip.DriverTrips;
 import com.rideflow.trip.PaymentMethod;
+import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.RoutePoint;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripAssignment;
@@ -189,6 +190,12 @@ public class TripService implements TripAssignment, DriverTrips {
   }
 
   // --- Booking ---------------------------------------------------------------------------------
+
+  /** Whether a trip of the rider's waits on a top-up: they book again once it is settled. */
+  @Transactional(readOnly = true)
+  public boolean hasOutstandingPayment(UUID riderId) {
+    return trips.existsByRiderIdAndPaymentStatus(riderId, PaymentStatus.PENDING_SETTLEMENT);
+  }
 
   /**
    * Saves a new REQUESTED trip. Called by {@link BookingService} inside the transaction that also

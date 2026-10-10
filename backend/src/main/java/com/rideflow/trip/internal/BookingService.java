@@ -105,6 +105,15 @@ public class BookingService {
               "This Idempotency-Key was already used for a different request");
     }
 
+    if (trips.hasOutstandingPayment(riderId)) {
+      BusinessException outstanding =
+          BusinessException.businessRule(
+              "OUTSTANDING_BALANCE",
+              "A previous trip is still unpaid. Top up your wallet to book again.");
+      keys.storeRejection(riderId, idempotencyKey, outstanding);
+      throw outstanding;
+    }
+
     ConsumedQuote quote;
     try {
       quote = quotes.consume(quoteId, riderId, vehicleType);
