@@ -20,4 +20,13 @@ class PricingScripts {
     script.setResultType(List.class);
     return script;
   }
+
+  @Bean
+  RedisScript<Long> surgeDemandScript() {
+    DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+    script.setScriptSource(
+        new ResourceScriptSource(new ClassPathResource("redis/surge_demand.lua")));
+    script.setResultType(Long.class);
+    return script;
+  }
 }
