@@ -7,6 +7,7 @@ import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.FlaggedTrips;
 import com.rideflow.trip.PaymentMethod;
+import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripStatus;
 import jakarta.persistence.Column;
@@ -55,7 +56,9 @@ class Trip {
   @Enumerated(EnumType.STRING)
   private PaymentMethod paymentMethod;
 
+  /** Read-only here once inserted: only {@link TripRepository#setPaymentStatus} changes it. */
   @Enumerated(EnumType.STRING)
+  @Column(updatable = false)
   private PaymentStatus paymentStatus;
 
   private String otp;
@@ -324,6 +327,10 @@ class Trip {
 
   Instant startedAt() {
     return startedAt;
+  }
+
+  Instant completedAt() {
+    return completedAt;
   }
 
   long distanceMeters() {

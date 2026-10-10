@@ -3,6 +3,7 @@ package com.rideflow.trip.internal;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.PaymentMethod;
+import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripStatus;
 import java.math.BigDecimal;
