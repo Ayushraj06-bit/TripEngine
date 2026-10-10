@@ -47,6 +47,15 @@ class LocationScripts {
   }
 
   @Bean
+  RedisScript<List> countInBoxesScript() {
+    DefaultRedisScript<List> script = new DefaultRedisScript<>();
+    script.setScriptSource(
+        new ResourceScriptSource(new ClassPathResource("redis/count_in_boxes.lua")));
+    script.setResultType(List.class);
+    return script;
+  }
+
+  @Bean
   RedisScript<List> staleDriversScript() {
     DefaultRedisScript<List> script = new DefaultRedisScript<>();
     script.setScriptSource(
