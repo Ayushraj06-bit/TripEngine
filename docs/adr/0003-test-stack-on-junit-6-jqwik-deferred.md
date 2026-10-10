@@ -49,3 +49,16 @@ respected here by removing one, not adding one.
 - One spec deviation to carry, recorded here so it is not rediscovered later.
 - If a JUnit 4 style dependency appears through a transitive path, it will not
   run; the vintage engine is not on the classpath.
+
+## Update, 2026-10-08 (Phase 7)
+
+Phase 7 asks for a jqwik property: any sequence of top-ups, charges, fees and
+refunds keeps the ledger consistent. jqwik was checked again. Its latest
+release, 1.10.1 (May 2026), still requires JUnit Platform 1.14, so this decision
+stands.
+
+The property is `LedgerInvariantsTest`, a parameterized test over fixed seeds.
+Each seed drives a random sequence of operations through the real services and
+database, then reconciles the ledger. A failing seed is named, with the
+operations it ran, so it replays exactly. What is lost against jqwik is
+shrinking a failure to its smallest sequence.

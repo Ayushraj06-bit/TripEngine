@@ -50,15 +50,21 @@ and is slow; later runs reuse them.
 
 Used to exercise the cross-instance real-time path and to load-test.
 
-Both instances must sign and check tokens with the same RSA key pair, or a
-token from one is rejected by the other. The compose file refuses to start
-without one. Generate a throwaway pair for local use. Never commit it.
+Both instances must share two secrets, or what one signs the other refuses:
+
+- the RSA key pair for access tokens
+- the gateway webhook secret ([ADR 0013](adr/0013-mock-payment-gateway-and-webhooks.md))
+
+The compose file refuses to start without them. Generate throwaway values for
+local use. Never commit them.
 
 ```bash
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/rideflow.pem
 export RIDEFLOW_RSA_PRIVATE_KEY="$(grep -v -- ----- /tmp/rideflow.pem | tr -d '\n')"
 export RIDEFLOW_RSA_PUBLIC_KEY="$(openssl pkey -in /tmp/rideflow.pem -pubout | grep -v -- ----- | tr -d '\n')"
+export RIDEFLOW_GATEWAY_WEBHOOK_SECRET="$(openssl rand -hex 32)"
 
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up -d --build
 ```
 
 nginx listens on 8080 and round-robins between the instances, which are also
@@ -198,6 +204,51 @@ look.
   lost the list. The quote was charged.
 - `Driver silent for over 10 minutes...`: the driver's phone stopped reporting
   mid-ride.
+
+### A rider cannot book: 422 OUTSTANDING_BALANCE
+
+A trip of theirs was charged to a wallet that could not cover it, so their
+wallet is below zero ([ADR 0012](adr/0012-double-entry-ledger.md)).
+
+- `GET /api/v1/wallet`, as the rider, shows the balance and the charge.
+- `SELECT id, payment_status FROM trips WHERE rider_id = '<id>' AND payment_status = 'PENDING_SETTLEMENT';`
+  lists what waits.
+
+A top-up that brings the wallet to zero or above settles every one of them.
+So does a refund that does. Nothing needs doing by hand.
+
+### A top-up stays PENDING
+
+Only the gateway's webhook settles a top-up.
+
+1. Did it arrive? Look for `INVALID_SIGNATURE` 401s on
+   `/api/v1/webhooks/payment-gateway`. That means the secret differs between
+   the gateway and this instance (every instance must share
+   `RIDEFLOW_GATEWAY_WEBHOOK_SECRET`), or the clocks are more than 5 minutes
+   apart.
+2. A 404 means the webhook names a payment we never started. A 422
+   `AMOUNT_MISMATCH` means the amount paid differs from the top-up; it is
+   logged and not applied.
+3. With the mock gateway, nothing happens until someone pays at the top-up's
+   `paymentUrl`.
+
+Nothing expires a PENDING top-up yet. The rider can start another with a new
+`Idempotency-Key`.
+
+### The ledger does not reconcile
+
+`ledger_reconciliation_mismatches` above zero, or an ERROR line starting
+"Ledger reconciliation found problems", means one of these no longer holds:
+- every transaction balances
+- every account's balance equals its entries
+- all balances total zero
+
+`GET /api/v1/admin/ledger/reconcile` lists the first 100 of each.
+
+The database refuses unbalanced transactions and edited entries, so a mismatch
+means something went around it: a manual UPDATE of `ledger_accounts`, or a
+restore. Find what changed before touching anything. Never edit an entry: the
+trigger refuses it, and the fix is a reversing transaction.
 
 ### Port already in use
 
