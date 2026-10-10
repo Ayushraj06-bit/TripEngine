@@ -30,3 +30,15 @@ application-local.properties
 .attach_pid*
 *.hprof
 load-tests/results/
+
+# Key material. The runbook generates keys for local runs; they are never committed.
+*.pem
+*.key
+*.p12
+*.jks
+
+# Local tool state.
+.github/modernize/
+.claude/settings.local.json
+*.swp
+*~
