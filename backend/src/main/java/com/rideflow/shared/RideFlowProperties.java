@@ -34,6 +34,7 @@ public record RideFlowProperties(
     @NotNull @Valid Surge surge,
     @NotNull @Valid Payment payment,
     @NotNull @Valid Notification notification,
+    @NotNull @Valid Events events,
     @NotNull @Valid Rating rating,
     @NotNull @Valid ServiceAreaProperties serviceArea) {
 
@@ -176,6 +177,11 @@ public record RideFlowProperties(
       return true;
     }
   }
+
+  /** Domain events. */
+  public record Events(
+      /** How old an event whose listener has not completed must be before it is redelivered. */
+      @Positive int redeliverAfterSeconds) {}
 
   /** Real-time delivery. */
   public record Notification(

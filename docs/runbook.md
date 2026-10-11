@@ -230,7 +230,8 @@ Only the gateway's webhook settles a top-up.
    `AMOUNT_MISMATCH` means the amount paid differs from the top-up; it is
    logged and not applied.
 3. With the mock gateway, nothing happens until someone pays at the top-up's
-   `paymentUrl`.
+   `paymentUrl`. The page exists only with
+   `RIDEFLOW_PAYMENT_MOCKGATEWAY_ENABLED=true`; without it, the URL answers 404.
 
 Nothing expires a PENDING top-up yet. The rider can start another with a new
 `Idempotency-Key`.

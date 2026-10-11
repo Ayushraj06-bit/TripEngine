@@ -14,6 +14,11 @@ changes an event.
   `event_publication` in that same transaction. That is our transactional
   outbox: if a listener throws, or Kafka is unavailable, the event stays
   incomplete and is retried. Nothing is lost.
+- **Retried while running, not only on restart.** `EventRedelivery` (ShedLock,
+  every `redelivery-interval`) delivers again every event whose listener has not
+  completed after `redeliver-after-seconds` (2 minutes). A trip charge that failed
+  is retried within a few minutes, not at the next deploy. Every listener is
+  idempotent, so a second delivery is safe.
 - Trip and payment events are **externalized to Kafka** on topic
   `rideflow.trip-events`, keyed by `tripId`, so all events for one trip land on
   one partition. The value is the event as JSON.

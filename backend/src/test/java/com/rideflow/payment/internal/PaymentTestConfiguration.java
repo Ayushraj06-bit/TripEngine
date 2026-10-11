@@ -4,6 +4,8 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.rideflow.pricing.AvailableDriverCounts;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.MutableClock;
+import com.rideflow.trip.PaymentStatus;
+import com.rideflow.trip.TripPayments;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -35,6 +37,53 @@ public class PaymentTestConfiguration {
   @Primary
   SwitchableGateway testGateway(@Qualifier("mockPaymentGateway") PaymentGateway gateway) {
     return new SwitchableGateway(gateway);
+  }
+
+  @Bean
+  @Primary
+  BreakableTripPayments testTripPayments(@Qualifier("tripPaymentRecorder") TripPayments real) {
+    return new BreakableTripPayments(real);
+  }
+
+  /** The trip's payment status, with a switch to make recording it fail: a database blip. */
+  public static final class BreakableTripPayments implements TripPayments {
+
+    private final TripPayments real;
+    private final java.util.concurrent.atomic.AtomicInteger refused =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean broken;
+
+    BreakableTripPayments(TripPayments real) {
+      this.real = real;
+    }
+
+    public void breakRecording() {
+      broken = true;
+    }
+
+    public void reset() {
+      broken = false;
+      refused.set(0);
+    }
+
+    /** How many times recording was refused since the last reset. */
+    public int refused() {
+      return refused.get();
+    }
+
+    @Override
+    public void recordPaymentStatus(UUID tripId, PaymentStatus status) {
+      if (broken) {
+        refused.incrementAndGet();
+        throw new IllegalStateException("The database blinked");
+      }
+      real.recordPaymentStatus(tripId, status);
+    }
+
+    @Override
+    public void settleOutstanding(UUID riderId) {
+      real.settleOutstanding(riderId);
+    }
   }
 
   /** The surge cache ages by this clock, so a test can step past its five seconds. */

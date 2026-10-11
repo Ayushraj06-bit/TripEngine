@@ -33,6 +33,11 @@ class MockPaymentGatewayTest {
   }
 
   @Test
+  void shipsWithItsPaymentPageTurnedOff() {
+    assertThat(PaymentProperties.with(Map.of()).payment().mockGateway().enabled()).isFalse();
+  }
+
+  @Test
   void refusesToStartPaymentsWhenConfiguredUnavailable() {
     MockPaymentGateway gateway =
         gateway(Map.of("rideflow.payment.mock-gateway.unavailable", "true"));

@@ -203,7 +203,9 @@ rideflow:
     # Nightly, after the evening peak and before the morning one.
     reconcile-cron: "0 30 3 * * *"
     mock-gateway:
-      enabled: true
+      # Its payment page credits any wallet that asks, so it exists only where turned on
+      # (RIDEFLOW_PAYMENT_MOCKGATEWAY_ENABLED=true): tests, a laptop, a demo. Never prod.
+      enabled: false
       base-url: http://localhost:8080
       webhook-url: ""
       outcome: SUCCEEDED
@@ -211,6 +213,11 @@ rideflow:
       unavailable: false
   notification:
     sequence-ttl-hours: 24
+  events:
+    # A listener that failed is delivered again this long after its event, by a job that
+    # runs every redelivery-interval - not only when the application restarts.
+    redeliver-after-seconds: 120
+    redelivery-interval: PT1M
   rating:
     window-days: 7
 

@@ -243,6 +243,48 @@ class PaymentIntegrationTest extends PaymentIntegrationTestBase {
     }
   }
 
+  /** A charge that failed is not left for the next restart: the redelivery job retries it. */
+  @Nested
+  class Redelivery {
+
+    @Autowired com.rideflow.shared.internal.EventRedelivery redelivery;
+
+    private boolean chargeCompleted() {
+      return Boolean.TRUE.equals(
+          jdbc.queryForObject(
+              "SELECT completion_date IS NOT NULL FROM event_publication"
+                  + " WHERE listener_id LIKE '%TripPaymentListener%'",
+              Boolean.class));
+    }
+
+    @Test
+    void chargesATripWhoseFirstChargeFailedOnceItIsDeliveredAgain() throws Exception {
+      jdbc.update("DELETE FROM event_publication");
+      User rider = rider();
+      User driver = driver();
+      topUp(rider, 50_000);
+      UUID tripId = completedTrip(rider, driver, 9_900, PaymentMethod.WALLET);
+      tripPayments.breakRecording();
+
+      publishCompleted(tripId, rider, driver, 9_900, PaymentMethod.WALLET);
+      await().atMost(EVENTUALLY).until(() -> tripPayments.refused() > 0);
+      assertThat(chargeCompleted()).as("left for redelivery").isFalse();
+      // Rolled back whole: the money did not move without the trip knowing.
+      assertThat(transactionsOf("TRIP_CHARGE", tripId)).isZero();
+      assertThat(paymentStatusOf(tripId)).isEqualTo(PaymentStatus.UNPAID);
+
+      tripPayments.reset();
+      // Publications are stamped by the application clock, which stands still in tests.
+      CLOCK.advance(Duration.ofSeconds(1));
+      redelivery.redeliverOlderThan(Duration.ZERO);
+
+      await().atMost(EVENTUALLY).until(() -> paymentStatusOf(tripId) == PaymentStatus.PAID);
+      assertThat(transactionsOf("TRIP_CHARGE", tripId)).isOne();
+      assertThat(wallet(rider)).isEqualTo(50_000 - 9_900);
+      await().atMost(EVENTUALLY).until(this::chargeCompleted);
+    }
+  }
+
   @Nested
   class StartingTopUps {
 

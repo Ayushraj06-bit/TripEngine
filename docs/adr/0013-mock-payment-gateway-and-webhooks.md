@@ -31,8 +31,11 @@ mock behaves like a hosted gateway's test mode:
   do. `mock-gateway.outcome` and `delay-ms` are the defaults.
 - `mock-gateway.unavailable` makes it refuse to start payments, which answers
   503 with a Retry-After.
-- The page hands out money to whoever calls it, so it only exists while
-  `mock-gateway.enabled` is true.
+- The page hands out money to whoever calls it, so it is **off by default**,
+  production included. It exists only where someone turns it on with
+  `RIDEFLOW_PAYMENT_MOCKGATEWAY_ENABLED=true`: tests, a laptop, a demo.
+  (Amended 2026-10-11: it shipped turned on, which made the `prod` profile hand
+  out free wallet credit.)
 
 **Starting a top-up is idempotent by the rider's `Idempotency-Key`**, stored on
 the top-up row and unique per rider:

@@ -77,6 +77,39 @@ class RatingIntegrationTest extends PaymentIntegrationTestBase {
         .isOne();
   }
 
+  /** The same rating sent twice at once: one is kept, and the driver's totals count it once. */
+  @Test
+  void keepsOneOfTwoRatingsSentAtTheSameMoment() throws Exception {
+    User rider = rider();
+    User driver = driver();
+    UUID tripId = completed(rider, driver);
+    java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+
+    java.util.List<Integer> statuses = new java.util.concurrent.CopyOnWriteArrayList<>();
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var sent = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+      for (int i = 0; i < 2; i++) {
+        sent.add(
+            pool.submit(
+                () -> {
+                  go.await();
+                  statuses.add(stars(rider, tripId, 4).andReturn().getResponse().getStatus());
+                  return null;
+                }));
+      }
+      go.countDown();
+      for (var each : sent) {
+        each.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      }
+    }
+
+    assertThat(statuses).containsExactlyInAnyOrder(201, 409);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT rating_count FROM drivers WHERE user_id = ?", Integer.class, driver.id()))
+        .isOne();
+  }
+
   @Test
   void refusesATripThatHasNotCompleted() throws Exception {
     User rider = rider();

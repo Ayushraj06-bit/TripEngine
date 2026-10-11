@@ -18,7 +18,12 @@ rideflow:
     # Tests tick the surge job themselves, as often as they need.
     tick-interval: PT1H
     lock-at-least-for: PT0S
+  events:
+    # Tests run redelivery themselves.
+    redelivery-interval: PT1H
   payment:
+    mock-gateway:
+      enabled: true
     # Fixed, so a test can sign a webhook of its own.
     webhook-secret: test-webhook-secret
     # Tests reconcile when they mean to.

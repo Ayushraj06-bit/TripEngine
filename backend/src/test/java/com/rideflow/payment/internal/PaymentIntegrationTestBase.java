@@ -61,6 +61,7 @@ public abstract class PaymentIntegrationTestBase {
   @Autowired protected PlatformTransactionManager transactionManager;
   @Autowired WebhookSignatures signatures;
   @Autowired PaymentTestConfiguration.SwitchableGateway gateway;
+  @Autowired PaymentTestConfiguration.BreakableTripPayments tripPayments;
 
   private static final AtomicInteger PHONES = new AtomicInteger();
 
@@ -71,6 +72,7 @@ public abstract class PaymentIntegrationTestBase {
   void resetWorld() {
     CLOCK.set(PaymentTestConfiguration.START);
     gateway.reset();
+    tripPayments.reset();
     truncateEverything();
   }
 
