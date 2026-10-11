@@ -1,10 +1,15 @@
 package com.rideflow.payment.internal;
 
+import com.github.benmanes.caffeine.cache.Ticker;
+import com.rideflow.pricing.AvailableDriverCounts;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.MutableClock;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +35,67 @@ public class PaymentTestConfiguration {
   @Primary
   SwitchableGateway testGateway(@Qualifier("mockPaymentGateway") PaymentGateway gateway) {
     return new SwitchableGateway(gateway);
+  }
+
+  /** The surge cache ages by this clock, so a test can step past its five seconds. */
+  @Bean
+  @Primary
+  Ticker testSurgeCacheTicker() {
+    return () -> TimeUnit.MILLISECONDS.toNanos(CLOCK.millis());
+  }
+
+  @Bean
+  @Primary
+  PausableDriverCounts testDriverCounts(
+      @Qualifier("availableDriverCounter") AvailableDriverCounts counts) {
+    return new PausableDriverCounts(counts);
+  }
+
+  /** The real supply count, with a way to hold one call: a surge tick caught mid-run. */
+  public static final class PausableDriverCounts implements AvailableDriverCounts {
+
+    private final AvailableDriverCounts real;
+    private volatile CountDownLatch waiting;
+    private volatile CountDownLatch resume;
+
+    PausableDriverCounts(AvailableDriverCounts real) {
+      this.real = real;
+    }
+
+    /**
+     * Holds the next count until {@link #resume()}.
+     *
+     * @return counted down once the count is waiting
+     */
+    public CountDownLatch pauseNext() {
+      resume = new CountDownLatch(1);
+      waiting = new CountDownLatch(1);
+      return waiting;
+    }
+
+    public void resume() {
+      if (resume != null) {
+        resume.countDown();
+      }
+    }
+
+    @Override
+    public List<Long> countIn(List<Box> boxes) {
+      CountDownLatch pause = waiting;
+      if (pause != null) {
+        waiting = null;
+        pause.countDown();
+        try {
+          if (!resume.await(30, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Never resumed");
+          }
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new IllegalStateException(e);
+        }
+      }
+      return real.countIn(boxes);
+    }
   }
 
   /** The real mock gateway, with a switch for an outage. */

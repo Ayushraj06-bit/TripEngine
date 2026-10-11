@@ -1,5 +1,6 @@
 package com.rideflow.pricing.internal;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +20,12 @@ class PricingScripts {
         new ResourceScriptSource(new ClassPathResource("redis/quote_consume.lua")));
     script.setResultType(List.class);
     return script;
+  }
+
+  /** Monotonic: the surge cache's notion of elapsed time (see {@link RedisSurgeProvider}). */
+  @Bean
+  Ticker surgeCacheTicker() {
+    return Ticker.systemTicker();
   }
 
   @Bean

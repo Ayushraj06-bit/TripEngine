@@ -2,6 +2,7 @@ package com.rideflow.pricing.internal;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
@@ -11,7 +12,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +27,13 @@ import org.springframework.stereotype.Component;
  *
  * <p>Kept for {@code cache-seconds} per cell, so the three vehicle types of one quote, and every
  * rider in the same cell, cost one Redis read between them. An admin change reaches other instances
- * within that time. The cache keeps time by the injected clock, like everything else.
+ * within that time.
+ *
+ * <p>The cache measures age with a monotonic {@link Ticker}, not the wall clock: were the clock
+ * stepped back an hour, every cached value would otherwise live an hour more, and a kill switch
+ * thrown on another instance would not reach this one for as long. Age is elapsed time, not
+ * business time, so the injected {@code Clock} is not the thing to ask; tests supply a ticker of
+ * their own.
  *
  * <p>Fails safe through {@code QuoteService}: if Redis cannot answer, the quote is priced at 1.0.
  */
@@ -43,7 +49,11 @@ class RedisSurgeProvider implements SurgeProvider {
   private final int precision;
   private final Cache<String, BigDecimal> byCell;
 
-  RedisSurgeProvider(StringRedisTemplate redis, Clock clock, RideFlowProperties properties) {
+  RedisSurgeProvider(
+      StringRedisTemplate redis,
+      Clock clock,
+      Ticker surgeCacheTicker,
+      RideFlowProperties properties) {
     this.redis = redis;
     this.clock = clock;
     this.calculator = new SurgeCalculator(properties.surge());
@@ -52,7 +62,7 @@ class RedisSurgeProvider implements SurgeProvider {
         Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofSeconds(properties.surge().cacheSeconds()))
             .maximumSize(MAX_CELLS)
-            .ticker(() -> TimeUnit.MILLISECONDS.toNanos(clock.millis()))
+            .ticker(surgeCacheTicker)
             .build();
   }
 

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.rideflow.payment.internal.PaymentIntegrationTestBase;
+import com.rideflow.payment.internal.PaymentTestConfiguration;
 import com.rideflow.pricing.SurgeDemand;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.VehicleType;
@@ -24,6 +25,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import net.javacrumbs.shedlock.core.LockConfiguration;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.core.SimpleLock;
@@ -59,6 +65,7 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
   @Autowired StringRedisTemplate redis;
   @Autowired LockProvider lockProvider;
   @Autowired MeterRegistry meters;
+  @Autowired PaymentTestConfiguration.PausableDriverCounts supply;
 
   @BeforeEach
   void clearSurge() {
@@ -66,6 +73,7 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
     keys.addAll(AVAILABLE);
     redis.delete(keys);
     provider.forgetAll();
+    supply.resume();
   }
 
   private void requests(GeoPoint at, int count) {
@@ -138,6 +146,9 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
       // Back at 1.0 the key goes: 1.0 is the default.
       assertThat(down).containsExactly("2.25", "2", "1.75", "1.5", "1.25", null);
       assertThat(job.snapshot()).doesNotContainKey(MG_ROAD_CELL);
+      assertThat(redis.opsForZSet().size(SurgeKeys.ACTIVE_CELLS))
+          .as("cells whose requests left the window")
+          .isZero();
     }
 
     @Test
@@ -183,6 +194,7 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
       // The cell and its eight neighbours; nothing else in the city.
       assertThat(job.snapshot().keySet())
           .containsExactlyInAnyOrderElementsOf(Geohash.block(MG_ROAD_CELL));
+      assertThat(redis.getExpire(SurgeKeys.SNAPSHOT)).isBetween(1L, 90L);
     }
 
     /** If the job stops, the keys it wrote lapse and fares fall back to 1.0 on their own. */
@@ -220,6 +232,43 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
 
       job.tick();
       assertThat(stored(MG_ROAD_CELL)).isEqualTo("1.25");
+    }
+
+    /**
+     * Two instances tick at the same moment: the first holds the lock mid-run, the second is turned
+     * away, and the cell moves one step - not two.
+     */
+    @Test
+    void stepsOnceWhenTwoInstancesTickAtTheSameMoment() throws Exception {
+      requests(MG_ROAD, 10);
+      CountDownLatch firstIsMidTick = supply.pauseNext();
+
+      try (ExecutorService instances = Executors.newFixedThreadPool(2)) {
+        Future<?> first = instances.submit(job::tick);
+        assertThat(firstIsMidTick.await(10, TimeUnit.SECONDS)).isTrue();
+
+        instances.submit(job::tick).get(10, TimeUnit.SECONDS);
+        assertThat(stored(MG_ROAD_CELL)).as("the second wrote nothing").isNull();
+
+        supply.resume();
+        first.get(10, TimeUnit.SECONDS);
+      }
+
+      assertThat(stored(MG_ROAD_CELL)).isEqualTo("1.25");
+    }
+
+    /** The block is three cells by three: a driver just beyond it is not this cell's supply. */
+    @Test
+    void countsOnlyDriversInsideTheThreeByThreeBlock() {
+      Geohash.Bounds cell = Geohash.bounds(MG_ROAD_CELL);
+      double lat = cell.center().latitude();
+      requests(MG_ROAD, 4);
+      driversAt(new GeoPoint(lat, cell.maxLng() + 0.5 * cell.widthDegrees()), 1);
+      driversAt(new GeoPoint(lat, cell.maxLng() + 1.5 * cell.widthDegrees()), 3);
+
+      job.tick();
+
+      assertThat(job.snapshot().get(MG_ROAD_CELL).supply()).isOne();
     }
 
     @Test
@@ -361,6 +410,9 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
       assertThat(redis.getExpire(SurgeKeys.KILL_SWITCH))
           .as("never expires on its own")
           .isEqualTo(-1);
+      mockMvc
+          .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))
+          .andExpect(jsonPath("$.killSwitchOn").value(true));
 
       adminPost(admin, "/kill-switch", "{\"on\":false}").andExpect(jsonPath("$.on").value(false));
       assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("2.5");
@@ -418,6 +470,24 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
           .andExpect(jsonPath("$.overrides[0].cell").value(MG_ROAD_CELL));
     }
 
+    /** An override past its expiry by our clock is not listed, and its index entry goes. */
+    @Test
+    void listsOnlyOverridesStillInForce() throws Exception {
+      User admin = admin();
+      override(admin, MG_ROAD_CELL, "1.5", CLOCK.instant().plus(Duration.ofMinutes(10)));
+      override(admin, "tdr1v9", "2.0", CLOCK.instant().plus(Duration.ofHours(1)));
+
+      CLOCK.advance(Duration.ofMinutes(11));
+      // The tick trims the index, whether or not an admin ever looks.
+      job.tick();
+      assertThat(redis.opsForZSet().range(SurgeKeys.OVERRIDES, 0, -1)).containsExactly("tdr1v9");
+
+      mockMvc
+          .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))
+          .andExpect(jsonPath("$.overrides.length()").value(1))
+          .andExpect(jsonPath("$.overrides[0].cell").value("tdr1v9"));
+    }
+
     @Test
     void refusesABadOverride() throws Exception {
       User admin = admin();
@@ -437,6 +507,12 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
           .andExpect(status().isUnprocessableContent())
           .andExpect(jsonPath("$.code").value("INVALID_OVERRIDE_EXPIRY"));
       adminPost(admin, "/overrides", "{}").andExpect(status().isBadRequest());
+      mockMvc
+          .perform(
+              delete("/api/v1/admin/surge/overrides/NOT-A-CELL")
+                  .header("Authorization", "Bearer " + admin.token()))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("INVALID_CELL"));
     }
   }
 

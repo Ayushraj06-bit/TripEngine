@@ -76,9 +76,14 @@ applies:
 4. 1.0
 
 It caches per cell for `cache-seconds` (5) with Caffeine, so a quote's three
-vehicle types and every rider in the cell share one Redis read. The cache keeps
-time by the injected `Clock`. An admin change reaches the instance that made it
-at once, and the others within 5 seconds. If Redis fails, `QuoteService` prices
+vehicle types and every rider in the cell share one Redis read. An admin change
+reaches the instance that made it at once, and the others within 5 seconds.
+
+The cache measures age with a monotonic ticker, not the wall clock. If the
+clock were stepped back an hour, cached values would otherwise live an hour
+longer, and a kill switch thrown on another instance would not arrive for as
+long. Age is elapsed time, not business time, so the injected `Clock` is not
+the right source. Tests supply a ticker driven by their controllable clock. If Redis fails, `QuoteService` prices
 at 1.0. Quotes already lock their price (Phase 3), so surge moving after a quote
 never changes the fare booked with it.
 
