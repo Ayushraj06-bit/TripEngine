@@ -247,6 +247,24 @@ class StompSecurityIntegrationTest {
       await().atMost(EVENTUALLY).until(() -> hasPosition(driverId));
     }
 
+    /**
+     * A reconnected app numbers its positions from zero again. Without the reset on connect, every
+     * one would be ignored as older than the last session's.
+     */
+    @Test
+    void acceptsPositionsNumberedFromZeroAgainAfterReconnecting() throws Exception {
+      String token = register(Role.DRIVER, "+919000020004");
+      UUID driverId = idOf("+919000020004");
+      // Where an earlier session's numbering had got to.
+      redis.opsForHash().put("driver:state:" + driverId, "seq", "500");
+
+      StompSession session = connect(token).established();
+      sendPosition(session, "/app/driver/location");
+
+      await().atMost(EVENTUALLY).until(() -> hasPosition(driverId));
+      assertThat(redis.opsForHash().get("driver:state:" + driverId, "seq")).isEqualTo("1");
+    }
+
     @Test
     void refusesARiderSendingDriverPositions() throws Exception {
       String token = register(Role.RIDER, "+919000020002");

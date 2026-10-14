@@ -1,6 +1,7 @@
 package com.rideflow.location.internal;
 
 import com.rideflow.driver.DriverFlagging;
+import com.rideflow.identity.Role;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.ServiceArea;
@@ -11,7 +12,10 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.messaging.SessionConnectedEvent;
 
 /**
  * The validation pipeline for driver positions.
@@ -68,6 +72,20 @@ public class LocationIngestService {
             .description("Server-side time to accept or reject one driver position")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(meters);
+  }
+
+  /**
+   * A driver's app connected: its positions start again from {@code seq} zero.
+   *
+   * <p>Runs before the client receives CONNECTED, so before it can send its first position.
+   */
+  @EventListener
+  void onConnected(SessionConnectedEvent event) {
+    if (event.getUser() instanceof Authentication user
+        && user.getAuthorities().stream()
+            .anyMatch(authority -> Role.DRIVER.authority().equals(authority.getAuthority()))) {
+      store.restartSequence(UUID.fromString(user.getName()));
+    }
   }
 
   /**

@@ -135,6 +135,14 @@ class DriverStateStore implements DriverPositions {
     // unknown location.
   }
 
+  /**
+   * Forgets the driver's last sequence number: a new session numbers its positions from zero again
+   * ({@link LocationUpdate#seq()}), and every one would otherwise be ignored as out of order.
+   */
+  void restartSequence(UUID driverId) {
+    redis.opsForHash().delete(LocationKeys.state(driverId), "seq");
+  }
+
   /** Removes drivers quiet for longer than {@code stale-after-seconds}, in one bounded batch. */
   List<StaleDriver> sweepStale() {
     var location = properties.location();
