@@ -12,8 +12,9 @@ import java.util.UUID;
  * A ledger account and its balance.
  *
  * <p>The balance is a cache of the account's entries, for fast reads, changed in the same
- * transaction as the entries are written. Under the version: two postings that read the same
- * balance cannot both write theirs, so a top-up and a charge landing at once both count.
+ * transaction as the entries are written. {@link Ledger} row-locks it first, so postings queue for
+ * it; the version is the guard behind that: two writers that read the same balance cannot both
+ * write theirs.
  *
  * <p>Created by {@link Ledger} with an insert that tolerates a race; JPA only reads and updates it.
  */

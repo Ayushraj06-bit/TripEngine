@@ -11,12 +11,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Runs a unit of payment work in its own transaction, again if it lost a race.
  *
- * <p>A balance is written under its account's version, so of two postings that read the same
- * balance, the second fails at commit. Run again, it reads the balance the first wrote, and both
- * count. A short random pause first keeps a crowd of losers from colliding again in step.
+ * <p>{@link Ledger} locks the accounts a posting touches, so postings sharing one wait for each
+ * other rather than collide. What is left to retry is rarer: a lock wait the database gave up on,
+ * or a balance written outside the ledger. A short random pause first keeps a crowd of losers from
+ * colliding again in step.
  *
- * <p>ponytail: every charge also writes the one platform-revenue row, so under heavy load postings
- * queue on it and retry. Split it into sub-accounts if load tests show the retries (ADR 0012).
+ * <p>ponytail: every charge waits its turn on the one platform-revenue row, every top-up on the
+ * clearing row. Split them into sub-accounts if load tests show the queue (ADR 0012).
  */
 @Component
 class Postings {

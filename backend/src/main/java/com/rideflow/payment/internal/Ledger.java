@@ -4,6 +4,7 @@ import com.rideflow.shared.IdGenerator;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +26,18 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>The database checks what this checks, at commit (V11): entries are never changed, and every
  * transaction balances.
+ *
+ * <p>Every account a posting touches is row-locked before its balance is read, always in {@link
+ * #LOCK_ORDER}. Two postings sharing an account - every top-up shares the platform's clearing
+ * account - queue on its lock instead of both reading one balance and one failing at commit, and
+ * the one order means two postings can never each hold what the other waits for.
  */
 @Component
 class Ledger {
+
+  /** Platform accounts and the rest by type, then by owner: the same for every posting. */
+  static final Comparator<AccountKey> LOCK_ORDER =
+      Comparator.comparing(AccountKey::type).thenComparing(AccountKey::ownerId);
 
   private final LedgerAccountRepository accounts;
   private final JdbcTemplate jdbc;
@@ -79,12 +89,14 @@ class Ledger {
       return Optional.empty();
     }
 
-    // Every account found before any balance changes: a lookup is a query, and a query would
-    // flush a changed balance early, out of the primary-key order the flush keeps at commit.
+    // Every account locked before any balance changes, in the one order: a lookup is a query, and
+    // a query would flush a changed balance early, out of the primary-key order kept at commit.
     Map<AccountKey, LedgerAccount> touched = new LinkedHashMap<>();
-    for (Leg leg : legs) {
-      touched.computeIfAbsent(leg.account(), this::account);
-    }
+    legs.stream()
+        .map(Leg::account)
+        .distinct()
+        .sorted(LOCK_ORDER)
+        .forEach(key -> touched.put(key, lockedAccount(key)));
     for (Leg leg : legs) {
       LedgerAccount account = touched.get(leg.account());
       jdbc.update(
@@ -110,9 +122,9 @@ class Ledger {
         key.type().ownerType(), key.ownerId(), key.type());
   }
 
-  /** The account, opened on first use. Two first uses at once open it once. */
-  private LedgerAccount account(AccountKey key) {
-    return find(key)
+  /** The account, opened on first use and locked. Two first uses at once open it once. */
+  private LedgerAccount lockedAccount(AccountKey key) {
+    return lock(key)
         .orElseGet(
             () -> {
               jdbc.update(
@@ -124,8 +136,13 @@ class Ledger {
                   key.type().ownerType().name(),
                   key.ownerId(),
                   key.type().name());
-              return find(key).orElseThrow();
+              return lock(key).orElseThrow();
             });
+  }
+
+  private Optional<LedgerAccount> lock(AccountKey key) {
+    return accounts.findForUpdateByOwnerTypeAndOwnerIdAndAccountType(
+        key.type().ownerType(), key.ownerId(), key.type());
   }
 
   private static void requireBalanced(List<Leg> legs) {

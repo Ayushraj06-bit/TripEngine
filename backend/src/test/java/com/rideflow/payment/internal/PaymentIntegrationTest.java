@@ -451,6 +451,46 @@ class PaymentIntegrationTest extends PaymentIntegrationTestBase {
       assertConsistent();
     }
 
+    /**
+     * Every top-up also posts to the one platform clearing account. Forty at once used to run out
+     * of optimistic-lock retries on that row and answer 500; they queue on its lock instead.
+     */
+    @Test
+    void creditsFortyRidersWhoseTopUpsArriveAtOnce() throws Exception {
+      int riders = 40;
+      List<User> crowd = new java.util.ArrayList<>();
+      List<String> refs = new java.util.ArrayList<>();
+      for (int i = 0; i < riders; i++) {
+        User rider = rider();
+        crowd.add(rider);
+        refs.add(gatewayRefOf(startedTopup(rider, 10_000)));
+      }
+      CountDownLatch go = new CountDownLatch(1);
+
+      try (ExecutorService pool = Executors.newFixedThreadPool(riders)) {
+        List<Future<Integer>> deliveries =
+            refs.stream()
+                .map(
+                    ref ->
+                        pool.submit(
+                            () -> {
+                              go.await();
+                              return webhook(ref, Outcome.SUCCEEDED, 10_000)
+                                  .andReturn()
+                                  .getResponse()
+                                  .getStatus();
+                            }))
+                .toList();
+        go.countDown();
+        for (Future<Integer> delivery : deliveries) {
+          assertThat(delivery.get(60, TimeUnit.SECONDS)).isEqualTo(204);
+        }
+      }
+
+      assertThat(crowd).allSatisfy(rider -> assertThat(wallet(rider)).isEqualTo(10_000));
+      assertConsistent();
+    }
+
     @Test
     void creditsNothingWhenThePaymentFailedEvenIfASuccessFollows() throws Exception {
       User rider = rider();

@@ -54,14 +54,19 @@ A second posting inserts nothing and is skipped. A unique-violation exception
 would instead abort the whole database transaction, including the caller's
 other work.
 
-**Balances are a cache, under a version.** `balance_paise` is updated in the
-same transaction as the entries, through JPA's `@Version`.
-- Two postings that read the same balance cannot both write theirs. The second
-  fails at commit and runs again on the new balance, after a short random pause,
-  up to `posting-max-attempts` times.
-- Updates are flushed in primary-key order (`hibernate.order_updates`), so two
-  postings touching the same accounts wait for each other instead of
-  deadlocking.
+**Balances are a cache, under a lock and a version.** `balance_paise` is updated
+in the same transaction as the entries.
+- A posting row-locks every account it touches before reading its balance
+  (`SELECT ... FOR UPDATE`). Locks are taken in one order for every posting: by
+  account type, then owner. Two postings sharing an account queue on it, and
+  neither can hold what the other waits for.
+- JPA's `@Version` stays as the guard behind the lock. A posting that loses
+  anyway runs again after a short random pause, up to `posting-max-attempts`
+  times.
+- *Amended in Phase 9.* The version alone was the first design: the loser of a
+  race failed at commit and retried. The simulator showed forty riders' top-ups
+  landing at once on the shared clearing account, which exhausted the retries
+  and answered 500. With the lock they wait their turn.
 
 **The database is the final guard.** V11 adds two triggers:
 - one refuses any UPDATE or DELETE of an entry or a transaction, so corrections
@@ -105,9 +110,10 @@ Problems are logged and counted on the gauge `ledger_reconciliation_mismatches`.
 
 - A rider can owe money, and the ledger says how much: their wallet's negative
   balance. Nothing has to be reconstructed from trip statuses.
-- Every posting writes the single platform-revenue row. Under heavy load,
-  postings queue on it and some retry. When load tests show it, the upgrade is
-  to split revenue into sub-accounts by a hash of the trip, summed for reports.
+- Every charge writes the single platform-revenue row, and every top-up the
+  clearing row. Under heavy load, postings queue on them. When load tests show
+  it, the upgrade is to split them into sub-accounts by a hash of the
+  reference, summed for reports.
 - Reconciliation reads the whole ledger. That is fine nightly and on request,
   and it is kept off every hot path.
 - The append-only rule has no override short of dropping the trigger. That is
