@@ -466,6 +466,7 @@ class StompSecurityIntegrationTest {
       StompSession session = connect(token).established();
 
       CompletableFuture<String> received = new CompletableFuture<>();
+      CompletableFuture<String> contentType = new CompletableFuture<>();
       session.subscribe(
           "/topic/admin/live-map",
           new StompFrameHandler() {
@@ -476,6 +477,7 @@ class StompSecurityIntegrationTest {
 
             @Override
             public void handleFrame(StompHeaders headers, Object payload) {
+              contentType.complete(String.valueOf(headers.getContentType()));
               received.complete(new String((byte[]) payload, StandardCharsets.UTF_8));
             }
           });
@@ -489,6 +491,8 @@ class StompSecurityIntegrationTest {
       assertThat(received.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
           .contains("\"type\":\"LIVE_MAP\"")
           .contains("\"payload\":{\"drivers\":0}");
+      // Typed as JSON, so it travels as a text frame a browser can read, not a binary one.
+      assertThat(contentType.get()).isEqualTo("application/json");
     }
 
     /** Every driver's position, every trip line: for admins only. */
