@@ -1,0 +1,11 @@
+# Running against the traffic simulator (simulator/README.md): add it to whatever else is
+# active, e.g. --spring.profiles.active=local,sim. Never in production.
+rideflow:
+  security:
+    # The simulator registers and logs in hundreds of users from one address.
+    login-attempts-per-address-per-minute: 100000
+    registrations-per-address-per-hour: 100000
+  payment:
+    mock-gateway:
+      # Simulated riders top their wallets up through the mock gateway's payment page.
+      enabled: true

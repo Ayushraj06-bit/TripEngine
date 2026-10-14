@@ -17,6 +17,10 @@ import org.springframework.validation.annotation.Validated;
  *     a URL and throws on a bare word.
  * @param rsaPrivateKey PKCS#8 PEM. Blank generates an ephemeral keypair and logs a warning.
  * @param rsaPublicKey X.509 PEM. Required whenever a private key is supplied.
+ * @param loginAttemptsPerAddressPerMinute logins one client address may try, against password
+ *     spraying across many numbers
+ * @param registrationsPerAddressPerHour registrations one client address may make, against account
+ *     floods
  */
 @ConfigurationProperties("rideflow.security")
 @Validated
@@ -26,6 +30,8 @@ record IdentityProperties(
     @NotNull Duration refreshTokenTtl,
     @Positive int maxLoginAttempts,
     @NotNull Duration loginLockDuration,
+    @Positive int loginAttemptsPerAddressPerMinute,
+    @Positive int registrationsPerAddressPerHour,
     String rsaPrivateKey,
     String rsaPublicKey,
     @NotNull BootstrapAdmin bootstrapAdmin) {

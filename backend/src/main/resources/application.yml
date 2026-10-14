@@ -240,6 +240,10 @@ rideflow:
     refresh-token-ttl: 7d
     max-login-attempts: 10
     login-lock-duration: 15m
+    # Per client address. Raised only where one address is many people on purpose: the
+    # simulator (application-local.yml and the E2E run).
+    login-attempts-per-address-per-minute: 20
+    registrations-per-address-per-hour: 3
     # Blank generates an ephemeral keypair and logs a warning. Both must be set
     # together before running more than one instance, or each will reject the
     # other's tokens.

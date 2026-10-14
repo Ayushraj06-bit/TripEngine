@@ -38,9 +38,19 @@ class RateLimitFilter extends OncePerRequestFilter {
   /** Registration is once per person, so anything more than a trickle is abuse. */
   private final KeyedRateLimiter registerPerAddress;
 
-  RateLimitFilter(Clock clock) {
-    this.loginPerAddress = new KeyedRateLimiter(20, Duration.ofMinutes(1), "login attempts", clock);
-    this.registerPerAddress = new KeyedRateLimiter(3, Duration.ofHours(1), "registrations", clock);
+  RateLimitFilter(IdentityProperties properties, Clock clock) {
+    this.loginPerAddress =
+        new KeyedRateLimiter(
+            properties.loginAttemptsPerAddressPerMinute(),
+            Duration.ofMinutes(1),
+            "login attempts",
+            clock);
+    this.registerPerAddress =
+        new KeyedRateLimiter(
+            properties.registrationsPerAddressPerHour(),
+            Duration.ofHours(1),
+            "registrations",
+            clock);
   }
 
   @Override
