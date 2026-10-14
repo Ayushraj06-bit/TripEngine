@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: rideflow-simulator
+  threads:
+    virtual:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${RIDEFLOW_KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      # An external consumer of the backend's topic, with a group of its own.
+      group-id: rideflow-simulator-kpis
+      # Live KPIs: what happens from now on, not the topic's history.
+      auto-offset-reset: latest
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Everything below can be overridden on the command line: --simulator.drivers=500
+simulator:
+  backend-url: ${RIDEFLOW_BACKEND_URL:http://localhost:8080}
+  # normal | rush-hour | driver-shortage | chaos, applied on top of the values below.
+  scenario: normal
+  drivers: 50
+  riders: 30
+  # Each driver moves and reports a position this often; each rider checks in.
+  tick: 3s
+  gps-noise-meters: 8
+  demand:
+    requests-per-minute: 20
+    hotspot-share: 0.6
+    hotspot-radius-meters: 800
+    min-trip-meters: 1500
+    max-trip-meters: 8000
+    hotspots:
+      - { name: MG Road, lat: 12.9752, lng: 77.6064, weight: 3 }
+      - { name: Koramangala, lat: 12.9352, lng: 77.6245, weight: 2 }
+      - { name: Indiranagar, lat: 12.9784, lng: 77.6408, weight: 2 }
+      - { name: Whitefield, lat: 12.9698, lng: 77.7500, weight: 1 }
+    vehicle-mix: { BIKE: 3, AUTO: 3, CAR: 4 }
+    # WALLET needs the backend's mock gateway: run the backend with the sim profile.
+    payment-method: WALLET
+    cancel-probability: 0.1
+    cancel-after: { min: 5s, max: 40s }
+  driver:
+    accept-probability: 0.8
+    response-delay: { min: 1s, max: 6s }
+    cancel-probability: 0.03
+    # Per tick: about once every 25 minutes per app at a 3 s tick.
+    disconnect-probability: 0.002
+    offline-for: { min: 3s, max: 15s }
+    spoof-probability: 0.001
+    min-speed-kmph: 20
+    max-speed-kmph: 35
+  # Inside the backend's service area (Bengaluru).
+  service-area: { min-lat: 12.85, max-lat: 13.10, min-lng: 77.50, max-lng: 77.75 }
+  accounts:
+    # Throwaway accounts on a test backend, so not a secret; override with SIMULATOR_PASSWORD.
+    password: ${SIMULATOR_PASSWORD:simulated-rider-or-driver}
+    # The backend's bootstrap admin, who approves new drivers. No defaults.
+    admin-phone: ${RIDEFLOW_ADMIN_PHONE:}
+    admin-password: ${RIDEFLOW_ADMIN_PASSWORD:}
+    min-balance-paise: 50000
+    top-up-paise: 500000
+  kpi-log-interval: 30s
