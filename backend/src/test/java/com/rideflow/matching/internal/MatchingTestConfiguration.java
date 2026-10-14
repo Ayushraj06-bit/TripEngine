@@ -56,6 +56,10 @@ class MatchingTestConfiguration {
       sent.add(new Sent(userId, destination, message));
     }
 
+    /** The admin live map's broadcasts: not what these tests watch. */
+    @Override
+    public void toTopic(String destination, RealtimeMessage message) {}
+
     /** Offers carry no seq; trip updates, which share this context, do. */
     @Override
     public long nextSeq(UUID tripId) {

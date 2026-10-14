@@ -24,6 +24,12 @@ public interface RealtimePublisher {
   void toUser(UUID userId, String destination, RealtimeMessage message);
 
   /**
+   * Sends {@code message} to every client subscribed to {@code destination}, on every instance. Who
+   * may subscribe is the STOMP rules' business: {@code /topic/admin/live-map} reaches admins only.
+   */
+  void toTopic(String destination, RealtimeMessage message);
+
+  /**
    * Reserves the next {@code seq} of a trip's messages, for a message whose payload is a state read
    * from the database. Reserve first and read second: a read made later is never older, so a higher
    * number can never carry an older state.

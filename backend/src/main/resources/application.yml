@@ -220,6 +220,11 @@ rideflow:
     redelivery-interval: PT1M
   rating:
     window-days: 7
+  admin:
+    # Phase 9: one snapshot of the map, built once per cluster and pushed to every admin
+    # watching - never every driver's ping.
+    live-map-interval: PT2S
+    live-map-kpi-window-minutes: 5
 
   # The city RideFlow operates in (PROJECT_SPEC section 1: one configured service
   # area). This box covers Bengaluru; replace it with the real boundary per

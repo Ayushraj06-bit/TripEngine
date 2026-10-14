@@ -22,8 +22,8 @@ class RedisRealtimePublisher implements RealtimePublisher {
   record Envelope(String type, UUID tripId, Long seq, Instant sentAt, Object payload) {}
 
   /**
-   * What travels through Redis: who it is for, where, and the envelope - already JSON, so it is
-   * serialised once however many instances receive it.
+   * What travels through Redis: who it is for - null for everyone subscribed - where, and the
+   * envelope, already JSON, so it is serialised once however many instances receive it.
    */
   record Delivery(UUID userId, String destination, String envelope) {}
 
@@ -42,6 +42,15 @@ class RedisRealtimePublisher implements RealtimePublisher {
 
   @Override
   public void toUser(UUID userId, String destination, RealtimeMessage message) {
+    publish(userId, destination, message);
+  }
+
+  @Override
+  public void toTopic(String destination, RealtimeMessage message) {
+    publish(null, destination, message);
+  }
+
+  private void publish(UUID userId, String destination, RealtimeMessage message) {
     Long seq = message.seq();
     if (seq == null && message.tripId() != null) {
       seq = sequence.next(message.tripId());

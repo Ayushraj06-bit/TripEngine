@@ -38,15 +38,19 @@ class LocalDelivery implements MessageListener {
   @Override
   public void onMessage(Message message, byte[] pattern) {
     Delivery delivery = json.readValue(message.getBody(), Delivery.class);
+    byte[] envelope = delivery.envelope().getBytes(StandardCharsets.UTF_8);
+    Map<String, Object> headers =
+        Map.of(MessageHeaders.CONTENT_TYPE, MimeTypeUtils.APPLICATION_JSON);
+    if (delivery.userId() == null) {
+      // A broadcast: the broker hands it to whoever subscribed here, if anyone did.
+      messaging.convertAndSend(delivery.destination(), envelope, headers);
+      return;
+    }
     String user = delivery.userId().toString();
     if (users.getUser(user) == null) {
       // Connected to another instance, or not at all: dropped, without an error.
       return;
     }
-    messaging.convertAndSendToUser(
-        user,
-        delivery.destination(),
-        delivery.envelope().getBytes(StandardCharsets.UTF_8),
-        Map.of(MessageHeaders.CONTENT_TYPE, MimeTypeUtils.APPLICATION_JSON));
+    messaging.convertAndSendToUser(user, delivery.destination(), envelope, headers);
   }
 }

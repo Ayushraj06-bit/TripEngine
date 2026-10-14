@@ -458,6 +458,59 @@ class StompSecurityIntegrationTest {
           .contains("own /user/queue");
     }
 
+    /** The live map is broadcast: through Redis, to every admin subscribed on any instance. */
+    @Test
+    void deliversTheLiveMapToAnAdmin() throws Exception {
+      String token = register(Role.ADMIN, "+919000030007");
+      UUID adminId = idOf("+919000030007");
+      StompSession session = connect(token).established();
+
+      CompletableFuture<String> received = new CompletableFuture<>();
+      session.subscribe(
+          "/topic/admin/live-map",
+          new StompFrameHandler() {
+            @Override
+            public Type getPayloadType(StompHeaders headers) {
+              return byte[].class;
+            }
+
+            @Override
+            public void handleFrame(StompHeaders headers, Object payload) {
+              received.complete(new String((byte[]) payload, StandardCharsets.UTF_8));
+            }
+          });
+      await()
+          .atMost(EVENTUALLY)
+          .until(() -> isSubscribed(adminId.toString(), "/topic/admin/live-map"));
+
+      realtime.toTopic(
+          "/topic/admin/live-map", RealtimeMessage.of("LIVE_MAP", java.util.Map.of("drivers", 0)));
+
+      assertThat(received.get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
+          .contains("\"type\":\"LIVE_MAP\"")
+          .contains("\"payload\":{\"drivers\":0}");
+    }
+
+    /** Every driver's position, every trip line: for admins only. */
+    @Test
+    void refusesTheLiveMapToRidersAndDrivers() throws Exception {
+      for (Role role : List.of(Role.RIDER, Role.DRIVER)) {
+        String phone = "+91900003001" + role.ordinal();
+        Connection connection = connect(register(role, phone));
+        StompSession session = connection.established();
+
+        session.subscribe("/topic/admin/live-map", new NoOpFrameHandler());
+
+        // Refused: the server sends an ERROR frame and closes the connection. Which of the two
+        // the client hears first is a race, so this waits for either, then checks the outcome.
+        connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS);
+        await().atMost(EVENTUALLY).until(() -> !session.isConnected());
+        assertThat(isSubscribed(idOf(phone).toString(), "/topic/admin/live-map"))
+            .as(role.name())
+            .isFalse();
+      }
+    }
+
     @Test
     void refusesSubscribingToASharedTopic() throws Exception {
       Connection connection = connect(register(Role.RIDER, "+919000030003"));

@@ -35,6 +35,8 @@ import org.springframework.stereotype.Component;
  *       authenticated rider could push driver positions.
  *   <li>A client may only SUBSCRIBE to its <em>own</em> {@code /user/queue} destinations. This is
  *       the one that stops a rider tailing another rider's trip.
+ *   <li>The one exception: an admin may SUBSCRIBE to {@code /topic/admin/**}, where the live map is
+ *       broadcast. Nobody else may.
  * </ul>
  */
 @Component
@@ -46,6 +48,9 @@ class StompAuthInterceptor implements ChannelInterceptor {
 
   /** Destinations a driver may send to. */
   private static final List<String> DRIVER_SEND_DESTINATIONS = List.of("/app/driver/");
+
+  /** Broadcast topics only an admin may read: the live map (Phase 9). */
+  private static final String ADMIN_TOPICS = "/topic/admin/";
 
   /** Destinations a rider may send to. Empty for now; riders only ever subscribe. */
   private static final List<String> RIDER_SEND_DESTINATIONS = List.of();
@@ -132,6 +137,9 @@ class StompAuthInterceptor implements ChannelInterceptor {
     if (destination.startsWith("/user/queue/")) {
       return message;
     }
+    if (destination.startsWith(ADMIN_TOPICS) && hasRole(user, Role.ADMIN)) {
+      return message;
+    }
 
     log.debug("Rejected SUBSCRIBE to {} for {}", destination, user.getName());
     throw new MessagingSecurityException(
@@ -139,10 +147,12 @@ class StompAuthInterceptor implements ChannelInterceptor {
   }
 
   private static List<String> allowedSendPrefixes(Authentication user) {
-    boolean isDriver =
-        user.getAuthorities().stream()
-            .anyMatch(authority -> Role.DRIVER.authority().equals(authority.getAuthority()));
-    return isDriver ? DRIVER_SEND_DESTINATIONS : RIDER_SEND_DESTINATIONS;
+    return hasRole(user, Role.DRIVER) ? DRIVER_SEND_DESTINATIONS : RIDER_SEND_DESTINATIONS;
+  }
+
+  private static boolean hasRole(Authentication user, Role role) {
+    return user.getAuthorities().stream()
+        .anyMatch(authority -> role.authority().equals(authority.getAuthority()));
   }
 
   private static Authentication requireAuthenticated(StompHeaderAccessor accessor) {

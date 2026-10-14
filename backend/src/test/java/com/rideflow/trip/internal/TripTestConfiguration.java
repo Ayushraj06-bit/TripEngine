@@ -59,6 +59,10 @@ class TripTestConfiguration {
       pushes.add(new Push(userId, destination, message));
     }
 
+    /** The admin live map's broadcasts: not what these tests watch. */
+    @Override
+    public void toTopic(String destination, RealtimeMessage message) {}
+
     @Override
     public long nextSeq(UUID tripId) {
       return seq.incrementAndGet();

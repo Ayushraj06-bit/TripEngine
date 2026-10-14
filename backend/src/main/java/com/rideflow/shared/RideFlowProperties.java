@@ -36,6 +36,7 @@ public record RideFlowProperties(
     @NotNull @Valid Notification notification,
     @NotNull @Valid Events events,
     @NotNull @Valid Rating rating,
+    @NotNull @Valid Admin admin,
     @NotNull @Valid ServiceAreaProperties serviceArea) {
 
   /** Location ingestion and throttling. */
@@ -231,6 +232,11 @@ public record RideFlowProperties(
       FAILED
     }
   }
+
+  /** The admin live map. */
+  public record Admin(
+      /** The KPIs on the live map cover the trips requested in this many minutes. */
+      @Positive int liveMapKpiWindowMinutes) {}
 
   /** Ratings. */
   public record Rating(

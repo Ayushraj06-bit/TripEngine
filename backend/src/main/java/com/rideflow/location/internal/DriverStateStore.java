@@ -1,12 +1,14 @@
 package com.rideflow.location.internal;
 
 import com.rideflow.location.AvailableDriver;
+import com.rideflow.location.LiveDrivers;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.DriverPositions;
 import com.rideflow.trip.TripStatus;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,10 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.Metrics;
 import org.springframework.data.geo.Point;
 import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.domain.geo.GeoReference;
@@ -27,10 +31,11 @@ import org.springframework.stereotype.Component;
 /**
  * Everything this module keeps in Redis.
  *
- * <p>Also answers {@code trip}'s {@link DriverPositions} port, for the arrival geofence.
+ * <p>Also answers {@code trip}'s {@link DriverPositions} port, for the arrival geofence, and the
+ * admin live map's {@link LiveDrivers}.
  */
 @Component
-class DriverStateStore implements DriverPositions {
+class DriverStateStore implements DriverPositions, LiveDrivers {
 
   /**
    * PROJECT_SPEC section 7: the state hash lives 24 hours, refreshed on every write. Long enough
@@ -42,6 +47,12 @@ class DriverStateStore implements DriverPositions {
   /** The state-hash fields that say which trip a driver is on. */
   private static final List<Object> TRIP_FIELDS =
       List.of("tripId", "riderId", "tripPhase", "targetLat", "targetLng", "lastForwardTs");
+
+  /** What the live map shows of a driver, in the order {@link #liveDrivers()} reads it. */
+  private static final byte[][] LIVE_FIELDS =
+      Stream.of("status", "vehicleType", "lat", "lng", "tripPhase", "targetLat", "targetLng")
+          .map(field -> field.getBytes(StandardCharsets.UTF_8))
+          .toArray(byte[][]::new);
 
   private final StringRedisTemplate redis;
   private final RedisScript<List> locationUpdateScript;
@@ -323,6 +334,55 @@ class DriverStateStore implements DriverPositions {
         new TripContext(
             UUID.fromString(String.valueOf(fields.get(0))),
             UUID.fromString(String.valueOf(fields.get(1)))));
+  }
+
+  /**
+   * Everyone pinged within the stale window: one range read, then every state hash in one pipelined
+   * round trip. A driver whose hash lapsed between the two is left out.
+   */
+  @Override
+  public List<LiveDriver> liveDrivers() {
+    long since =
+        clock.millis() - Duration.ofSeconds(properties.location().staleAfterSeconds()).toMillis();
+    List<String> ids =
+        List.copyOf(
+            redis
+                .opsForZSet()
+                .rangeByScore(LocationKeys.LAST_SEEN, since, Double.POSITIVE_INFINITY));
+    List<Object> states =
+        redis.executePipelined(
+            (RedisCallback<Object>)
+                connection -> {
+                  for (String id : ids) {
+                    connection
+                        .hashCommands()
+                        .hMGet(
+                            LocationKeys.state(UUID.fromString(id))
+                                .getBytes(StandardCharsets.UTF_8),
+                            LIVE_FIELDS);
+                  }
+                  return null;
+                });
+
+    List<LiveDriver> live = new ArrayList<>(ids.size());
+    for (int i = 0; i < ids.size(); i++) {
+      @SuppressWarnings("unchecked")
+      List<String> state = (List<String>) states.get(i);
+      if (state.get(2) == null || state.get(3) == null) {
+        continue;
+      }
+      live.add(
+          new LiveDriver(
+              UUID.fromString(ids.get(i)),
+              state.get(0),
+              state.get(1) == null ? null : VehicleType.valueOf(state.get(1)),
+              Double.parseDouble(state.get(2)),
+              Double.parseDouble(state.get(3)),
+              state.get(4),
+              state.get(5) == null ? null : Double.valueOf(state.get(5)),
+              state.get(6) == null ? null : Double.valueOf(state.get(6))));
+    }
+    return live;
   }
 
   /** Number of drivers currently listed as available for a type, for the gauge. */
