@@ -34,6 +34,15 @@ changes an event.
   Order by `occurredAt` when it matters rather than by arrival.
 - **Never an OTP.** Events are stored in the database and copied to Kafka; the
   trip OTP is in none of them.
+- **The type is in a header.** From Phase 9, every trip event carries an
+  `eventType` header holding the event's name (`TripCompleted`), as UTF-8
+  bytes. Read it rather than guessing from the fields: `DriverArrived` and
+  `TripStarted` have the same ones.
+
+The simulator's KPI consumer (`simulator/`, group `rideflow-simulator-kpis`) is
+the reference external consumer. It de-duplicates on `eventId`. Anything it
+cannot read as a trip event goes to `rideflow.trip-events.DLT`
+([ADR 0015](adr/0015-simulator-and-live-map.md)).
 
 ## Conventions
 

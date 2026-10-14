@@ -7,6 +7,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.rideflow.trip.DriverAssigned;
 import com.rideflow.trip.TripEvent;
 import com.rideflow.trip.TripRequested;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,13 @@ class TripKafkaIntegrationTest extends TripIntegrationTestBase {
     assertThat((Object) JsonPath.read(received.get(0).value(), "$.quotedFarePaise")).isNotNull();
     assertThat((String) JsonPath.read(received.get(1).value(), "$.driverId"))
         .isEqualTo(driver.id().toString());
+    // The type travels beside the JSON: DriverArrived and TripStarted have the same fields.
+    assertThat(received)
+        .extracting(
+            record ->
+                new String(
+                    record.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8))
+        .containsExactly("TripRequested", "DriverAssigned");
   }
 
   /** Stored in the registry, and every listener - Kafka included - has completed it. */
