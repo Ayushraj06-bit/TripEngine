@@ -25,7 +25,8 @@ the thing.
 | 6 Live trip and final fare | done |
 | 7 Payments and ratings | done |
 | 8 Surge pricing | done |
-| 9 Simulator and live map | next |
+| 9 Simulator and live map | done |
+| 10 Observability and load tests | next |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -108,6 +109,31 @@ change an entry or to commit a transaction that does not balance
   can override a cell or switch surge off everywhere.
 - One tick over 300 busy cells and 2,000 drivers takes about 80 ms.
 
+**Phase 9** adds the [simulator](simulator/README.md) and the live map
+([ADR 0015](docs/adr/0015-simulator-and-live-map.md)).
+- `simulator/` is a separate Spring Boot application. It knows the backend
+  only through its REST and STOMP APIs, and reads Kafka like any outside
+  consumer.
+- Its drivers roam, answer offers and drive trips, and sometimes drop their
+  connection or report a made-up position.
+- Its riders book on Poisson arrivals weighted toward hotspots, hand the OTP to
+  their driver, sometimes cancel, and rate the trip.
+- Four presets: `normal`, `rush-hour`, `driver-shortage` and `chaos`.
+- Admins watch it at `/admin/live-map.html`, which shows drivers by state, trip
+  lines, surge cells and live KPIs. It is one snapshot every 2 s on an
+  admin-only STOMP topic, built once per cluster.
+- Trip events on Kafka now carry an `eventType` header.
+- Running it found four backend faults, now fixed:
+  - a driver's reconnect did not restart its position numbering, as the
+    protocol said it would
+  - per-address login and registration limits were hard-coded
+  - top-ups arriving together exhausted the ledger's retries on the shared
+    clearing account
+  - pushes went out as binary WebSocket frames, which a browser cannot read
+    as text
+- `./mvnw -Pe2e verify` runs the whole stack in containers, with the backend as
+  a black box.
+
 ## Requirements
 
 | Tool | Version |
@@ -154,6 +180,7 @@ More detail and troubleshooting: [`docs/runbook.md`](docs/runbook.md).
 | Profile | Purpose |
 |---|---|
 | `local` (default) | Boot manages Compose, plain-text logs, every request traced |
+| `sim` | added to another, for the simulator: high per-address limits, mock gateway on. Never in production |
 | `test` | Testcontainers supplies all connection details; no fixed hosts |
 | `prod` | Everything from the environment, no defaults, ECS JSON logs |
 
@@ -161,6 +188,7 @@ More detail and troubleshooting: [`docs/runbook.md`](docs/runbook.md).
 
 ```bash
 ./mvnw verify           # unit + integration + module boundaries + coverage report
+./mvnw -Pe2e verify     # plus the end-to-end tests: the whole stack in containers
 ./mvnw spotless:apply   # format before committing (google-java-format)
 ```
 
@@ -177,6 +205,7 @@ JaCoCo reports coverage; the 80% gate on `trip`, `matching`, `pricing` and
 
 ```
 ├── backend/        Spring Boot application, split into Modulith modules
+├── simulator/      fake drivers and riders over the public API, and the E2E tests
 ├── infra/          docker compose, prometheus, grafana dashboards as code
 ├── load-tests/     k6 scripts (Phase 10)
 └── docs/           ADRs, event catalog, measured performance, runbook

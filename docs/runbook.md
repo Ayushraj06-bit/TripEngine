@@ -46,6 +46,30 @@ Then run the backend:
 `verify` starts containers through Testcontainers. The first run pulls images
 and is slow; later runs reuse them.
 
+## Run the simulator
+
+Full instructions: [`simulator/README.md`](../simulator/README.md). In short:
+
+```bash
+export RIDEFLOW_ADMIN_PHONE=+919999900001 RIDEFLOW_ADMIN_PASSWORD='choose-one'
+SPRING_PROFILES_INCLUDE=sim ./mvnw -pl backend spring-boot:run   # terminal 1
+./mvnw -pl simulator spring-boot:run                            # terminal 2
+```
+
+Watch it on http://localhost:8080/admin/live-map.html, signed in as that admin.
+The simulator's metrics are on http://localhost:8081/actuator/prometheus, and
+Prometheus scrapes them as `rideflow-simulator`.
+
+## End-to-end tests
+
+```bash
+./mvnw -Pe2e verify
+```
+
+They run from the repository root, so the backend jar is packaged before the
+simulator's tests use it. A run starts its own PostgreSQL, Redis and Kafka.
+Nothing local needs to be running, only Docker.
+
 ## Two-instance setup
 
 Used to exercise the cross-instance real-time path and to load-test.
@@ -272,6 +296,36 @@ Check these in order: they are the precedence quotes apply
 
 A price falls 0.25 per tick once its demand eases, so a cell at 2.5 takes three
 minutes to return to 1.0. That is smoothing, not a fault.
+
+### The simulator stops at setup
+
+- **"rate-limits registrations and logins per address"**: the backend is not on
+  the `sim` profile. Every simulated user comes from one address, and the
+  normal limits are 3 registrations an hour and 20 logins a minute.
+- **"Drivers need approving"**: set `RIDEFLOW_ADMIN_PHONE` and
+  `RIDEFLOW_ADMIN_PASSWORD` for the simulator, to the backend's bootstrap admin.
+- **Riders never get money**: `WALLET` top-ups need the mock gateway, which
+  only the `sim` profile turns on. Use `--simulator.demand.payment-method=CASH`
+  otherwise.
+
+### The live map stays empty
+
+1. Signed in, but "refused": the account is not an ADMIN. Only admins may
+   subscribe to `/topic/admin/live-map`.
+2. Connected, but no time shown: no snapshot is arriving. The `live-map` row in
+   `shedlock` shows when one was last built. A snapshot that fails to build is
+   logged by the scheduler.
+3. Snapshots arrive with no drivers: nobody has reported a position in the last
+   30 seconds. `ZRANGE drivers:lastseen 0 -1 WITHSCORES` lists who has, and
+   when.
+
+### A reconnected driver's positions are ignored
+
+Each new STOMP session numbers its positions from zero. The backend forgets the
+stored `seq` when a driver's CONNECT arrives, so positions from an app that
+reconnects are accepted again. If `location_updates_total{result="ignored_out_of_order"}`
+keeps climbing for a driver who reconnected, the app is reusing old numbers
+inside one session. That is a client fault.
 
 ### Port already in use
 
