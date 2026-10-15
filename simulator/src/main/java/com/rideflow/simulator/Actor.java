@@ -131,6 +131,7 @@ abstract class Actor {
     if (session.expiresWithin(RENEW_SOCKET_MARGIN)) {
       session.refresh();
       link.disconnect();
+      world.meters().counter("simulator.token.renewals").increment();
       reconnect();
     }
     if (!offline) {

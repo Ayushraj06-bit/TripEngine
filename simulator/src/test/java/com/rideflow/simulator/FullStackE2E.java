@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.rideflow.simulator.Geo.Point;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -234,6 +235,10 @@ class FullStackE2E {
           .atMost(Duration.ofSeconds(90))
           .pollInterval(Duration.ofSeconds(1))
           .until(() -> !Instant.now().isBefore(started.plus(Duration.ofSeconds(60))));
+      // Tokens live 150 s here, and apps renew theirs 120 s before expiry.
+      assertThat(app.getBean(MeterRegistry.class).counter("simulator.token.renewals").count())
+          .as("tokens and sockets renewed before expiry")
+          .isPositive();
     }
 
     assertThat(FullStack.count("SELECT count(*) FROM trips WHERE status = 'COMPLETED'"))
@@ -280,6 +285,33 @@ class FullStackE2E {
         .filteredOn(line -> line.contains("\"level\":\"ERROR\""))
         .as("error logs from the backend")
         .isEmpty();
+  }
+
+  /** The same twenty drivers and ten riders again: logged in, not registered a second time. */
+  @Test
+  @Order(3)
+  void reusesItsAccountsWhenRestarted() throws Exception {
+    String people = "SELECT count(*) FROM users";
+    String vehicles = "SELECT count(*) FROM vehicles";
+    long usersBefore = FullStack.count(people);
+    long vehiclesBefore = FullStack.count(vehicles);
+
+    try (ConfigurableApplicationContext app =
+        FullStack.simulator(
+            "simulator.drivers=20",
+            "simulator.riders=10",
+            "simulator.demand.requests-per-minute=0")) {
+      Simulation simulation = app.getBean(Simulation.class);
+      await().atMost(Duration.ofMinutes(2)).until(() -> simulation.startedAt().isPresent());
+    }
+
+    assertThat(FullStack.count(people)).isEqualTo(usersBefore);
+    assertThat(FullStack.count(vehicles)).isEqualTo(vehiclesBefore);
+    assertThat(
+            FullStack.count(
+                "SELECT count(*) FROM drivers d JOIN users u ON u.id = d.user_id"
+                    + " WHERE u.phone LIKE '+9170%' AND d.approval_status <> 'APPROVED'"))
+        .isZero();
   }
 
   private static UserSession user(BackendApi api, Clock clock, String role, String phone) {

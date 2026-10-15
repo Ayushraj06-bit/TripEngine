@@ -65,7 +65,10 @@ final class FullStack {
                   "RIDEFLOW_ADMIN_PASSWORD", ADMIN_PASSWORD,
                   "RIDEFLOW_GATEWAY_WEBHOOK_SECRET", "e2e-webhook-secret",
                   // No trace collector here: sample nothing rather than fail every export.
-                  "RIDEFLOW_TRACE_SAMPLE", "0.0"))
+                  "RIDEFLOW_TRACE_SAMPLE", "0.0",
+                  // Short enough that the simulated apps renew their tokens - and their
+                  // sockets - inside the one-minute run.
+                  "RIDEFLOW_SECURITY_ACCESSTOKENTTL", "150s"))
           .withExposedPorts(8080)
           .dependsOn(POSTGRES, REDIS, KAFKA)
           .waitingFor(

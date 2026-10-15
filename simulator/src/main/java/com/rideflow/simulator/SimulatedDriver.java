@@ -32,7 +32,7 @@ final class SimulatedDriver extends Actor {
     TO_DROP
   }
 
-  private enum Decision {
+  enum Decision {
     ACCEPT,
     REJECT,
     IGNORE
@@ -141,15 +141,18 @@ final class SimulatedDriver extends Actor {
     pendingOffer = offerId;
     Instant received = world.clock().instant();
     var behaviour = world.properties().driver();
-    double roll = random().nextDouble();
-    // Of the offers not accepted, half are turned down and half left to time out.
-    Decision decision =
-        roll < behaviour.acceptProbability()
-            ? Decision.ACCEPT
-            : roll < (1 + behaviour.acceptProbability()) / 2 ? Decision.REJECT : Decision.IGNORE;
+    Decision decision = decide(random().nextDouble(), behaviour.acceptProbability());
     later(
         World.within(behaviour.responseDelay(), random()),
         () -> respond(offerId, decision, received));
+  }
+
+  /** Of the offers not accepted, half are turned down and half left to time out. */
+  static Decision decide(double roll, double acceptProbability) {
+    if (roll < acceptProbability) {
+      return Decision.ACCEPT;
+    }
+    return roll < (1 + acceptProbability) / 2 ? Decision.REJECT : Decision.IGNORE;
   }
 
   private void respond(UUID offerId, Decision decision, Instant received) {

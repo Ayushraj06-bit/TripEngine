@@ -3,37 +3,13 @@ package com.rideflow.simulator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.context.properties.bind.Binder;
-import org.springframework.boot.context.properties.bind.PropertySourcesPlaceholdersResolver;
-import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
-import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.core.env.MapPropertySource;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.io.ClassPathResource;
 
 /** The presets, over the shipped configuration. */
 class ScenarioTest {
 
-  /** application.yml as an unset environment sees it, with {@code overrides} on top. */
   private static SimulatorProperties shipped(String... overrides) throws Exception {
-    Map<String, Object> values = new HashMap<>();
-    for (String override : overrides) {
-      String[] pair = override.split("=", 2);
-      values.put(pair[0], pair[1]);
-    }
-    MutablePropertySources sources = new MutablePropertySources();
-    sources.addFirst(new MapPropertySource("overrides", values));
-    new YamlPropertySourceLoader()
-        .load("application", new ClassPathResource("application.yml"))
-        .forEach(sources::addLast);
-    return new Binder(
-            ConfigurationPropertySources.from(sources),
-            new PropertySourcesPlaceholdersResolver(sources))
-        .bind("simulator", SimulatorProperties.class)
-        .get();
+    return ShippedProperties.load(overrides);
   }
 
   @Test
