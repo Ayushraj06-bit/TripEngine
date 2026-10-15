@@ -1,5 +1,6 @@
 # Running against the traffic simulator (simulator/README.md): add it to whatever else is
-# active, e.g. --spring.profiles.active=local,sim. Never in production.
+# active, e.g. --spring.profiles.active=local,sim. Never in production: started alongside
+# prod, the application refuses to run (SimProfileGuard).
 rideflow:
   security:
     # The simulator registers and logs in hundreds of users from one address.
