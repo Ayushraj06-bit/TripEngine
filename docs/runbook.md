@@ -82,6 +82,12 @@ Both instances must share two secrets, or what one signs the other refuses:
 The compose file refuses to start without them. Generate throwaway values for
 local use. Never commit them.
 
+Behind nginx, a client's address for rate limiting comes from `X-Forwarded-For`.
+Tomcat believes that header only from a trusted proxy:
+`server.tomcat.remoteip.internal-proxies`, by default private and loopback
+addresses, which covers nginx on the compose network. Behind a load balancer
+with a public address, add its address there, or every client shares one limit.
+
 ```bash
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/rideflow.pem
 export RIDEFLOW_RSA_PRIVATE_KEY="$(grep -v -- ----- /tmp/rideflow.pem | tr -d '\n')"

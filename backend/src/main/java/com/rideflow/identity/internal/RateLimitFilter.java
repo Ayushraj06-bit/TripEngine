@@ -84,15 +84,16 @@ class RateLimitFilter extends OncePerRequestFilter {
   }
 
   /**
-   * The caller's address, preferring the proxy header because every request reaches us through
-   * nginx in the scale profile, where the socket address is the load balancer for everyone.
+   * The caller's address: the socket's, never a header the caller wrote.
+   *
+   * <p>Behind nginx (the scale profile), the socket is the load balancer's. Tomcat's {@code
+   * RemoteIpValve} ({@code server.forward-headers-strategy: native}) puts the client's address
+   * there instead, reading {@code X-Forwarded-For} only when the request came from a trusted proxy,
+   * and from the right, so only addresses the proxies added count. Reading the header here, the
+   * left-most entry was whatever the client sent: a fresh address, and a fresh allowance, per
+   * request.
    */
   private static String clientAddress(HttpServletRequest request) {
-    String forwarded = request.getHeader("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isBlank()) {
-      // Left-most entry is the original client; the rest are proxies.
-      return forwarded.split(",")[0].trim();
-    }
     return request.getRemoteAddr();
   }
 

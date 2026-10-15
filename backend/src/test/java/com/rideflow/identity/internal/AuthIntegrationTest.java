@@ -506,10 +506,17 @@ class AuthIntegrationTest {
   @Nested
   class RateLimitResponses {
 
+    /**
+     * From {@code clientAddress}, as Tomcat resolves it: the socket's, or a trusted proxy's word.
+     */
     private ResultActions login(String phone, String clientAddress) throws Exception {
       return mockMvc.perform(
           post("/api/v1/auth/login")
-              .header("X-Forwarded-For", clientAddress)
+              .with(
+                  request -> {
+                    request.setRemoteAddr(clientAddress);
+                    return request;
+                  })
               .contentType(MediaType.APPLICATION_JSON)
               .content(
                   """
@@ -549,6 +556,30 @@ class AuthIntegrationTest {
 
       // Only that address: another is still let through.
       login("+919811199999", "198.51.100.8").andExpect(status().isUnauthorized());
+    }
+
+    /** A client naming its own address in the header gets no fresh allowance for it. */
+    @Test
+    void ignoresAForwardedForHeaderTheClientWroteItself() throws Exception {
+      for (int attempt = 0; attempt < 20; attempt++) {
+        mockMvc
+            .perform(
+                post("/api/v1/auth/login")
+                    .with(
+                        request -> {
+                          request.setRemoteAddr("198.51.100.9");
+                          return request;
+                        })
+                    .header("X-Forwarded-For", "203.0.113." + attempt)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {"phone":"+9198112%05d","password":"not-the-password"}"""
+                            .formatted(attempt)))
+            .andExpect(status().isUnauthorized());
+      }
+
+      login("+919811299999", "198.51.100.9").andExpect(status().isTooManyRequests());
     }
   }
 

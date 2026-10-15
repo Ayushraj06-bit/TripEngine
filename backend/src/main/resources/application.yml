@@ -87,6 +87,10 @@ logging:
 server:
   port: 8080
   shutdown: graceful
+  # X-Forwarded-For and -Proto are believed only from trusted proxies - private and loopback
+  # addresses by default (server.tomcat.remoteip.internal-proxies) - so behind nginx the client's
+  # address is the real one, and a client cannot name its own.
+  forward-headers-strategy: native
 
 springdoc:
   swagger-ui:
