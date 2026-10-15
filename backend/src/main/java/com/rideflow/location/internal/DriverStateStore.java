@@ -376,13 +376,21 @@ class DriverStateStore implements DriverPositions, LiveDrivers {
               UUID.fromString(ids.get(i)),
               state.get(0),
               state.get(1) == null ? null : VehicleType.valueOf(state.get(1)),
-              Double.parseDouble(state.get(2)),
-              Double.parseDouble(state.get(3)),
+              toMetre(state.get(2)),
+              toMetre(state.get(3)),
               state.get(4),
-              state.get(5) == null ? null : Double.valueOf(state.get(5)),
-              state.get(6) == null ? null : Double.valueOf(state.get(6))));
+              state.get(5) == null ? null : toMetre(state.get(5)),
+              state.get(6) == null ? null : toMetre(state.get(6))));
     }
     return live;
+  }
+
+  /**
+   * Five decimal places, about a metre: plenty for a map, and a quarter off a snapshot that carries
+   * every driver's position every two seconds.
+   */
+  private static double toMetre(String degrees) {
+    return Math.round(Double.parseDouble(degrees) * 1e5) / 1e5;
   }
 
   /** Number of drivers currently listed as available for a type, for the gauge. */

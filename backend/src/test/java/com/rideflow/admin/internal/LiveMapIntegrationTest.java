@@ -95,6 +95,20 @@ class LiveMapIntegrationTest extends PaymentIntegrationTestBase {
   }
 
   @Test
+  void roundsPositionsToAboutAMetre() {
+    UUID driver = UUID.randomUUID();
+    driverState(
+        driver,
+        Duration.ZERO,
+        Map.of("status", "AVAILABLE", "lat", "12.975234567891234", "lng", "77.606445678912345"));
+
+    LiveDriver live = publisher.snapshot().drivers().getFirst();
+
+    assertThat(live.lat()).isEqualTo(12.97523);
+    assertThat(live.lng()).isEqualTo(77.60645);
+  }
+
+  @Test
   void measuresTheTripsRequestedInTheLastFiveMinutes() {
     trip(TripStatus.COMPLETED, Duration.ofMinutes(4), Duration.ofSeconds(30));
     trip(TripStatus.IN_PROGRESS, Duration.ofMinutes(3), Duration.ofSeconds(10));

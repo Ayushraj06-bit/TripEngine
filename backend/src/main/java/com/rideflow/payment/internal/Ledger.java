@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 class Ledger {
 
-  /** Platform accounts and the rest by type, then by owner: the same for every posting. */
+  /** By account type, then by owner: the same for every posting. */
   static final Comparator<AccountKey> LOCK_ORDER =
       Comparator.comparing(AccountKey::type).thenComparing(AccountKey::ownerId);
 
