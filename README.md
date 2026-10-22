@@ -26,7 +26,7 @@ the thing.
 | 7 Payments and ratings | done |
 | 8 Surge pricing | done |
 | 9 Simulator and live map | done |
-| 10 Observability and load tests | next |
+| 10 Observability, performance and resilience | done |
 
 **Phase 2** adds live driver positions: STOMP over WebSocket at `/ws` with JWT
 authentication on CONNECT and per-role destination rules, a validation pipeline
@@ -134,6 +134,38 @@ change an entry or to commit a transaction that does not balance
 - `./mvnw -Pe2e verify` runs the whole stack in containers, with the backend as
   a black box.
 
+**Phase 10** measures the backend and makes it fail fast
+([ADR 0016](docs/adr/0016-observability-and-resilience.md),
+[performance](docs/performance.md), [security review](docs/security.md)).
+- **Measured on one laptop:** 2,000 drivers streaming positions at p95 2.8 ms
+  ingest, and bookings at p95 26 ms. Every target in PROJECT_SPEC section 2 has
+  a recorded result, including the one missed when bookings outran nearby
+  drivers.
+- **Actuator on its own port, 8090:** Prometheus scrapes it, and nothing outside
+  may reach it. The public port keeps only `/livez` and `/readyz`.
+- **Dashboards and alerts as code:** two Grafana dashboards, and Prometheus
+  alerts with `promtool` tests run in CI.
+- **One trace per booking:** from the HTTP request through the matching listener
+  to the offer's push and the Kafka send.
+- **Deadlines on every call:** Redis, JDBC, Kafka and the gateway each give up in
+  seconds. Circuit breakers guard location ingest, the payment gateway and route
+  estimation, and an unreachable store answers 503 with `Retry-After`.
+- **`./mvnw -Pchaos verify`:** pauses Redis, stops Kafka for a minute and
+  restarts the backend mid-matching, and checks that nothing is lost.
+- **Load testing found faults, now fixed:**
+  - a new session's first position was judged against the last session's, and
+    rejected as a spoof
+  - a spoofer was flagged again on every position
+  - logins held a database connection through BCrypt, so a burst of logins
+    starved every other request
+  - a request that could not get a connection answered 500, not 503
+  - pages of trip history after the first read the user's whole older
+    history
+  - the WebSocket session gauge went negative, counting disconnects Spring
+    raises twice, or for sockets that never connected
+- **Dependencies:** pinned past six packages with known vulnerabilities; the
+  Maven wrapper's download is checksum-verified.
+
 ## Requirements
 
 | Tool | Version |
@@ -165,10 +197,10 @@ docker compose -f infra/docker-compose.yml ps     # all six healthy?
 |---|---|
 | Backend | http://localhost:8080 |
 | API docs | http://localhost:8080/swagger-ui.html |
-| Health | http://localhost:8080/actuator/health |
-| Liveness / readiness | `/actuator/health/liveness`, `/actuator/health/readiness` |
-| Metrics | http://localhost:8080/actuator/prometheus |
-| Module structure | http://localhost:8080/actuator/modulith |
+| Liveness / readiness | http://localhost:8080/livez, http://localhost:8080/readyz |
+| Health with details | http://localhost:8090/actuator/health (management port, internal only) |
+| Metrics | http://localhost:8090/actuator/prometheus |
+| Module structure | http://localhost:8090/actuator/modulith |
 | Grafana | http://localhost:3000 (`admin` / `admin`) |
 | Prometheus | http://localhost:9090 |
 | Jaeger | http://localhost:16686 |
@@ -189,6 +221,7 @@ More detail and troubleshooting: [`docs/runbook.md`](docs/runbook.md).
 ```bash
 ./mvnw verify           # unit + integration + module boundaries + coverage report
 ./mvnw -Pe2e verify     # plus the end-to-end tests: the whole stack in containers
+./mvnw -Pchaos verify   # plus the chaos tests: Redis paused, Kafka stopped, backend restarted
 ./mvnw spotless:apply   # format before committing (google-java-format)
 ```
 
@@ -207,7 +240,7 @@ JaCoCo reports coverage; the 80% gate on `trip`, `matching`, `pricing` and
 ├── backend/        Spring Boot application, split into Modulith modules
 ├── simulator/      fake drivers and riders over the public API, and the E2E tests
 ├── infra/          docker compose, prometheus, grafana dashboards as code
-├── load-tests/     k6 scripts (Phase 10)
+├── load-tests/     k6 scripts: ingest, booking burst, soak, login storm
 └── docs/           ADRs, event catalog, measured performance, runbook
 ```
 
@@ -238,6 +271,13 @@ things. The traps this project hit, all of which fail *silently*:
   [ADR 0003](docs/adr/0003-test-stack-on-junit-6-jqwik-deferred.md).
 - Testcontainers 2.x renamed every module to `testcontainers-*` and dropped its
   Redis module; Redis comes from `com.redis:testcontainers-redis`.
+- Tracing needs `spring-boot-starter-opentelemetry`. With only the Micrometer
+  bridge and the OTLP exporter, no tracer is created and no span leaves.
+- Any `Executor` bean (the WebSocket broker defines several) makes Boot skip its
+  application task executor. `@Async` and Modulith listeners then run on a
+  fallback with no trace context, unless `spring.task.execution.mode: force`.
+- Lettuce metrics are Observations: `lettuce_seconds`, by `db_operation`, not
+  Boot 3's `lettuce_command_completion_seconds`.
 
 ## Documentation
 
@@ -246,3 +286,4 @@ things. The traps this project hit, all of which fail *silently*:
 - [`docs/events.md`](docs/events.md) — event catalog
 - [`docs/performance.md`](docs/performance.md) — measured results only
 - [`docs/runbook.md`](docs/runbook.md) — running and troubleshooting
+- [`docs/security.md`](docs/security.md) — OWASP Top 10 review

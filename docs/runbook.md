@@ -124,12 +124,23 @@ takes the lock once `lock_until` passes.
 
 ## Health and diagnostics
 
+Actuator lives on the management port, 8090, which nothing outside the internal network may
+reach (Phase 10, ADR 0016). The public port, 8080, answers only the two probes.
+
 | What | Where |
 |---|---|
-| Liveness and readiness | `GET /actuator/health` |
-| Metrics for Prometheus | `GET /actuator/prometheus` |
-| Module structure | `GET /actuator/modulith` |
-| API docs | http://localhost:8080/swagger-ui.html |
+| Liveness, readiness (public) | `GET :8080/livez`, `GET :8080/readyz` |
+| Health with details | `GET :8090/actuator/health` |
+| Metrics for Prometheus | `GET :8090/actuator/prometheus` |
+| Module structure | `GET :8090/actuator/modulith` |
+| Dashboards | Grafana, http://localhost:3000: *RideFlow - service* and *RideFlow - runtime* |
+| Alerts | Prometheus, http://localhost:9090/alerts (rules in `infra/prometheus/alerts.yml`) |
+| Traces | Jaeger, http://localhost:16686: one booking is one trace (`docs/images/booking-trace.png`) |
+| API docs (not in prod) | http://localhost:8080/swagger-ui.html |
+
+Readiness goes DOWN while PostgreSQL or Redis does not answer: every call to them gives up in a
+few seconds (Redis 1 s, a database connection 3 s, a statement 10 s). Liveness does not depend on
+them, so an orchestrator stops sending traffic instead of restarting a healthy process.
 
 ## Common problems
 
@@ -160,6 +171,82 @@ LIMIT 20;
 Rows accumulating there mean a listener is failing or Kafka is unreachable. The
 events are not lost — they are retried, and republished on restart. Find the
 listener's exception in the logs before intervening.
+
+### Redis is down
+
+**What it looks like.**
+- `/readyz` answers 503 within a few seconds, and the load balancer takes the instance out.
+- Requests that need Redis (quotes, nearby, booking, offers) answer **503
+  `SERVICE_UNAVAILABLE`** with `Retry-After`.
+- Location updates are dropped at once: `location_updates_total{result="unavailable"}` rises, and
+  the `redis-location` breaker opens (dashboard: *Circuit breakers open*).
+- Threads do not pile up, and liveness stays UP: `FullStackChaos` checks exactly this.
+
+**What to do.**
+1. Find out why Redis is down: `docker compose ps`, Redis logs, memory.
+2. Nothing in RideFlow needs restarting. When Redis answers, readiness comes back, the breaker
+   closes after a probe, and positions are taken again.
+3. What was lost is short-lived state:
+   - Driver positions return with the next report, 3 s later.
+   - Offers in flight expire, and the recovery sweep re-matches their trips from PostgreSQL.
+   - Quotes made before the outage must be asked for again.
+
+### Kafka is down
+
+**What it looks like.**
+- `KafkaConsumerLagGrowing` or `EventPublicationBacklog` fires. The *Event publication backlog*
+  panel climbs.
+- Bookings, trips and payments carry on as normal. Only the copy of events to Kafka waits.
+
+**What to do.**
+1. Bring Kafka back. Nothing else is needed: every unsent event is in `event_publication`, and
+   `EventRedelivery` sends it again, every minute, once it is two minutes old (ADR 0012).
+2. Watch the backlog fall to 0. A send waits at most 5 s for Kafka (`max.block.ms`), so no
+   listener thread is held while it is away.
+3. Consumers may see an event twice: delivery is at least once. They de-duplicate on `eventId`
+   (`docs/events.md`). `FullStackChaos.losesNoEventWhileKafkaIsDown` proves none is lost.
+
+If the backlog stays up after Kafka returns, look for the Kafka listener's exception in the
+logs. An `InvalidTimestampException` means the broker's clock is far behind the backend's. On a
+laptop, this follows a sleep; restart Docker Desktop to resync it.
+
+### Matching is slow
+
+**What it looks like.** `BookingLatencyHigh` fires, or *Booking to first offer* or *Time to
+assign* climbs.
+
+**What to check.**
+1. **Is it the booking request itself?** Look at the *Booking API latency* panel. If it is slow,
+   check *HikariCP connections*: requests waiting for a connection (`pending` above 0, acquire
+   time rising) mean the pool is short or a query is slow. Then check *Redis command latency*.
+2. **Is it the time to the first offer?** Look at `matching_first_offer_seconds`. Matching runs
+   in event listeners: check the *Event publication backlog*. A backlog means listeners are
+   behind.
+3. **Pick one slow booking and open its trace in Jaeger.** The trace shows which step - Redis,
+   the database, the listener - took the time.
+
+**What to do.** Scale out, which the Redis fan-out allows. Do not reach for a bigger pool
+(`spring.datasource.hikari.maximum-pool-size`) first. In `docs/performance.md`, 30 connections
+were slower than 10, because more transactions at once only contend inside PostgreSQL. First find
+what holds the connections, as the BCrypt-in-a-transaction fault did.
+
+### The no-driver rate spikes
+
+**What it looks like.** `NoDriverRateHigh`: more than 20% of the last 10 minutes' bookings found
+no driver.
+
+**What to check.**
+1. **Are there drivers?** *Available drivers by vehicle type*. A sudden drop with ingest still
+   healthy means drivers are being taken off the map: check the stale sweep, and
+   `location_updates_total` by result. A rise in `unavailable` means Redis; a rise in
+   `rejected_spoof` means bad GPS, or a client sending stale positions.
+2. **Are drivers turning offers down?** *Offer results per minute*: many `expired` or `rejected`
+   against few `accepted`.
+3. **Is demand concentrated?** *Surge: cells above 1.0*. Demand above supply in a few cells is a
+   business event, not a fault: surge is meant to answer it.
+
+**What to do.** If it is a fault, fix its cause above. If it is demand, the surge override
+(`POST /api/v1/admin/surge/overrides`) can raise prices in the affected cells to bring drivers in.
 
 ### Drivers linger on the map after disconnecting
 
@@ -267,6 +354,9 @@ Nothing expires a PENDING top-up yet. The rider can start another with a new
 `Idempotency-Key`.
 
 ### The ledger does not reconcile
+
+The `LedgerOutOfBalance` alert fires as soon as a reconciliation finds a mismatch
+(`ledger_reconciliation_mismatches` above 0).
 
 `ledger_reconciliation_mismatches` above zero, or an ERROR line starting
 "Ledger reconciliation found problems", means one of these no longer holds:
