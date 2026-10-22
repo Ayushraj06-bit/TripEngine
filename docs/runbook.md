@@ -196,6 +196,10 @@ listener's exception in the logs before intervening.
 **What it looks like.**
 - `KafkaConsumerLagGrowing` or `EventPublicationBacklog` fires. The *Event publication backlog*
   panel climbs.
+- The lag alert watches whoever reads `rideflow.trip-events` and reports Kafka client metrics
+  here. The backend only writes to the topic, so locally that is the simulator. Without such a
+  consumer it cannot fire: production needs the downstream consumers scraped, or a broker-side
+  exporter.
 - Bookings, trips and payments carry on as normal. Only the copy of events to Kafka waits.
 
 **What to do.**

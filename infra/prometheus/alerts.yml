@@ -42,7 +42,10 @@ groups:
           runbook: docs/runbook.md#kafka-is-down
 
       - alert: KafkaConsumerLagGrowing
-        # The lag has risen over each of the last 10 minutes.
+        # The lag has risen over each of the last 10 minutes. The backend only produces to Kafka:
+        # this sees the consumers that report Kafka client metrics to this Prometheus - locally,
+        # the simulator's. In production, scrape the downstream consumers, or add a broker-side
+        # exporter (kafka-exporter's kafka_consumergroup_lag) and point this at it.
         expr: deriv(max(kafka_consumer_fetch_manager_records_lag_max)[10m:1m]) > 0
         for: 10m
         labels:
