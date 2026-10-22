@@ -4,13 +4,25 @@ global:
   external_labels:
     env: local
 
+# Phase 10: tested by alerts.test.yml (promtool), which CI runs.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: rideflow-backend
     metrics_path: /actuator/prometheus
     static_configs:
-      # host.docker.internal reaches the backend when it runs outside compose
-      # (IDE or ./mvnw spring-boot:run). The scale profile adds the containers.
-      - targets: ["host.docker.internal:8080"]
+      # host.docker.internal reaches the backend when it runs outside compose (IDE or
+      # ./mvnw spring-boot:run), on its management port: actuator is not on the public 8080.
+      - targets: ["host.docker.internal:8090"]
+        labels:
+          instance_role: backend
+
+  # The two-instance scale profile. Down, and harmlessly so, when it is not running.
+  - job_name: rideflow-backend-scale
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["backend-1:8090", "backend-2:8090"]
         labels:
           instance_role: backend
 

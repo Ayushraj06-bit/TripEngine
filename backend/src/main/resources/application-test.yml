@@ -42,6 +42,9 @@ rideflow:
     recovery-interval: PT1H
 
 management:
+  server:
+    # The tests talk to actuator through MockMvc, on the one port.
+    port: ""
   tracing:
     sampling:
       # No collector is running in tests; exporting would just log failures.

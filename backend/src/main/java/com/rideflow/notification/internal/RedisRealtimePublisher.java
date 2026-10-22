@@ -2,6 +2,8 @@ package com.rideflow.notification.internal;
 
 import com.rideflow.notification.RealtimeMessage;
 import com.rideflow.notification.RealtimePublisher;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -31,13 +33,19 @@ class RedisRealtimePublisher implements RealtimePublisher {
   private final TripSequence sequence;
   private final JsonMapper json;
   private final Clock clock;
+  private final ObservationRegistry observations;
 
   RedisRealtimePublisher(
-      StringRedisTemplate redis, TripSequence sequence, JsonMapper json, Clock clock) {
+      StringRedisTemplate redis,
+      TripSequence sequence,
+      JsonMapper json,
+      Clock clock,
+      ObservationRegistry observations) {
     this.redis = redis;
     this.sequence = sequence;
     this.json = json;
     this.clock = clock;
+    this.observations = observations;
   }
 
   @Override
@@ -59,8 +67,11 @@ class RedisRealtimePublisher implements RealtimePublisher {
         json.writeValueAsString(
             new Envelope(
                 message.type(), message.tripId(), seq, clock.instant(), message.payload()));
-    redis.convertAndSend(
-        CHANNEL, json.writeValueAsString(new Delivery(userId, destination, envelope)));
+    String delivery = json.writeValueAsString(new Delivery(userId, destination, envelope));
+    // A span in the caller's trace: the step from matching to the driver's phone.
+    Observation.createNotStarted("realtime.publish", observations)
+        .lowCardinalityKeyValue("destination", destination)
+        .observe(() -> redis.convertAndSend(CHANNEL, delivery));
   }
 
   @Override

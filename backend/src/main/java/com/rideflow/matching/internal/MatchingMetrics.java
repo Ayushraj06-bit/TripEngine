@@ -16,6 +16,7 @@ class MatchingMetrics {
 
   private final MeterRegistry meters;
   private final Timer timeToAssign;
+  private final Timer firstOffer;
   private final Counter offersSent;
   private final Counter noDriverFound;
   private final Counter restarts;
@@ -25,6 +26,11 @@ class MatchingMetrics {
     this.timeToAssign =
         Timer.builder("time.to.assign")
             .description("From a trip needing a driver to a driver accepting it")
+            .publishPercentileHistogram()
+            .register(meters);
+    this.firstOffer =
+        Timer.builder("matching.first.offer")
+            .description("From a trip being booked to its first offer going out (PROJECT_SPEC 2)")
             .publishPercentileHistogram()
             .register(meters);
     this.offersSent = Counter.builder("offers.sent").register(meters);
@@ -37,6 +43,10 @@ class MatchingMetrics {
 
   void timeToAssign(Duration duration) {
     timeToAssign.record(duration);
+  }
+
+  void firstOffer(Duration sinceBooking) {
+    firstOffer.record(sinceBooking);
   }
 
   void offerSent() {

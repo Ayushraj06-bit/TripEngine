@@ -6,6 +6,14 @@ spring:
     url: ${RIDEFLOW_DB_URL:jdbc:postgresql://localhost:5432/rideflow}
     username: ${RIDEFLOW_DB_USER:rideflow}
     password: ${RIDEFLOW_DB_PASSWORD:rideflow}
+    hikari:
+      # Phase 10: fail in seconds, not the 30 s default, when the database cannot be reached
+      # or every connection is busy. Requests pile up behind a wait; they should not.
+      connection-timeout: 3000
+      data-source-properties:
+        # Enforced by PostgreSQL itself, whichever code runs the statement: a query stuck for
+        # 10 s, or a lock waited on for 2 s, fails instead of holding a connection.
+        options: "-c statement_timeout=10s -c lock_timeout=2s"
 
   jpa:
     open-in-view: false
@@ -23,18 +31,43 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Migrations may build an index on a large table: no statement or lock timeout for them.
+    init-sqls: SET statement_timeout = 0; SET lock_timeout = 0
 
   data:
     redis:
       host: ${RIDEFLOW_REDIS_HOST:localhost}
       port: ${RIDEFLOW_REDIS_PORT:6379}
+      # Phase 10: every command answers within a second or fails, instead of Lettuce's
+      # 60 s default holding the thread that asked.
+      timeout: 1s
+      connect-timeout: 1s
 
   kafka:
     bootstrap-servers: ${RIDEFLOW_KAFKA_BOOTSTRAP:localhost:9092}
+    template:
+      # The send to Kafka joins the trace of the change that published the event.
+      observation-enabled: true
+    producer:
+      properties:
+        # With Kafka down, a send fails in seconds instead of blocking a listener thread for
+        # a minute. The event stays incomplete in the registry and is sent again later.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 15000
 
   threads:
     virtual:
       enabled: true
+
+  task:
+    execution:
+      # Phase 10. Boot backs off its application executor whenever any other Executor bean
+      # exists, and the WebSocket broker defines several. Event listeners (@Async) then ran on
+      # a bare fallback executor: a new platform thread per event, and without the trace. Forced,
+      # they run on Boot's virtual-thread executor, which carries the trace context across.
+      mode: force
+      propagate-context: true
 
   mvc:
     problemdetails:
@@ -50,7 +83,15 @@ spring:
     events:
       republish-outstanding-events-on-restart: true
 
+  lifecycle:
+    # Graceful shutdown: in-flight requests get this long to finish, then the rest stops.
+    timeout-per-shutdown-phase: 20s
+
 management:
+  server:
+    # Phase 10: actuator lives on its own port, which no load balancer or ingress publishes.
+    # Prometheus scrapes it there; the public port keeps only /livez and /readyz.
+    port: ${RIDEFLOW_MANAGEMENT_PORT:8090}
   endpoints:
     web:
       exposure:
@@ -60,6 +101,8 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+        # /livez and /readyz on the public port, for orchestrators that probe it.
+        add-additional-paths: true
       group:
         # Liveness must not depend on anything external: a dead Redis is not a reason
         # for an orchestrator to restart an otherwise healthy process.
@@ -71,12 +114,30 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      # Buckets, so Prometheus can take percentiles across instances (histogram_quantile).
+      percentiles-histogram:
+        http.server.requests: true
+        location.ingest: true
+        lettuce: true
   tracing:
     sampling:
       probability: ${RIDEFLOW_TRACE_SAMPLE:0.1}
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${RIDEFLOW_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${RIDEFLOW_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  # Metrics are scraped by Prometheus and logs go to the console: the OTLP exporters for them,
+  # which the OpenTelemetry starter also brings, stay off.
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  logging:
+    export:
+      otlp:
+        enabled: false
 
 logging:
   structured:
@@ -211,6 +272,8 @@ rideflow:
       # (RIDEFLOW_PAYMENT_MOCKGATEWAY_ENABLED=true): tests, a laptop, a demo. Never prod.
       enabled: false
       base-url: http://localhost:8080
+      # Connecting to, and waiting on, the webhook endpoint.
+      timeout: 5s
       webhook-url: ""
       outcome: SUCCEEDED
       delay-ms: 0
@@ -263,3 +326,30 @@ rideflow:
       phone: ${RIDEFLOW_ADMIN_PHONE:}
       password: ${RIDEFLOW_ADMIN_PASSWORD:}
       name: ${RIDEFLOW_ADMIN_NAME:RideFlow Admin}
+
+# Phase 10: circuit breakers. After enough failures in a row of calls, the breaker opens and
+# calls fail at once for wait-duration-in-open-state, instead of each waiting on a timeout.
+resilience4j:
+  circuitbreaker:
+    instances:
+      # Location ingest's Redis writes: a Redis outage drops positions at once rather than
+      # queueing them behind one-second timeouts.
+      redis-location:
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 2s
+        permitted-number-of-calls-in-half-open-state: 5
+      # The route estimator's seam, for a remote router. Today's estimator cannot fail.
+      route-estimator:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      payment-gateway:
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2

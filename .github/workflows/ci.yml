@@ -34,6 +34,12 @@ jobs:
       - name: Verify
         run: ./mvnw -B -ntp verify
 
+      # The alert rules' own unit tests, with the Prometheus version compose runs.
+      - name: Test alert rules
+        run: >
+          docker run --rm -v "$PWD/infra/prometheus:/p" --entrypoint promtool
+          prom/prometheus:v3.14.0 test rules /p/alerts.test.yml
+
       - name: Upload JaCoCo report
         if: always()
         uses: actions/upload-artifact@v4

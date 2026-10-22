@@ -199,7 +199,7 @@ public class Matcher {
         }
       }
       for (Candidate candidate : ranker.rank(candidates)) {
-        Attempt attempt = offer(match, candidate.driverId(), radiusKm, now);
+        Attempt attempt = offer(match, candidate.driverId(), radiusKm, now, tried.isEmpty());
         if (attempt != Attempt.NOBODY) {
           return attempt;
         }
@@ -208,7 +208,10 @@ public class Matcher {
     return Attempt.NOBODY;
   }
 
-  private Attempt offer(Match match, UUID driverId, double radiusKm, Instant now) {
+  /**
+   * @param first nobody has been offered this trip yet
+   */
+  private Attempt offer(Match match, UUID driverId, double radiusKm, Instant now, boolean first) {
     UUID offerId = ids.newId();
     Instant expiresAt = now.plusSeconds(rules.offerTimeoutSeconds());
     switch (store.createOffer(match, offerId, driverId, radiusKm, expiresAt)) {
@@ -224,6 +227,12 @@ public class Matcher {
       }
     }
     metrics.offerSent();
+    if (first) {
+      // The deadline runs from when the trip started waiting: its booking, or its return to
+      // matching after a driver backed out.
+      Instant waitingSince = match.deadline().minusSeconds(rules.deadlineSeconds());
+      metrics.firstOffer(Duration.between(waitingSince, now));
+    }
     // The offer stands whatever happens below: unseen, it simply expires.
     bestEffort(
         "push an offer to driver " + driverId,

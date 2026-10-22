@@ -1,5 +1,8 @@
 package com.rideflow.shared.internal.web;
 
+import org.springframework.boot.actuate.autoconfigure.web.server.ConditionalOnManagementPort;
+import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -38,9 +41,29 @@ class BaseSecurityConfig {
   @Bean
   @Order(Ordered.HIGHEST_PRECEDENCE)
   SecurityFilterChain probeSecurityFilterChain(HttpSecurity http) throws Exception {
-    return http.securityMatcher("/actuator/health", "/actuator/health/**", "/actuator/info")
+    return http.securityMatcher(
+            "/actuator/health", "/actuator/health/**", "/actuator/info", "/livez", "/readyz")
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
         // Probes carry no credentials and no state.
+        .csrf(csrf -> csrf.disable())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .build();
+  }
+
+  /**
+   * Actuator on its own port (Phase 10): open, because only the internal network can reach it -
+   * Prometheus scrapes it, and no load balancer publishes it. The matcher only matches requests
+   * served by the management server, so the same paths on the public port stay closed.
+   *
+   * <p>Only when the port really is separate: on one shared port, metrics stay closed.
+   */
+  @Bean
+  @Order(Ordered.HIGHEST_PRECEDENCE + 1)
+  @ConditionalOnManagementPort(ManagementPortType.DIFFERENT)
+  SecurityFilterChain managementPortSecurityFilterChain(HttpSecurity http) throws Exception {
+    return http.securityMatcher(EndpointRequest.toAnyEndpoint())
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -6,6 +6,8 @@ import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.KeyedRateLimiter;
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.PaymentMethod;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -52,18 +54,23 @@ public class BookingService {
   private final TripService trips;
   private final JsonMapper json;
   private final TransactionTemplate transactions;
+  private final Counter requested;
 
   BookingService(
       IdempotencyStore keys,
       QuoteConsumer quotes,
       TripService trips,
       JsonMapper json,
-      PlatformTransactionManager transactionManager) {
+      PlatformTransactionManager transactionManager,
+      MeterRegistry meters) {
     this.keys = keys;
     this.quotes = quotes;
     this.trips = trips;
     this.json = json;
     this.transactions = new TransactionTemplate(transactionManager);
+    // The no-driver rate's denominator. A replayed booking is not a new trip, and is not counted.
+    this.requested =
+        Counter.builder("trips.requested").description("Trips booked").register(meters);
   }
 
   /**
@@ -126,13 +133,16 @@ public class BookingService {
     }
 
     try {
-      return transactions.execute(
-          status -> {
-            TripView trip = trips.request(riderId, quote, paymentMethod);
-            String body = json.writeValueAsString(trip);
-            keys.storeResponse(riderId, idempotencyKey, HttpStatus.ACCEPTED.value(), body);
-            return body;
-          });
+      String booked =
+          transactions.execute(
+              status -> {
+                TripView trip = trips.request(riderId, quote, paymentMethod);
+                String body = json.writeValueAsString(trip);
+                keys.storeResponse(riderId, idempotencyKey, HttpStatus.ACCEPTED.value(), body);
+                return body;
+              });
+      requested.increment();
+      return booked;
     } catch (DataIntegrityViolationException failure) {
       restore(quote, failure);
       if (!TripService.violated(failure, ONE_ACTIVE_TRIP_PER_RIDER)) {

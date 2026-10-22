@@ -22,7 +22,7 @@ services:
       RIDEFLOW_REDIS_PORT: "6379"
       RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
       RIDEFLOW_LOG_FORMAT: ecs
-      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      RIDEFLOW_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       # One key pair for both, or a token signed by one is rejected by the other.
       # Never committed: generate it as docs/runbook.md "Two-instance setup" shows.
       RIDEFLOW_RSA_PRIVATE_KEY: ${RIDEFLOW_RSA_PRIVATE_KEY:?generate a shared key pair first, see docs/runbook.md}

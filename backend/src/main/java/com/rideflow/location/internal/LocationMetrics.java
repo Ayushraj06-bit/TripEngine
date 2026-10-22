@@ -3,8 +3,10 @@ package com.rideflow.location.internal;
 import com.rideflow.shared.VehicleType;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.event.EventListener;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
@@ -20,10 +22,15 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 @Component
 class LocationMetrics {
 
-  private final AtomicInteger activeSessions = new AtomicInteger();
+  /**
+   * The ids, not a count: Spring may raise {@link SessionDisconnectEvent} more than once for a
+   * session, and raises it too for a socket whose STOMP CONNECT was refused. A counter decremented
+   * on each read -89,567 after an hour of the simulator reconnecting (Phase 10).
+   */
+  private final Set<String> activeSessions = ConcurrentHashMap.newKeySet();
 
   LocationMetrics(MeterRegistry meters, DriverStateStore store) {
-    Gauge.builder("location.websocket.sessions", activeSessions, AtomicInteger::get)
+    Gauge.builder("location.websocket.sessions", activeSessions, Set::size)
         .description("WebSocket sessions connected to this instance")
         .register(meters);
 
@@ -47,11 +54,14 @@ class LocationMetrics {
    */
   @EventListener
   void onConnected(SessionConnectedEvent event) {
-    activeSessions.incrementAndGet();
+    String sessionId = SimpMessageHeaderAccessor.getSessionId(event.getMessage().getHeaders());
+    if (sessionId != null) {
+      activeSessions.add(sessionId);
+    }
   }
 
   @EventListener
   void onDisconnected(SessionDisconnectEvent event) {
-    activeSessions.decrementAndGet();
+    activeSessions.remove(event.getSessionId());
   }
 }

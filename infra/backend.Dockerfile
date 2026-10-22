@@ -24,7 +24,8 @@ USER rideflow
 
 COPY --from=build --chown=rideflow:rideflow /workspace/app.jar app.jar
 
-EXPOSE 8080
+# 8090 is actuator (metrics, health): for the internal network only, never published.
+EXPOSE 8080 8090
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

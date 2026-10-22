@@ -1,0 +1,145 @@
+# promtool unit tests for alerts.yml: each alert fires on the data it is meant for, and not
+# on data just short of it. One sample a minute.
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Booking p95 about 400 ms (every request in the 0.5 s bucket) fires after 5 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips", le="0.1"}'
+        values: '0+0x20'
+      - series: 'http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips", le="0.5"}'
+        values: '0+100x20'
+      - series: 'http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips", le="+Inf"}'
+        values: '0+100x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BookingLatencyHigh
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: BookingLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: "Booking p95 is 480ms, above 300 ms"
+              runbook: docs/runbook.md#matching-is-slow
+
+  # Fast bookings: all in the 0.1 s bucket. No alert.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips", le="0.1"}'
+        values: '0+100x20'
+      - series: 'http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips", le="+Inf"}'
+        values: '0+100x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BookingLatencyHigh
+        exp_alerts: []
+
+  # 30% of bookings find no driver.
+  - interval: 1m
+    input_series:
+      - series: 'trips_requested_total'
+        values: '0+10x30'
+      - series: 'no_driver_found_total'
+        values: '0+3x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: NoDriverRateHigh
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: "30% of bookings found no driver in 10 minutes"
+              runbook: docs/runbook.md#the-no-driver-rate-spikes
+
+  # 10% is normal.
+  - interval: 1m
+    input_series:
+      - series: 'trips_requested_total'
+        values: '0+10x30'
+      - series: 'no_driver_found_total'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: NoDriverRateHigh
+        exp_alerts: []
+
+  # Two bookings in 10 minutes, both unlucky: too few to page on.
+  - interval: 1m
+    input_series:
+      - series: 'trips_requested_total'
+        values: '0 0 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2'
+      - series: 'no_driver_found_total'
+        values: '0 0 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NoDriverRateHigh
+        exp_alerts: []
+
+  # A backlog of 1,500 held for 5 minutes fires; 900 does not.
+  - interval: 1m
+    input_series:
+      - series: 'events_publications_incomplete{instance="a"}'
+        values: '1500x10'
+      - series: 'events_publications_incomplete{instance="b"}'
+        values: '900x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: EventPublicationBacklog
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: EventPublicationBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: "1500 event publications are incomplete"
+              runbook: docs/runbook.md#kafka-is-down
+
+  # Lag rising steadily for over 20 minutes fires; a flat lag does not.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_consumer_fetch_manager_records_lag_max{client_id="kpis"}'
+        values: '0+50x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: KafkaConsumerLagGrowing
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+            exp_annotations:
+              summary: "Kafka consumer lag has been growing for 10 minutes"
+              runbook: docs/runbook.md#kafka-is-down
+  - interval: 1m
+    input_series:
+      - series: 'kafka_consumer_fetch_manager_records_lag_max{client_id="kpis"}'
+        values: '500x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: KafkaConsumerLagGrowing
+        exp_alerts: []
+
+  # Any mismatch fires at once; none does not.
+  - interval: 1m
+    input_series:
+      - series: 'ledger_reconciliation_mismatches{instance="a"}'
+        values: '0 0 2 2'
+      - series: 'ledger_reconciliation_mismatches{instance="b"}'
+        values: '0 0 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: LedgerOutOfBalance
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: LedgerOutOfBalance
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: "Ledger reconciliation found 2 mismatches"
+              runbook: docs/runbook.md#the-ledger-does-not-reconcile

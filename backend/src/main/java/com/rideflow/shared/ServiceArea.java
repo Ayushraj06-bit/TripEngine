@@ -21,8 +21,11 @@ import java.util.Objects;
  * <p><strong>A point exactly on an edge counts as inside.</strong> Floating point makes "exactly on
  * the edge" largely theoretical, but the rule has to be decided rather than discovered: a driver
  * parked on the boundary should be able to work, and a rider standing on it should be able to book.
+ *
+ * <p>Not final: Spring Modulith's observability wraps every module's API beans in a proxy, to give
+ * each call across modules its own span.
  */
-public final class ServiceArea {
+public class ServiceArea {
 
   private final List<GeoPoint> vertices;
 

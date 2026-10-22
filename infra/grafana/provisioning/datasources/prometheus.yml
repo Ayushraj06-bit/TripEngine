@@ -1,7 +1,15 @@
 apiVersion: 1
 
+# Recreated on every start, so a Grafana whose saved data predates the fixed uid below (Phase 10)
+# picks it up instead of refusing to start. It is provisioned and not editable: nothing is lost.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
 datasources:
   - name: Prometheus
+    # Fixed, so the dashboards in git can name it.
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090

@@ -1,0 +1,61 @@
+# RideFlow alert rules (Phase 10). Tested by alerts.test.yml:
+#   docker run --rm -v "$PWD/infra/prometheus:/p" --entrypoint promtool \
+#     prom/prometheus:v3.14.0 test rules /p/alerts.test.yml
+# What to do when one fires: docs/runbook.md.
+groups:
+  - name: rideflow
+    rules:
+      - alert: BookingLatencyHigh
+        # PROJECT_SPEC 2 targets 150 ms at p95; this pages at twice that, held for 5 minutes.
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket{method="POST", uri="/api/v1/trips"}[5m]))
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Booking p95 is {{ $value | humanizeDuration }}, above 300 ms"
+          runbook: docs/runbook.md#matching-is-slow
+
+      - alert: NoDriverRateHigh
+        # More than a fifth of the last 10 minutes' bookings found no driver. Needs at least 10
+        # bookings, so three unlucky riders at 3 am do not page anyone.
+        expr: |
+          sum(increase(no_driver_found_total[10m])) / sum(increase(trips_requested_total[10m])) > 0.2
+          and sum(increase(trips_requested_total[10m])) >= 10
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of bookings found no driver in 10 minutes"
+          runbook: docs/runbook.md#the-no-driver-rate-spikes
+
+      - alert: EventPublicationBacklog
+        # Events whose listeners have not completed: the outbox is not draining.
+        expr: max(events_publications_incomplete) > 1000
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value }} event publications are incomplete"
+          runbook: docs/runbook.md#kafka-is-down
+
+      - alert: KafkaConsumerLagGrowing
+        # The lag has risen over each of the last 10 minutes.
+        expr: deriv(max(kafka_consumer_fetch_manager_records_lag_max)[10m:1m]) > 0
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Kafka consumer lag has been growing for 10 minutes"
+          runbook: docs/runbook.md#kafka-is-down
+
+      - alert: LedgerOutOfBalance
+        # Set by the reconciliation job. Any mismatch is money unaccounted for.
+        expr: max(ledger_reconciliation_mismatches) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "Ledger reconciliation found {{ $value }} mismatches"
+          runbook: docs/runbook.md#the-ledger-does-not-reconcile
