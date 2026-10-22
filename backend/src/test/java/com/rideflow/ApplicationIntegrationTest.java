@@ -74,6 +74,23 @@ class ApplicationIntegrationTest {
           .isZero();
     }
 
+    /**
+     * Readiness goes DOWN when PostgreSQL or Redis does not answer (Phase 10), so a load balancer
+     * stops sending traffic the instance cannot serve. Liveness depends on neither: restarting a
+     * healthy process does not bring a database back.
+     */
+    @Test
+    void takesReadinessFromPostgresAndRedisButNotLiveness(
+        @Autowired org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups groups) {
+      var readiness = groups.get("readiness");
+      var liveness = groups.get("liveness");
+
+      assertThat(readiness.isMember("db")).isTrue();
+      assertThat(readiness.isMember("redis")).isTrue();
+      assertThat(liveness.isMember("db")).isFalse();
+      assertThat(liveness.isMember("redis")).isFalse();
+    }
+
     /** Every call to a backing store gives up in seconds (Phase 10), whoever makes it. */
     @Test
     void givesUpOnBackingStoresInSeconds(

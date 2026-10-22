@@ -9,7 +9,10 @@ import com.rideflow.shared.Money;
 import com.rideflow.shared.MutableClock;
 import com.rideflow.trip.DriverPositions;
 import com.rideflow.trip.RoutePoint;
+import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripRoutes;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -27,6 +30,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.modulith.events.ApplicationModuleListener;
 
 /**
  * What every trip integration test shares, so they share one application context - and one set of
@@ -80,6 +84,33 @@ class TripTestConfiguration {
 
     void clear() {
       pushes.clear();
+    }
+  }
+
+  /** The trace each booking's module listeners ran in, by trip (BookingTraceIntegrationTest). */
+  static final Map<UUID, String> LISTENER_TRACES = new ConcurrentHashMap<>();
+
+  @Bean
+  ListenerTraces listenerTraces(Tracer tracer) {
+    return new ListenerTraces(tracer);
+  }
+
+  /**
+   * A module listener like matching's - asynchronous, after the booking commits - that notes the
+   * trace it runs in. Phase 10 found these running on a fallback executor with no trace at all.
+   */
+  static final class ListenerTraces {
+
+    private final Tracer tracer;
+
+    ListenerTraces(Tracer tracer) {
+      this.tracer = tracer;
+    }
+
+    @ApplicationModuleListener
+    void on(TripRequested event) {
+      TraceContext context = tracer.currentTraceContext().context();
+      LISTENER_TRACES.put(event.tripId(), context == null ? "none" : context.traceId());
     }
   }
 
