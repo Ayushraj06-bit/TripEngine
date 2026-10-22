@@ -227,6 +227,26 @@ class StompSecurityIntegrationTest {
       assertThat(connect(token).established().isConnected()).isTrue();
     }
 
+    /**
+     * Behind nginx the page's origin carries the published port, not this server's. The origin
+     * check sees it only when the proxy forwards it: without X-Forwarded-Port, Tomcat takes an http
+     * request to be on port 80, and the live map's own socket is refused as foreign.
+     */
+    @Test
+    void acceptsTheLiveMapsHandshakeThroughTheProxy() throws Exception {
+      // The origin check comes before the token is read: any account will do.
+      String token = register(Role.RIDER, "+919000010004");
+      WebSocketHttpHeaders proxied = new WebSocketHttpHeaders();
+      proxied.setOrigin("http://localhost:8080");
+      proxied.add("X-Forwarded-Proto", "http");
+      WebSocketHttpHeaders withPort = new WebSocketHttpHeaders();
+      withPort.addAll(proxied);
+      withPort.add("X-Forwarded-Port", "8080");
+
+      assertThat(connect(token, withPort).established().isConnected()).isTrue();
+      assertThat(connect(token, proxied).refused()).isTrue();
+    }
+
     @Test
     void refusesAnExpiredToken() throws Exception {
       Instant now = clock.instant();
