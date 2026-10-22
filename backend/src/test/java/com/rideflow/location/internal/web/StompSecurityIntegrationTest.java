@@ -126,6 +126,10 @@ class StompSecurityIntegrationTest {
   }
 
   private Connection connect(String accessToken) {
+    return connect(accessToken, new WebSocketHttpHeaders());
+  }
+
+  private Connection connect(String accessToken, WebSocketHttpHeaders handshake) {
     CompletableFuture<String> error = new CompletableFuture<>();
     var handler =
         new StompSessionHandlerAdapter() {
@@ -161,8 +165,7 @@ class StompSecurityIntegrationTest {
       connectHeaders.add("Authorization", "Bearer " + accessToken);
     }
     return new Connection(
-        client.connectAsync(
-            "ws://localhost:" + port + "/ws", new WebSocketHttpHeaders(), connectHeaders, handler),
+        client.connectAsync("ws://localhost:" + port + "/ws", handshake, connectHeaders, handler),
         error);
   }
 
@@ -207,6 +210,21 @@ class StompSecurityIntegrationTest {
     @Test
     void refusesATokenThatIsNotAJwt() throws Exception {
       assertThat(connect("not.a.jwt").refused()).isTrue();
+    }
+
+    /** A page on another site cannot open a socket from a visitor's browser (Phase 10). */
+    @Test
+    void refusesAHandshakeFromAnotherSitesPage() throws Exception {
+      String token = register(Role.RIDER, "+919000010003");
+      WebSocketHttpHeaders foreign = new WebSocketHttpHeaders();
+      foreign.setOrigin("https://evil.example");
+      WebSocketHttpHeaders own = new WebSocketHttpHeaders();
+      own.setOrigin("http://localhost:" + port);
+
+      assertThat(connect(token, foreign).refused()).isTrue();
+      // The live map's own page, and apps that send no Origin at all, are let in.
+      assertThat(connect(token, own).established().isConnected()).isTrue();
+      assertThat(connect(token).established().isConnected()).isTrue();
     }
 
     @Test

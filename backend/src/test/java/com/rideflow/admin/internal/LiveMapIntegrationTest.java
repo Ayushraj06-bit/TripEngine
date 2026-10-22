@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.within;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.rideflow.admin.internal.LiveMapPublisher.LiveMap;
@@ -178,6 +179,19 @@ class LiveMapIntegrationTest extends PaymentIntegrationTestBase {
   void servesTheLiveMapPageWithoutAToken() throws Exception {
     mockMvc
         .perform(get("/admin/live-map.html"))
+        .andExpect(status().isOk())
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("live-map.js")))
+        // No inline script may run there: an injected one could read the admin's token.
+        .andExpect(
+            header()
+                .string(
+                    "Content-Security-Policy",
+                    org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString(
+                            "script-src 'self' https://unpkg.com;"),
+                        org.hamcrest.Matchers.containsString("frame-ancestors 'none'"))));
+    mockMvc
+        .perform(get("/admin/live-map.js"))
         .andExpect(status().isOk())
         .andExpect(content().string(org.hamcrest.Matchers.containsString("/topic/admin/live-map")));
   }

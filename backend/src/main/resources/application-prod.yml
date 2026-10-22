@@ -16,6 +16,13 @@ management:
       exposure:
         include: health,info,prometheus
 
+# The API docs describe every endpoint and its inputs: useful to a developer, and to an attacker.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 logging:
   structured:
     format:

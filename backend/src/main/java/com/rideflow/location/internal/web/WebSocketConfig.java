@@ -1,5 +1,7 @@
 package com.rideflow.location.internal.web;
 
+import com.rideflow.shared.RideFlowProperties;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -31,10 +33,15 @@ class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
   private final StompAuthInterceptor authInterceptor;
   private final ExpiringSessions expiringSessions;
+  private final List<String> allowedOrigins;
 
-  WebSocketConfig(StompAuthInterceptor authInterceptor, ExpiringSessions expiringSessions) {
+  WebSocketConfig(
+      StompAuthInterceptor authInterceptor,
+      ExpiringSessions expiringSessions,
+      RideFlowProperties properties) {
     this.authInterceptor = authInterceptor;
     this.expiringSessions = expiringSessions;
+    this.allowedOrigins = properties.web().allowedOrigins();
   }
 
   /**
@@ -61,7 +68,10 @@ class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
   public void registerStompEndpoints(StompEndpointRegistry registry) {
     // No SockJS fallback: the clients are a mobile app and the simulator, both of
     // which speak WebSocket natively.
-    registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
+    // Same origin only, unless configured (Phase 10): any page on the internet could otherwise
+    // open a socket here from a visitor's browser. The token is in the CONNECT frame rather than
+    // a cookie, so it could not act as them - but it need not be allowed to try.
+    registry.addEndpoint("/ws").setAllowedOriginPatterns(allowedOrigins.toArray(String[]::new));
   }
 
   @Override

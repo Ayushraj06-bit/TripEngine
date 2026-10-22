@@ -258,7 +258,7 @@ abstract class TripIntegrationTestBase {
     return UUID.randomUUID().toString();
   }
 
-  private UUID subjectOf(String token) {
+  UUID subjectOf(String token) {
     return UUID.fromString(jwtDecoder.decode(token).getSubject());
   }
 
