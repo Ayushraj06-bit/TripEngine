@@ -97,9 +97,10 @@ class TripTestConfiguration {
 
   /**
    * A module listener like matching's - asynchronous, after the booking commits - that notes the
-   * trace it runs in. Phase 10 found these running on a fallback executor with no trace at all.
+   * trace it runs in. Phase 10 found these running on a fallback executor with no trace at all. Not
+   * final: the listener is asynchronous and transactional, so Spring subclasses it.
    */
-  static final class ListenerTraces {
+  static class ListenerTraces {
 
     private final Tracer tracer;
 
