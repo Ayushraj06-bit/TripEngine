@@ -2,10 +2,14 @@ package com.rideflow.payment.internal;
 
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
+import com.rideflow.shared.KeyedRateLimiter;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.RideFlowProperties.Payment.Outcome;
 import com.rideflow.trip.TripPayments;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -45,6 +49,8 @@ public class TopupService {
   private final RideFlowProperties.Payment rules;
   private final TransactionTemplate transactions;
 
+  private final CircuitBreaker gatewayBreaker;
+
   TopupService(
       TopupRepository topups,
       PaymentGateway gateway,
@@ -55,7 +61,9 @@ public class TopupService {
       IdGenerator ids,
       Clock clock,
       RideFlowProperties properties,
-      PlatformTransactionManager transactionManager) {
+      PlatformTransactionManager transactionManager,
+      CircuitBreakerRegistry breakers) {
+    this.gatewayBreaker = breakers.circuitBreaker("payment-gateway");
     this.topups = topups;
     this.gateway = gateway;
     this.ledger = ledger;
@@ -120,8 +128,7 @@ public class TopupService {
 
     // Outside any transaction (PROJECT_SPEC section 11). The gateway answers the same payment for
     // the same top-up, so a retry - or two requests racing with one key - takes one payment.
-    PaymentGateway.Session session =
-        gateway.createPayment(topup.id(), Money.ofPaise(topup.amountPaise()));
+    PaymentGateway.Session session = createPayment(topup);
     if (topup.gatewayRef() == null) {
       transactions.executeWithoutResult(
           status -> topups.recordGatewayRef(topup.id(), session.gatewayRef()));
@@ -180,5 +187,22 @@ public class TopupService {
   private static TopupView view(Topup topup, String paymentUrl) {
     return new TopupView(
         topup.id(), topup.status(), topup.amountPaise(), paymentUrl, topup.createdAt());
+  }
+
+  /**
+   * The gateway behind a circuit breaker. While it is open, top-ups are refused at once with the
+   * gateway's own 503, rather than each one waiting for a gateway that is not answering.
+   */
+  private PaymentGateway.Session createPayment(Topup topup) {
+    try {
+      return gatewayBreaker.executeSupplier(
+          () -> gateway.createPayment(topup.id(), Money.ofPaise(topup.amountPaise())));
+    } catch (CallNotPermittedException open) {
+      throw new BusinessException(
+          "PAYMENT_GATEWAY_UNAVAILABLE",
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "The payment gateway is not answering. Try again shortly.",
+          Map.of(KeyedRateLimiter.RETRY_AFTER_SECONDS, 10L));
+    }
   }
 }

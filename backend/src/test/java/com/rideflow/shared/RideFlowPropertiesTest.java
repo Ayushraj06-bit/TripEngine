@@ -91,6 +91,7 @@ class RideFlowPropertiesTest {
         "rideflow.payment.mock-gateway.outcome=SUCCEEDED",
         "rideflow.payment.mock-gateway.delay-ms=0",
         "rideflow.payment.mock-gateway.unavailable=false",
+        "rideflow.payment.mock-gateway.timeout=5s",
         "rideflow.notification.sequence-ttl-hours=24",
         "rideflow.events.redeliver-after-seconds=120",
         "rideflow.rating.window-days=7",

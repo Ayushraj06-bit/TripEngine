@@ -16,6 +16,8 @@ import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.MutableClock;
 import com.rideflow.shared.VehicleType;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -107,6 +109,7 @@ class QuoteIntegrationTest {
   }
 
   @Autowired private QuoteService quotes;
+  @Autowired private CircuitBreakerRegistry breakers;
   @Autowired private RateCardService rateCards;
   @Autowired private StringRedisTemplate redis;
   @Autowired private JdbcTemplate jdbc;
@@ -135,6 +138,23 @@ class QuoteIntegrationTest {
    */
   private static UUID newRider() {
     return UUID.randomUUID();
+  }
+
+  /** The route estimator's breaker open: quotes are still priced, on the straight line. */
+  @Test
+  void quotesOnTheStraightLineWhileTheRouteBreakerIsOpen() {
+    List<Quote> normal = quotes.quote(newRider(), MG_ROAD, INDIRANAGAR);
+    CircuitBreaker breaker = breakers.circuitBreaker("route-estimator");
+    breaker.transitionToForcedOpenState();
+    try {
+      List<Quote> open = quotes.quote(newRider(), MG_ROAD, INDIRANAGAR);
+
+      assertThat(open)
+          .extracting(Quote::distanceMeters)
+          .containsExactlyElementsOf(normal.stream().map(Quote::distanceMeters).toList());
+    } finally {
+      breaker.transitionToClosedState();
+    }
   }
 
   private Quote quoteFor(UUID rider, VehicleType type) {

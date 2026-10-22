@@ -10,8 +10,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -37,7 +39,17 @@ public record RideFlowProperties(
     @NotNull @Valid Events events,
     @NotNull @Valid Rating rating,
     @NotNull @Valid Admin admin,
+    @DefaultValue @Valid Web web,
     @NotNull @Valid ServiceAreaProperties serviceArea) {
+
+  /** What browsers may do (Phase 10). */
+  public record Web(
+      /**
+       * Origins whose pages may open the WebSocket, as patterns, besides this server's own. Empty
+       * by default: the live map is served from here. Apps and the simulator send no Origin header,
+       * and are not affected.
+       */
+      @DefaultValue List<String> allowedOrigins) {}
 
   /** Location ingestion and throttling. */
   public record Location(
@@ -217,6 +229,7 @@ public record RideFlowProperties(
      * @param webhookUrl where it delivers webhooks; blank means this instance's own endpoint
      * @param outcome what a payment does unless the call to pay says otherwise
      * @param unavailable refuse to create payments, as a gateway outage would
+     * @param timeout to connect to, and to wait on, the webhook endpoint
      */
     public record MockGateway(
         boolean enabled,
@@ -224,7 +237,8 @@ public record RideFlowProperties(
         String webhookUrl,
         @NotNull Outcome outcome,
         @Min(0) long delayMs,
-        boolean unavailable) {}
+        boolean unavailable,
+        @NotNull Duration timeout) {}
 
     /** How a payment at the gateway ends. */
     public enum Outcome {

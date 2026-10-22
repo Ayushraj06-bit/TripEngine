@@ -11,6 +11,9 @@ import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.ServiceArea;
 import com.rideflow.shared.VehicleType;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -59,6 +62,11 @@ public class QuoteService implements QuoteConsumer {
   private final RedisScript<List> quoteConsumeScript;
   private final KeyedRateLimiter quotesPerRider;
 
+  /** The fallback when the route estimator fails or its breaker is open. */
+  private final HaversineRouteEstimator straightLine;
+
+  private final CircuitBreaker routeBreaker;
+
   QuoteService(
       RateCardService rateCards,
       RouteEstimator routes,
@@ -69,7 +77,11 @@ public class QuoteService implements QuoteConsumer {
       RideFlowProperties properties,
       StringRedisTemplate redis,
       JsonMapper json,
-      RedisScript<List> quoteConsumeScript) {
+      RedisScript<List> quoteConsumeScript,
+      HaversineRouteEstimator straightLine,
+      CircuitBreakerRegistry breakers) {
+    this.straightLine = straightLine;
+    this.routeBreaker = breakers.circuitBreaker("route-estimator");
     this.rateCards = rateCards;
     this.routes = routes;
     this.surge = surge;
@@ -115,7 +127,7 @@ public class QuoteService implements QuoteConsumer {
         log.warn("No rate card in force for {}; leaving it out of the quote", type);
         continue;
       }
-      RouteEstimate route = routes.estimate(pickup, drop, type);
+      RouteEstimate route = estimateRoute(pickup, drop, type);
       requireSensibleLength(route.distanceMeters());
 
       BigDecimal multiplier = safeSurge(pickup, type);
@@ -353,6 +365,24 @@ public class QuoteService implements QuoteConsumer {
           fare.roundingPaise(),
           fare.total().paise(),
           quote.expiresAt().toEpochMilli());
+    }
+  }
+
+  /**
+   * The configured estimator behind a circuit breaker, falling back to the straight line.
+   *
+   * <p>ponytail: today the configured estimator is the straight line itself, which cannot fail; the
+   * breaker is the seam a remote router plugs into (ADR 0007), and its HTTP client brings the time
+   * limit with it.
+   */
+  private RouteEstimate estimateRoute(GeoPoint pickup, GeoPoint drop, VehicleType type) {
+    try {
+      return routeBreaker.executeSupplier(() -> routes.estimate(pickup, drop, type));
+    } catch (CallNotPermittedException open) {
+      return straightLine.estimate(pickup, drop, type);
+    } catch (RuntimeException failure) {
+      log.warn("Route estimator failed; quoting on the straight line", failure);
+      return straightLine.estimate(pickup, drop, type);
     }
   }
 }

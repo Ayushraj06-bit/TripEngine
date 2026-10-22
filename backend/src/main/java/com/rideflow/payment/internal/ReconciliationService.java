@@ -91,6 +91,8 @@ class ReconciliationService implements LedgerReconciliation {
     Report report =
         snapshot.execute(
             status -> {
+              // The whole ledger, nightly: more than the 10 s every other statement gets.
+              jdbc.execute("SET LOCAL statement_timeout = '10min'");
               Counted<UUID> unbalanced = unbalancedTransactions();
               Counted<AccountMismatch> mismatched = mismatchedAccounts();
               long total =

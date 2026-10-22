@@ -5,6 +5,9 @@ import com.rideflow.identity.Role;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.ServiceArea;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
@@ -13,8 +16,10 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 
 /**
@@ -43,6 +48,9 @@ public class LocationIngestService {
   static final String IGNORED_LOW_ACCURACY = "ignored_low_accuracy";
   static final String OUTSIDE_SERVICE_AREA = "outside_service_area";
 
+  /** Redis could not take the position: timed out, refused, or its breaker is open. */
+  static final String UNAVAILABLE = "unavailable";
+
   private final DriverStateStore store;
   private final LiveTripRelay liveTrips;
   private final Clock clock;
@@ -51,6 +59,7 @@ public class LocationIngestService {
   private final RideFlowProperties properties;
   private final MeterRegistry meters;
   private final Timer ingestTimer;
+  private final CircuitBreaker redisBreaker;
 
   LocationIngestService(
       DriverStateStore store,
@@ -59,7 +68,9 @@ public class LocationIngestService {
       ServiceArea serviceArea,
       DriverFlagging driverFlagging,
       RideFlowProperties properties,
-      MeterRegistry meters) {
+      MeterRegistry meters,
+      CircuitBreakerRegistry breakers) {
+    this.redisBreaker = breakers.circuitBreaker("redis-location");
     this.store = store;
     this.liveTrips = liveTrips;
     this.clock = clock;
@@ -84,7 +95,12 @@ public class LocationIngestService {
     if (event.getUser() instanceof Authentication user
         && user.getAuthorities().stream()
             .anyMatch(authority -> Role.DRIVER.authority().equals(authority.getAuthority()))) {
-      store.restartSequence(UUID.fromString(user.getName()));
+      try {
+        store.restartSequence(UUID.fromString(user.getName()));
+      } catch (DataAccessException unavailable) {
+        // Redis is away: the positions themselves will be dropped until it is back.
+        log.warn("Could not restart driver {}'s position sequence", user.getName(), unavailable);
+      }
     }
   }
 
@@ -131,7 +147,16 @@ public class LocationIngestService {
     // offered work they cannot reach.
     boolean inServiceArea = serviceArea.contains(position);
 
-    var outcome = store.applyUpdate(driverId, position, update.seq(), inServiceArea);
+    DriverStateStore.UpdateOutcome outcome;
+    try {
+      outcome =
+          redisBreaker.executeSupplier(
+              () -> store.applyUpdate(driverId, position, update.seq(), inServiceArea));
+    } catch (CallNotPermittedException | DataAccessException unavailable) {
+      // Dropped, not queued: the next position in 3 s replaces it, and a backlog would only
+      // hold threads while Redis is away.
+      return count(UNAVAILABLE);
+    }
 
     if ("rejected_spoof".equals(outcome.result())) {
       flagIfPersistent(driverId, outcome.spoofStrikes());
@@ -156,12 +181,24 @@ public class LocationIngestService {
    */
   private void flagIfPersistent(UUID driverId, int strikes) {
     int threshold = properties.location().spoofStrikesBeforeFlag();
-    if (strikes < threshold) {
+    // As the strikes reach the threshold, then again at each multiple of it - not on every strike
+    // past it, which was a database transaction and a warning per rejected position: in the
+    // Phase 10 load test, a held connection pool and 111,000 log lines in ten minutes. Flagging
+    // is idempotent; the repeats are there for an attempt the database did not take.
+    if (strikes % threshold != 0) {
       return;
     }
-    log.warn("Driver {} flagged after {} implausible position jumps", driverId, strikes);
-    driverFlagging.flagForReview(
-        driverId, "Reported %d positions implying impossible speed".formatted(strikes));
+    try {
+      driverFlagging.flagForReview(
+          driverId, "Reported %d positions implying impossible speed".formatted(strikes));
+    } catch (DataAccessException | TransactionException unavailable) {
+      log.warn(
+          "Could not flag driver {} after {} implausible jumps; trying again after {} more",
+          driverId,
+          strikes,
+          threshold,
+          unavailable);
+    }
   }
 
   private String count(String result) {

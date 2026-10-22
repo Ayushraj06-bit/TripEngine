@@ -40,6 +40,25 @@ class GlobalExceptionHandlerTest {
     return problem.getProperties().get("code");
   }
 
+  /** Redis or PostgreSQL timing out or refusing: the service is unwell, the request is fine. */
+  @Test
+  void answers503WithRetryAfterWhenABackingStoreIsAway() {
+    for (var away :
+        java.util.List.of(
+            new org.springframework.dao.QueryTimeoutException("Redis command timed out"),
+            new org.springframework.data.redis.RedisConnectionFailureException("refused"),
+            new org.springframework.transaction.CannotCreateTransactionException(
+                "Could not open JPA EntityManager for transaction"))) {
+      var response = handler.handleUnavailable(away);
+
+      assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+      assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("5");
+      assertThat(codeOf(response)).isEqualTo("SERVICE_UNAVAILABLE");
+      // Nothing about the store reaches the client.
+      assertThat(((ProblemDetail) response.getBody()).getDetail()).doesNotContain("Redis");
+    }
+  }
+
   @Test
   void keepsTheStatusAndCodeOfAServerSideBusinessException() {
     var response =

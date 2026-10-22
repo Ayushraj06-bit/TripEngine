@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -287,6 +288,27 @@ class PaymentIntegrationTest extends PaymentIntegrationTestBase {
 
   @Nested
   class StartingTopUps {
+
+    @Autowired io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry breakers;
+
+    /** With the gateway's breaker open, a top-up is refused at once with the gateway's 503. */
+    @Test
+    void refusesTopUpsAtOnceWhileTheGatewayBreakerIsOpen() throws Exception {
+      User rider = rider();
+      var breaker = breakers.circuitBreaker("payment-gateway");
+      breaker.transitionToForcedOpenState();
+      try {
+        startTopup(rider, 50_000, "key-open")
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(jsonPath("$.code").value("PAYMENT_GATEWAY_UNAVAILABLE"));
+      } finally {
+        breaker.transitionToClosedState();
+      }
+
+      // The same key again, once the gateway is back: the top-up goes ahead.
+      startTopup(rider, 50_000, "key-open").andExpect(status().isCreated());
+    }
 
     @Test
     void startsPendingWithAPaymentUrlAndMovesNoMoneyYet() throws Exception {

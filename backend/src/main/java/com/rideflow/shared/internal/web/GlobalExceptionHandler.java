@@ -8,13 +8,18 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedRuntimeException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -139,6 +144,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatus.FORBIDDEN, "Your role does not permit this operation");
     problem.setProperty(CODE_PROPERTY, FORBIDDEN);
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+  }
+
+  /**
+   * Redis or PostgreSQL could not be reached, or did not answer in time (Phase 10's timeouts). A
+   * 503 with Retry-After, because it is the service that is unwell, not the request.
+   *
+   * <p>A transaction that cannot begin is the same failure seen from {@code @Transactional}: no
+   * connection within Hikari's timeout, or no database. It is not a {@link DataAccessException},
+   * and before Phase 10's login storm found it, it answered 500.
+   */
+  @ExceptionHandler({
+    DataAccessResourceFailureException.class,
+    QueryTimeoutException.class,
+    CannotCreateTransactionException.class
+  })
+  public ResponseEntity<ProblemDetail> handleUnavailable(NestedRuntimeException exception) {
+    log.warn("A backing store is unavailable: {}", exception.getMessage());
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE, "The service is briefly unavailable. Try again.");
+    problem.setProperty(CODE_PROPERTY, "SERVICE_UNAVAILABLE");
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .header(HttpHeaders.RETRY_AFTER, "5")
+        .body(problem);
   }
 
   /**

@@ -2,14 +2,22 @@ package com.rideflow.location.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.rideflow.TestcontainersConfiguration;
+import com.rideflow.driver.DriverFlagging;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.MutableClock;
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.ActiveTrip;
 import com.rideflow.trip.TripStatus;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +41,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.CannotCreateTransactionException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -66,6 +76,9 @@ class LocationIngestIntegrationTest {
   @Autowired private LocationIngestService ingest;
   @Autowired private DriverStateStore store;
   @Autowired private StringRedisTemplate redis;
+  @Autowired private CircuitBreakerRegistry breakers;
+  @Autowired private com.rideflow.shared.RideFlowProperties properties;
+  @MockitoSpyBean private DriverFlagging flagging;
 
   private UUID driverId;
 
@@ -74,6 +87,24 @@ class LocationIngestIntegrationTest {
     CLOCK.set(START);
     redis.getConnectionFactory().getConnection().serverCommands().flushDb();
     driverId = UUID.randomUUID();
+  }
+
+  /**
+   * Redis away - its breaker open after a run of timeouts: positions are dropped at once and
+   * counted, not queued behind one-second timeouts. Closed again, they are taken as before.
+   */
+  @Test
+  void dropsPositionsAtOnceWhileRedisIsUnavailable() {
+    CircuitBreaker breaker = breakers.circuitBreaker("redis-location");
+    breaker.transitionToForcedOpenState();
+    try {
+      assertThat(ingest.accept(driverId, at(MG_ROAD, 1))).isEqualTo("unavailable");
+      assertThat(redis.hasKey("driver:state:" + driverId)).isFalse();
+    } finally {
+      breaker.transitionToClosedState();
+    }
+
+    assertThat(ingest.accept(driverId, at(MG_ROAD, 2))).isEqualTo("accepted");
   }
 
   /** Puts the driver on the map as an available car, the way DriverStatusChanged would. */
@@ -260,6 +291,56 @@ class LocationIngestIntegrationTest {
           .get()
           .extracting(GeoPoint::latitude)
           .isEqualTo(MG_ROAD.latitude());
+    }
+
+    /**
+     * A driver who reconnects somewhere else - the app was off while they drove - is placed there,
+     * not rejected for a jump from where the last session ended.
+     */
+    @Test
+    void takesTheFirstPositionOfANewSessionWithoutASpeedCheck() {
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 41));
+      CLOCK.advance(Duration.ofSeconds(3));
+
+      store.restartSequence(driverId); // What a new STOMP CONNECT does.
+
+      assertThat(ingest.accept(driverId, at(FAR_AWAY, 1))).isEqualTo("accepted");
+      // From there on, the session's own positions are judged against each other again.
+      CLOCK.advance(Duration.ofSeconds(3));
+      assertThat(ingest.accept(driverId, at(MG_ROAD, 2))).isEqualTo("rejected_spoof");
+    }
+
+    /** Persistent jumps flag the driver for review once - not on every jump after. */
+    @Test
+    void flagsTheDriverOnceWhenTheJumpsPersist() {
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 1));
+      int threshold = properties.location().spoofStrikesBeforeFlag();
+      for (int jump = 0; jump < 2 * threshold - 1; jump++) {
+        CLOCK.advance(Duration.ofSeconds(3));
+        assertThat(ingest.accept(driverId, at(FAR_AWAY, jump + 2))).isEqualTo("rejected_spoof");
+      }
+
+      verify(flagging, times(1)).flagForReview(eq(driverId), anyString());
+    }
+
+    /** A flag the database did not take is tried again, and never breaks the position stream. */
+    @Test
+    void triesTheFlagAgainWhenTheDatabaseDidNotTakeIt() {
+      doThrow(new CannotCreateTransactionException("Connection is not available"))
+          .doCallRealMethod()
+          .when(flagging)
+          .flagForReview(eq(driverId), anyString());
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 1));
+      int threshold = properties.location().spoofStrikesBeforeFlag();
+      for (int jump = 0; jump < 2 * threshold; jump++) {
+        CLOCK.advance(Duration.ofSeconds(3));
+        assertThat(ingest.accept(driverId, at(FAR_AWAY, jump + 2))).isEqualTo("rejected_spoof");
+      }
+
+      verify(flagging, times(2)).flagForReview(eq(driverId), anyString());
     }
 
     @Test

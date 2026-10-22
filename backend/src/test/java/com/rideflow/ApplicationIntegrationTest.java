@@ -74,6 +74,22 @@ class ApplicationIntegrationTest {
           .isZero();
     }
 
+    /** Every call to a backing store gives up in seconds (Phase 10), whoever makes it. */
+    @Test
+    void givesUpOnBackingStoresInSeconds(
+        @Autowired JdbcTemplate jdbc,
+        @Autowired javax.sql.DataSource dataSource,
+        @Autowired org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory redis)
+        throws Exception {
+      // Enforced by PostgreSQL itself, so a JdbcTemplate query is bound as much as JPA's.
+      assertThat(jdbc.queryForObject("SHOW statement_timeout", String.class)).isEqualTo("10s");
+      assertThat(jdbc.queryForObject("SHOW lock_timeout", String.class)).isEqualTo("2s");
+      assertThat(dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class).getConnectionTimeout())
+          .isEqualTo(3_000);
+      assertThat(redis.getClientConfiguration().getCommandTimeout())
+          .isEqualTo(java.time.Duration.ofSeconds(1));
+    }
+
     @Test
     void reachesRedis(@Autowired StringRedisTemplate redis) {
       try {

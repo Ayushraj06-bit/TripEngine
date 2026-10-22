@@ -6,6 +6,7 @@ import com.rideflow.shared.KeyedRateLimiter;
 import com.rideflow.shared.Money;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.RideFlowProperties.Payment.Outcome;
+import java.net.http.HttpClient;
 import java.time.Clock;
 import java.util.Map;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -47,7 +49,7 @@ public class MockPaymentGateway implements PaymentGateway {
   private final Clock clock;
   private final RideFlowProperties.Payment.MockGateway settings;
   private final Environment environment;
-  private final RestClient http = RestClient.create();
+  private final RestClient http;
   private final SimpleAsyncTaskExecutor deliveries = new SimpleAsyncTaskExecutor("mock-gateway-");
 
   MockPaymentGateway(
@@ -65,6 +67,12 @@ public class MockPaymentGateway implements PaymentGateway {
     this.clock = clock;
     this.settings = properties.payment().mockGateway();
     this.environment = environment;
+    // Connect and read timeouts: a webhook endpoint that hangs must not hold a thread forever.
+    JdkClientHttpRequestFactory requests =
+        new JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(settings.timeout()).build());
+    requests.setReadTimeout(settings.timeout());
+    this.http = RestClient.builder().requestFactory(requests).build();
     deliveries.setVirtualThreads(true);
   }
 
