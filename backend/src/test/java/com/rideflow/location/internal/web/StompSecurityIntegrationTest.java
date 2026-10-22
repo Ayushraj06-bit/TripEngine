@@ -475,25 +475,23 @@ class StompSecurityIntegrationTest {
     void refusesSubscribingToAnotherRidersTripUpdates() throws Exception {
       Connection connection = connect(register(Role.RIDER, "+919000030006"));
       StompSession session = connection.established();
+      String destination = "/user/" + UUID.randomUUID() + "/queue/trip-updates";
 
-      session.subscribe(
-          "/user/" + UUID.randomUUID() + "/queue/trip-updates", new NoOpFrameHandler());
+      session.subscribe(destination, new NoOpFrameHandler());
 
-      assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
-          .contains("own /user/queue");
+      assertRefused(connection, session, "+919000030006", destination);
     }
 
     @Test
     void refusesSubscribingToAnotherUsersQueueByName() throws Exception {
       Connection connection = connect(register(Role.RIDER, "+919000030002"));
       StompSession session = connection.established();
-      String someoneElse = UUID.randomUUID().toString();
+      String destination = "/user/" + UUID.randomUUID() + "/queue/trip";
 
-      session.subscribe("/user/" + someoneElse + "/queue/trip", new NoOpFrameHandler());
+      session.subscribe(destination, new NoOpFrameHandler());
 
       // The case section 10 exists for: reading another rider's trip updates.
-      assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
-          .contains("own /user/queue");
+      assertRefused(connection, session, "+919000030002", destination);
     }
 
     /** The live map is broadcast: through Redis, to every admin subscribed on any instance. */
@@ -561,8 +559,23 @@ class StompSecurityIntegrationTest {
       // Section 10: no shared per-trip topics, because anyone could subscribe to them.
       session.subscribe("/topic/trips", new NoOpFrameHandler());
 
+      assertRefused(connection, session, "+919000030003", "/topic/trips");
+    }
+
+    /**
+     * Refused: the server sends an ERROR frame and closes the connection, and which of the two the
+     * client hears first is a race - the frame can be lost with the socket. So the reason is
+     * checked when the frame wins, and the outcome always: no session, and no subscription.
+     */
+    private void assertRefused(
+        Connection connection, StompSession session, String phone, String destination)
+        throws Exception {
       assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
-          .contains("own /user/queue");
+          .satisfiesAnyOf(
+              reason -> assertThat(reason).contains("own /user/queue"),
+              reason -> assertThat(reason).startsWith("transport:"));
+      await().atMost(EVENTUALLY).until(() -> !session.isConnected());
+      assertThat(isSubscribed(idOf(phone).toString(), destination)).isFalse();
     }
 
     private boolean isSubscribed(String user, String destination) {
