@@ -111,16 +111,15 @@ if prevTs ~= nil and (nowMs - prevTs) < minIntervalMs then
   return { 'throttled', spoofStrikes, 0 }
 end
 
--- 3. Implied speed. Only meaningful with a previous fix and elapsed time - and only within one
---    session. A new session (its seq cleared on CONNECT, or the driver's first ever) has no
---    baseline: the app may have been off while the car moved, and judging its first fix against
---    the last one before would reject every position until enough time passed to excuse the
---    distance, striking the driver each time. The first fix of a session is taken as it is.
+-- 3. Implied speed. Only meaningful with a previous fix and elapsed time. A new session is judged
+--    against the last position like any other fix: the time since then is in the division, so a
+--    driver who drove with the app off arrives at a plausible speed. Exempting a session's first
+--    fix would let a spoofing app teleport by reconnecting before each fake position.
 local movedMeters = 0
 if prevLat ~= nil and prevLng ~= nil then
   movedMeters = haversineMeters(prevLat, prevLng, lat, lng)
   local elapsedMs = nowMs - (prevTs or nowMs)
-  if elapsedMs > 0 and prevSeq ~= nil then
+  if elapsedMs > 0 then
     local impliedKmph = (movedMeters / elapsedMs) * 3600
     if impliedKmph > maxSpeedKmph then
       spoofStrikes = spoofStrikes + 1

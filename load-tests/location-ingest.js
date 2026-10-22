@@ -44,9 +44,11 @@ export default function (data) {
   // Spread the connections over the first minute, as drivers coming online would be.
   const startDelay = ((__VU - 1) % RAMP_SECONDS) * 1000 + Math.random() * 1000;
   const until = Date.now() + startDelay + MINUTES * 60 * 1000;
-  // Around central Bengaluru, moving a few metres between reports.
-  let lat = 12.95 + Math.random() * 0.05;
-  let lng = 77.58 + Math.random() * 0.06;
+  // Around central Bengaluru, moving a few metres between reports. Each driver starts at the same
+  // point every run: a random one would be a jump of kilometres from where the last run left
+  // them, minutes ago, which the backend rightly refuses as a spoof.
+  let lat = 12.95 + (((__VU * 7919) % 1000) / 1000) * 0.05;
+  let lng = 77.58 + (((__VU * 104729) % 1000) / 1000) * 0.06;
   let seq = 0;
 
   setTimeout(() => {

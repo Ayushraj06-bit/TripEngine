@@ -153,8 +153,6 @@ change an entry or to commit a transaction that does not balance
 - **`./mvnw -Pchaos verify`:** pauses Redis, stops Kafka for a minute and
   restarts the backend mid-matching, and checks that nothing is lost.
 - **Load testing found faults, now fixed:**
-  - a new session's first position was judged against the last session's, and
-    rejected as a spoof
   - a spoofer was flagged again on every position
   - logins held a database connection through BCrypt, so a burst of logins
     starved every other request

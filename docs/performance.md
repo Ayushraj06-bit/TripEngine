@@ -118,7 +118,9 @@ The steady window runs from 3 minutes after the start, when every driver is
 connected, to 75 s before the end, when the first sessions close: about 437 s.
 
 The script ran four times, as faults were fixed and Redis settings tried. The
-last run is the released code.
+last run is the released code, except for one line: a session's first position
+skipped the speed check, an exemption the review then reverted (see
+[Tuning](#spoof-rejections-in-the-first-ingest-run)).
 - **Leftover trips:** by the last run, 277 of the 2,000 drivers carried a trip
   left over from the booking runs. Each of their positions was also recorded on
   the route and pushed to a rider, so that run did more work per second than
@@ -171,12 +173,13 @@ ws_session_duration............: avg=10m0s   min=10m0s   med=10m0s   max=10m0s  
 | Run | Code | Accepted/s | Rejected as spoof/s | Ingest p50 / p95 / p99 | Peak heap |
 |---|---|---|---|---|---|
 | 1 | before the fixes | 524.1 | 127.9 | 1.7 / **17.7** / 48.8 ms | 1,191 MiB |
-| 2 | after the fixes | 664.9 | 0 | 1.4 / 2.8 / 5.9 ms | 529 MiB |
+| 2 | after the fixes, with the session exemption since reverted | 664.9 | 0 | 1.4 / 2.8 / 5.9 ms | 529 MiB |
 | 3 | with buffered Redis pipelines, since reverted; 277 drivers relaying | 665.8 | 0 | 1.4 / 3.6 / 8.7 ms | 532 MiB |
-| 4 | released code; 277 drivers relaying | 666.5 | 0 | 1.3 / 2.8 / 3.9 ms | 523 MiB |
+| 4 | as released, but with the session exemption; 277 drivers relaying | 666.5 | 0 | 1.3 / 2.8 / 3.9 ms | 523 MiB |
 
-- **Run 1 found two faults,** described under [Tuning](#tuning):
-  - one position in five was rejected as a spoof
+- **Run 1 found two problems,** described under [Tuning](#tuning):
+  - one position in five was rejected as a spoof: the script's own doing,
+    starting drivers kilometres from where the last run left them
   - every rejection past the fifth flagged the driver again, which logged
     111,318 warnings in ten minutes
 - **Run 1, unavailable:** 0.1 positions a second (about 45 in all) were counted
@@ -450,25 +453,35 @@ FROM ledger_entries;
 
 Each change below was measured before and after, with the setup above.
 
-### First position of a session not speed-checked
+### Spoof rejections in the first ingest run
 
-- **Symptom:** in ingest run 1, one position in five was
-  `rejected_spoof`.
-- **Cause:** each k6 driver logged in and started from a new random point.
-  - The Lua script judged a new session's first fix against the position stored
-    from the last session.
-  - That looked like a teleport, so it was rejected and counted as a strike.
-  - Every later fix was judged against the old position too, because the
-    rejected one was not stored.
-  - The same happens to a real driver who ends a shift in one place and starts
-    the next in another.
-- **Fix:** a session's first fix, whose sequence number was cleared on CONNECT,
-  is taken without a speed check. Later fixes are checked against it.
+- **Symptom:** in ingest run 1, one position in five was `rejected_spoof`, and
+  each rejection was a strike.
+- **Cause: the test.**
+  - **What it did:** each run started every driver at a new random point,
+    kilometres from where the run before had left it minutes earlier. That is a
+    teleport, which the speed check exists to refuse.
+  - **Why it stuck:** the rejected position was not stored, so every later fix
+    was judged against the old one too.
+- **First response, reverted:** Phase 10 first exempted a session's first fix
+  from the speed check.
+  - **Why reverted:** the review found that a spoofing app could then teleport by
+    reconnecting before each fake position.
+  - **Now:** a reconnect's first fix is judged against the last position like
+    any other. The time since that position is in the division, so a driver who
+    drove with the app off arrives at an ordinary speed.
+- **The fix:** `location-ingest.js` now starts each driver at the same point
+  every run.
+- **Runs 2 to 4:** they ran with the exemption. It skipped one comparison on
+  each driver's first fix, so their latency stands. Their lack of rejections
+  owes something to it.
 
 | | Accepted/s | Rejected as spoof/s | Ingest p95 | p99 | Peak heap |
 |---|---|---|---|---|---|
-| Before | 524.1 | 127.9 | 17.7 ms | 48.8 ms | 1,191 MiB |
-| After | 664.9 | 0 | 2.8 ms | 5.9 ms | 529 MiB |
+| Run 1 | 524.1 | 127.9 | 17.7 ms | 48.8 ms | 1,191 MiB |
+| Run 2 | 664.9 | 0 | 2.8 ms | 5.9 ms | 529 MiB |
+
+Run 2 also had the flagging fix below, which removed most of the latency.
 
 ### Flagging a spoofer once
 

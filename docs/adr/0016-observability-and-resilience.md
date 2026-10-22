@@ -88,9 +88,10 @@ Resilience4j circuit breakers, configured in `application.yml`.
 ### What the load tests changed
 
 Each change is measured before and after in `docs/performance.md`.
-- **The first position of a new STOMP session is not speed-checked.** Judged against the last
-  session's position, it read as a teleport. Every report was rejected until enough time had
-  passed to excuse the distance, and each rejection counted as a spoof strike.
+- **A reconnect does not reset the speed check.** The first load test rejected one position in
+  five as a spoof. The script had started each driver at a new random point, a real teleport.
+  Exempting a session's first fix, tried first, would let a spoofing app teleport by
+  reconnecting, and was reverted. The script now starts each driver at the same point every run.
 - **A spoofer is flagged at the threshold, then only at each multiple of it.** Every strike past
   the threshold used to flag again: a transaction and a warning per position. The repeats remain
   because flagging is idempotent and an attempt can fail, for example on a connection timeout.
@@ -115,7 +116,5 @@ Each change is measured before and after in `docs/performance.md`.
 
 - **A second port to secure.** It must never be published. The compose files, the Dockerfile and
   the runbook say so.
-- **The first fix of a session is believed.** A spoofer could teleport once per reconnect. Each
-  reconnect costs a STOMP CONNECT with a valid token, and the jump after it is checked as usual.
 - **The OpenTelemetry starter brings an OTLP metrics registry.** It stays switched off.
 - **Chaos tests take minutes** and run only with `-Pchaos`, like the E2E tests with `-Pe2e`.

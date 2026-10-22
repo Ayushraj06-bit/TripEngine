@@ -293,22 +293,33 @@ class LocationIngestIntegrationTest {
           .isEqualTo(MG_ROAD.latitude());
     }
 
-    /**
-     * A driver who reconnects somewhere else - the app was off while they drove - is placed there,
-     * not rejected for a jump from where the last session ended.
-     */
+    /** A reconnect is not a fresh start: a spoofing app must not teleport by reconnecting. */
     @Test
-    void takesTheFirstPositionOfANewSessionWithoutASpeedCheck() {
+    void judgesTheFirstPositionAfterAReconnectLikeAnyOther() {
       driverIsAvailableCar();
       ingest.accept(driverId, at(MG_ROAD, 41));
       CLOCK.advance(Duration.ofSeconds(3));
 
       store.restartSequence(driverId); // What a new STOMP CONNECT does.
 
+      // About 5 km in 3 s.
+      assertThat(ingest.accept(driverId, at(FAR_AWAY, 1))).isEqualTo("rejected_spoof");
+    }
+
+    /**
+     * A driver who drove with the app off is placed where they reconnect: the time since their last
+     * position is in the division, so the distance reads as an ordinary speed.
+     */
+    @Test
+    void placesADriverWhoDroveWithTheAppOffWhereTheyReconnect() {
+      driverIsAvailableCar();
+      ingest.accept(driverId, at(MG_ROAD, 41));
+      CLOCK.advance(Duration.ofMinutes(10));
+
+      store.restartSequence(driverId);
+
+      // About 5 km in 10 minutes: 30 km/h.
       assertThat(ingest.accept(driverId, at(FAR_AWAY, 1))).isEqualTo("accepted");
-      // From there on, the session's own positions are judged against each other again.
-      CLOCK.advance(Duration.ofSeconds(3));
-      assertThat(ingest.accept(driverId, at(MG_ROAD, 2))).isEqualTo("rejected_spoof");
     }
 
     /** Persistent jumps flag the driver for review once - not on every jump after. */
