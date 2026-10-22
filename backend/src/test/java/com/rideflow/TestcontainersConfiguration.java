@@ -22,12 +22,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * for {@code @Nested} tests, which is a failure mode that looks like a logic bug rather than a
  * wiring one.
  *
- * <p>The containers are {@code static}, so Spring's test context cache starts them once and shares
- * them across every test class in the run. Testcontainers' cross-JVM {@code withReuse(true)} is
- * deliberately <em>not</em> used: it needs a machine-level opt-in that CI does not have, and it
- * leaves data behind between runs, which makes tests pass or fail depending on what ran before.
- * Tests must still not assume an empty database, because they share these containers with each
- * other.
+ * <p>The containers are beans, so each test context gets its own set, and Spring's context cache
+ * keeps that context - and its containers - for the rest of the run. Test classes with the same
+ * configuration share one set. Every distinct configuration (a {@code @MockitoSpyBean}, an extra
+ * {@code @Import}) starts another: a full run starts about fourteen, which a Docker VM with too
+ * little memory answers with 500s. Keep distinct configurations few. Testcontainers' cross-JVM
+ * {@code withReuse(true)} is deliberately <em>not</em> used: it needs a machine-level opt-in that
+ * CI does not have, and it leaves data behind between runs, which makes tests pass or fail
+ * depending on what ran before. Tests must still not assume an empty database, because they share
+ * these containers with each other.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
