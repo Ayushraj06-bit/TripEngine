@@ -133,5 +133,36 @@
         </plugins>
       </build>
     </profile>
+    <profile>
+      <!--
+        ./mvnw -Pchaos verify: the full stack again, with Redis paused, Kafka stopped and the
+        backend restarted on purpose (Phase 10). Slow, and not part of a normal build.
+      -->
+      <id>chaos</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/*Chaos.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <backend.jar>${backend.jar}</backend.jar>
+              </systemPropertyVariables>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>
