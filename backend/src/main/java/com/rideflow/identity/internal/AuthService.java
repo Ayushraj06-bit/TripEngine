@@ -6,12 +6,16 @@ import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Registration, login, refresh-token rotation and logout.
@@ -38,6 +42,14 @@ public class AuthService {
   private final IdGenerator ids;
   private final Clock clock;
   private final IdentityProperties properties;
+  private final TransactionTemplate transactions;
+
+  /**
+   * Checked against when the phone is unknown, so a login for an unknown number costs the same
+   * BCrypt work as one for a known number: otherwise response time tells which numbers exist. Made
+   * by the configured encoder, so it costs exactly what a real check does.
+   */
+  private final String nobodysHash;
 
   AuthService(
       UserRepository users,
@@ -48,7 +60,10 @@ public class AuthService {
       DriverRegistration driverRegistration,
       IdGenerator ids,
       Clock clock,
-      IdentityProperties properties) {
+      IdentityProperties properties,
+      PlatformTransactionManager transactionManager) {
+    this.transactions = new TransactionTemplate(transactionManager);
+    this.nobodysHash = passwordEncoder.encode(UUID.randomUUID().toString());
     this.users = users;
     this.refreshTokens = refreshTokens;
     this.passwordEncoder = passwordEncoder;
@@ -66,54 +81,91 @@ public class AuthService {
    * <p>For a driver, the PENDING profile is created in this same transaction through {@code
    * driver}'s public API, so a client can post its vehicle immediately afterwards without racing an
    * event.
+   *
+   * <p>The password is hashed before the transaction opens: BCrypt takes most of a tenth of a
+   * second of CPU, and a connection held for it is one taken from every other request (Phase 10).
    */
-  @Transactional(noRollbackFor = BusinessException.class)
   public Tokens register(String rawPhone, String name, String rawPassword, Role role) {
     String phone = PhoneNumber.normalise(rawPhone);
+    String passwordHash = passwordEncoder.encode(rawPassword);
 
-    if (users.existsByPhone(phone)) {
-      throw new BusinessException(
-          "PHONE_ALREADY_REGISTERED",
-          HttpStatus.CONFLICT,
-          "That phone number is already registered");
-    }
+    return transactions.execute(
+        status -> {
+          if (users.existsByPhone(phone)) {
+            throw new BusinessException(
+                "PHONE_ALREADY_REGISTERED",
+                HttpStatus.CONFLICT,
+                "That phone number is already registered");
+          }
 
-    User user =
-        new User(
-            ids.newId(), phone, name, passwordEncoder.encode(rawPassword), role, clock.instant());
-    users.save(user);
+          User user = new User(ids.newId(), phone, name, passwordHash, role, clock.instant());
+          users.save(user);
 
-    if (role == Role.DRIVER) {
-      driverRegistration.createPendingProfile(user.id());
-    }
+          if (role == Role.DRIVER) {
+            driverRegistration.createPendingProfile(user.id());
+          }
 
-    log.info("Registered {} as {}", PhoneNumber.mask(phone), role);
-    return startSession(user);
+          log.info("Registered {} as {}", PhoneNumber.mask(phone), role);
+          return startSession(user);
+        });
   }
 
-  @Transactional(noRollbackFor = BusinessException.class)
+  /** What a login's transaction decided: a session, or why not. */
+  private record Attempt(Tokens tokens, BusinessException refusal) {}
+
+  /**
+   * Checks the password with no transaction open, then records the outcome in a short one.
+   *
+   * <p>Held across the BCrypt check, a connection was unavailable to every other request for most
+   * of a tenth of a second per login: fifty logins at once took the whole pool, and bookings waited
+   * behind them (Phase 10 load test, docs/performance.md). Anyone can send a login.
+   */
   public Tokens login(String rawPhone, String rawPassword) {
     String phone = PhoneNumber.normalise(rawPhone);
     // Throttled before the database is touched, and before the account even has to
     // exist, so guessing across many numbers costs the same as guessing one.
     phoneRateLimiter.checkLoginAttempt(phone);
-    Instant now = clock.instant();
 
-    User user = users.findByPhone(phone).orElseThrow(AuthService::invalidCredentials);
-
-    if (user.isLockedAt(now)) {
-      throw new BusinessException(
-          "ACCOUNT_LOCKED", HttpStatus.UNAUTHORIZED, "Too many failed attempts. Try again later.");
-    }
-
-    if (!passwordEncoder.matches(rawPassword, user.passwordHash())) {
-      user.recordFailedLogin(now, properties.maxLoginAttempts(), properties.loginLockDuration());
-      log.info("Failed login for {}", PhoneNumber.mask(phone));
+    Optional<User> found = users.findByPhone(phone);
+    if (found.isEmpty()) {
+      passwordEncoder.matches(rawPassword, nobodysHash);
       throw invalidCredentials();
     }
+    if (found.get().isLockedAt(clock.instant())) {
+      throw accountLocked();
+    }
+    boolean correct = passwordEncoder.matches(rawPassword, found.get().passwordHash());
 
-    user.recordSuccessfulLogin(now);
-    return startSession(user);
+    // The outcome is returned rather than thrown, so a failed attempt's count commits.
+    Attempt attempt =
+        transactions.execute(
+            status -> {
+              Instant now = clock.instant();
+              User user = users.findById(found.get().id()).orElse(null);
+              if (user == null) {
+                return new Attempt(null, invalidCredentials());
+              }
+              if (user.isLockedAt(now)) {
+                return new Attempt(null, accountLocked());
+              }
+              if (!correct) {
+                user.recordFailedLogin(
+                    now, properties.maxLoginAttempts(), properties.loginLockDuration());
+                log.info("Failed login for {}", PhoneNumber.mask(phone));
+                return new Attempt(null, invalidCredentials());
+              }
+              user.recordSuccessfulLogin(now);
+              return new Attempt(startSession(user), null);
+            });
+    if (attempt.refusal() != null) {
+      throw attempt.refusal();
+    }
+    return attempt.tokens();
+  }
+
+  private static BusinessException accountLocked() {
+    return new BusinessException(
+        "ACCOUNT_LOCKED", HttpStatus.UNAUTHORIZED, "Too many failed attempts. Try again later.");
   }
 
   /**

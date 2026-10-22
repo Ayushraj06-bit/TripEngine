@@ -34,11 +34,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Identity against real PostgreSQL.
@@ -73,6 +76,40 @@ class AuthIntegrationTest {
     Clock testClock() {
       return CLOCK;
     }
+
+    @Bean
+    @Primary
+    RecordingEncoder recordingEncoder() {
+      return new RecordingEncoder();
+    }
+  }
+
+  /** BCrypt, noting each time whether a transaction - and so a pooled connection - was held. */
+  static final class RecordingEncoder implements PasswordEncoder {
+    private final PasswordEncoder bcrypt = new BCryptPasswordEncoder();
+    final java.util.concurrent.atomic.AtomicInteger checks =
+        new java.util.concurrent.atomic.AtomicInteger();
+    final java.util.concurrent.atomic.AtomicBoolean inTransaction =
+        new java.util.concurrent.atomic.AtomicBoolean();
+
+    private void note() {
+      if (TransactionSynchronizationManager.isActualTransactionActive()) {
+        inTransaction.set(true);
+      }
+    }
+
+    @Override
+    public String encode(CharSequence raw) {
+      note();
+      return bcrypt.encode(raw);
+    }
+
+    @Override
+    public boolean matches(CharSequence raw, String encoded) {
+      note();
+      checks.incrementAndGet();
+      return bcrypt.matches(raw, encoded);
+    }
   }
 
   @Autowired private AuthService auth;
@@ -83,6 +120,7 @@ class AuthIntegrationTest {
   @Autowired private PhoneRateLimiter phoneRateLimiter;
   @Autowired private RateLimitFilter rateLimitFilter;
   @Autowired private MockMvc mockMvc;
+  @Autowired private RecordingEncoder encoder;
 
   @BeforeEach
   void reset() {
@@ -170,6 +208,33 @@ class AuthIntegrationTest {
 
   @Nested
   class Login {
+
+    /**
+     * BCrypt runs with no transaction open: a connection held through it is one taken from every
+     * other request, and anyone can send a login (Phase 10).
+     */
+    @Test
+    void hashesPasswordsWithNoDatabaseConnectionHeld() {
+      encoder.inTransaction.set(false);
+
+      registerRider();
+      auth.login(PHONE, PASSWORD);
+      catchBusinessException(() -> auth.login(PHONE, "not-the-password"));
+
+      assertThat(encoder.inTransaction).isFalse();
+    }
+
+    /** An unknown number costs a password check too, so timing cannot tell which numbers exist. */
+    @Test
+    void checksAPasswordEvenForANumberNobodyRegistered() {
+      int before = encoder.checks.get();
+
+      BusinessException refused =
+          catchBusinessException(() -> auth.login("+919811177777", "any-password-at-all"));
+
+      assertThat(refused.code()).isEqualTo("INVALID_CREDENTIALS");
+      assertThat(encoder.checks.get()).isEqualTo(before + 1);
+    }
 
     @Test
     void succeedsWithTheCorrectPassword() {

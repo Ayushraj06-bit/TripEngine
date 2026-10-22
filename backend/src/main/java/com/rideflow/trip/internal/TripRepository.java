@@ -80,11 +80,18 @@ interface TripRepository extends JpaRepository<Trip, UUID> {
 
   List<Trip> findByFlaggedReasonIsNotNullAndIdLessThanOrderByIdDesc(UUID cursor, Limit limit);
 
+  /**
+   * The page after a cursor. {@code requestedAt <= cursor} is stated on its own so it bounds the
+   * index scan, which then stops after a page; the id only breaks ties. Written as one {@code OR},
+   * PostgreSQL read every older trip of the user and sorted them: 4,980 rows for page 2 of a rider
+   * with 5,000 trips, against 22 now (Phase 10, docs/performance.md).
+   */
   @Query(
       """
       select t from Trip t
       where t.riderId = :riderId
-        and (t.requestedAt < :requestedAt or (t.requestedAt = :requestedAt and t.id < :id))
+        and t.requestedAt <= :requestedAt
+        and (t.requestedAt < :requestedAt or t.id < :id)
       order by t.requestedAt desc, t.id desc""")
   List<Trip> findRiderHistoryAfter(UUID riderId, Instant requestedAt, UUID id, Limit limit);
 
@@ -92,7 +99,8 @@ interface TripRepository extends JpaRepository<Trip, UUID> {
       """
       select t from Trip t
       where t.driverId = :driverId
-        and (t.requestedAt < :requestedAt or (t.requestedAt = :requestedAt and t.id < :id))
+        and t.requestedAt <= :requestedAt
+        and (t.requestedAt < :requestedAt or t.id < :id)
       order by t.requestedAt desc, t.id desc""")
   List<Trip> findDriverHistoryAfter(UUID driverId, Instant requestedAt, UUID id, Limit limit);
 }

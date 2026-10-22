@@ -12,7 +12,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import javax.sql.DataSource;
+import net.ttddyy.dsproxy.support.ProxyDataSource;
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -23,6 +27,23 @@ import org.springframework.context.annotation.Primary;
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class PaymentTestConfiguration {
+
+  /**
+   * Every statement counted per thread (datasource-proxy), for the query budgets in {@code
+   * QueryBudgetIntegrationTest}. MockMvc runs a request on the test's own thread, so a count taken
+   * around one request is that request's.
+   */
+  @Bean
+  static BeanPostProcessor countingDataSource() {
+    return new BeanPostProcessor() {
+      @Override
+      public Object postProcessAfterInitialization(Object bean, String name) {
+        return bean instanceof DataSource source && !(bean instanceof ProxyDataSource)
+            ? ProxyDataSourceBuilder.create(source).name("counted").countQuery().build()
+            : bean;
+      }
+    };
+  }
 
   public static final Instant START = Instant.parse("2026-10-01T10:00:00Z");
   public static final MutableClock CLOCK = new MutableClock(START);

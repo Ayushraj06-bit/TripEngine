@@ -418,6 +418,31 @@ class TripLifecycleIntegrationTest extends TripIntegrationTestBase {
           .andExpect(jsonPath("$.nextCursor").doesNotExist());
     }
 
+    /** Trips booked in the same instant are told apart by id: paging neither skips nor repeats. */
+    @Test
+    void pagesThroughTripsBookedInTheSameInstant() throws Exception {
+      User rider = rider();
+      List<String> booked = new ArrayList<>();
+      for (int i = 0; i < 3; i++) {
+        UUID tripId = bookedTrip(rider);
+        trips.cancel(tripId, rider.asRider(), "Plans changed");
+        booked.add(tripId.toString());
+      }
+
+      String first =
+          view(rider, "/api/v1/trips?limit=2").andReturn().getResponse().getContentAsString();
+      String second =
+          view(rider, "/api/v1/trips?limit=2&cursor=" + JsonPath.read(first, "$.nextCursor"))
+              .andExpect(jsonPath("$.nextCursor").doesNotExist())
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+
+      List<String> seen = new ArrayList<>(JsonPath.<List<String>>read(first, "$.trips[*].id"));
+      seen.addAll(JsonPath.<List<String>>read(second, "$.trips[*].id"));
+      assertThat(seen).containsExactlyInAnyOrderElementsOf(booked);
+    }
+
     @Test
     void refusesAnotherUsersTripAsACursor() throws Exception {
       UUID someoneElses = bookedTrip(rider());
