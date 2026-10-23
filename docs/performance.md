@@ -49,7 +49,10 @@ Every run below used this setup unless it says otherwise.
   (`ListenerExecutorConfig`), after a CI run saw them all stall at once. The
   runs here were not repeated. A listener's own work is unchanged; what could
   differ is a burst's first offer, if more than 32 listeners were ever waiting
-  at once.
+  at once. Phase 11 then moved the login, registration and quote rate limits
+  from each instance's memory into Redis (`RateLimitBuckets`), so two
+  instances share one budget. That adds a Redis round trip to those requests;
+  the login storm and the booking runs were not repeated after it.
 - **Stores:** `infra/docker-compose.yml` on Docker Desktop 29.8.0 (WSL 2 VM:
   10 CPUs, 7.75 GB): PostgreSQL 17.11, Redis 7.4.11, Kafka 4.2.1, Prometheus
   3.14.0 (scraping every 5 s), Jaeger 1.76.
