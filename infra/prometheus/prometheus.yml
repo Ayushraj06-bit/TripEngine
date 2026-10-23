@@ -33,6 +33,10 @@ scrape_configs:
       - targets: ["host.docker.internal:8081"]
         labels:
           instance_role: simulator
+      # The one-command demo runs it in compose instead (docker-compose.scale.yml).
+      - targets: ["simulator:8081"]
+        labels:
+          instance_role: simulator
 
   - job_name: prometheus
     static_configs:

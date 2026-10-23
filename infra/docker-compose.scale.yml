@@ -1,48 +1,86 @@
-# Two backend instances behind nginx, to prove the cross-instance real-time
-# path (PROJECT_SPEC section 5: Redis Pub/Sub fan-out) and to load-test with
-# more than one node.
+# The whole system on one machine, in one command:
 #
-#   export RIDEFLOW_RSA_PRIVATE_KEY=... RIDEFLOW_RSA_PUBLIC_KEY=...   (docs/runbook.md)
-#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up -d --build
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up
 #
-# The load balancer listens on 8080; the instances are on 8091 and 8092 so they
-# can be inspected one by one.
+# Two backend instances behind nginx (PROJECT_SPEC section 5: real-time messages fan out across
+# instances through Redis Pub/Sub), the simulator driving riders and drivers through the load
+# balancer, and PostgreSQL, Redis, Kafka, Prometheus, Grafana and Jaeger from the base file. The
+# first run builds both images. When everything is healthy, demo-info prints where to look.
+#
+# The secrets the two instances must share - the token signing key, the webhook secret - and the
+# admin's password are generated on first start into the "secrets" volume. They are never in the
+# repository and never leave the machine; `down -v` discards them with the data.
+#
+# The instances are also published on 8091 and 8092, to inspect them one at a time.
 name: rideflow
 
+x-backend: &backend
+  image: rideflow-backend:local
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile
+  environment: &backend-env
+    # The simulator signs everyone up and in from one address, and tops wallets up through the
+    # mock gateway: sim lifts the per-address limits and turns the gateway on. Never in production.
+    SPRING_PROFILES_ACTIVE: sim
+    # The generated secrets, one file each, named for the variable application.yml reads.
+    SPRING_CONFIG_IMPORT: optional:configtree:/run/rideflow/backend/
+    RIDEFLOW_ADMIN_PHONE: "+919999900001"
+    RIDEFLOW_DB_URL: jdbc:postgresql://postgres:5432/rideflow
+    RIDEFLOW_DB_USER: rideflow
+    RIDEFLOW_DB_PASSWORD: rideflow
+    RIDEFLOW_REDIS_HOST: redis
+    RIDEFLOW_REDIS_PORT: "6379"
+    RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
+    RIDEFLOW_LOG_FORMAT: ecs
+    RIDEFLOW_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+  volumes:
+    - secrets:/run/rideflow:ro
+  depends_on:
+    secrets:
+      condition: service_completed_successfully
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    kafka:
+      condition: service_healthy
+
 services:
-  backend-1: &backend
-    build:
-      context: ..
-      dockerfile: infra/backend.Dockerfile
-    environment: &backend-env
-      RIDEFLOW_DB_URL: jdbc:postgresql://postgres:5432/rideflow
-      RIDEFLOW_DB_USER: rideflow
-      RIDEFLOW_DB_PASSWORD: rideflow
-      RIDEFLOW_REDIS_HOST: redis
-      RIDEFLOW_REDIS_PORT: "6379"
-      RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
-      RIDEFLOW_LOG_FORMAT: ecs
-      RIDEFLOW_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
-      # One key pair for both, or a token signed by one is rejected by the other.
-      # Never committed: generate it as docs/runbook.md "Two-instance setup" shows.
-      RIDEFLOW_RSA_PRIVATE_KEY: ${RIDEFLOW_RSA_PRIVATE_KEY:?generate a shared key pair first, see docs/runbook.md}
-      RIDEFLOW_RSA_PUBLIC_KEY: ${RIDEFLOW_RSA_PUBLIC_KEY:?generate a shared key pair first, see docs/runbook.md}
-      # Likewise one webhook secret, or a webhook signed for one is refused by the other.
-      RIDEFLOW_GATEWAY_WEBHOOK_SECRET: ${RIDEFLOW_GATEWAY_WEBHOOK_SECRET:?set a shared webhook secret, see docs/runbook.md}
+  # Generates the shared secrets once; on later starts it finds them and exits.
+  secrets:
+    image: alpine:3.22
+    environment:
+      ADMIN_PHONE: "+919999900001"
+    volumes:
+      - secrets:/run/rideflow
+    command:
+      - /bin/sh
+      - -euc
+      - |
+        cd /run/rideflow
+        if [ -f demo.env ]; then echo "Secrets already generated"; exit 0; fi
+        apk add --no-cache --quiet openssl
+        mkdir -p backend simulator
+        openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/key.pem 2>/dev/null
+        grep -v -- ----- /tmp/key.pem | tr -d '\n' > backend/RIDEFLOW_RSA_PRIVATE_KEY
+        openssl pkey -in /tmp/key.pem -pubout | grep -v -- ----- | tr -d '\n' \
+          > backend/RIDEFLOW_RSA_PUBLIC_KEY
+        rm /tmp/key.pem
+        openssl rand -hex 32 | tr -d '\n' > backend/RIDEFLOW_GATEWAY_WEBHOOK_SECRET
+        password="$$(openssl rand -hex 12)"
+        printf %s "$$password" > backend/RIDEFLOW_ADMIN_PASSWORD
+        printf %s "$$password" > simulator/RIDEFLOW_ADMIN_PASSWORD
+        printf 'ADMIN_PHONE=%s\nADMIN_PASSWORD=%s\n' "$$ADMIN_PHONE" "$$password" > demo.env
+        echo "Secrets generated"
+
+  backend-1:
+    <<: *backend
     ports:
       - "8091:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
 
   backend-2:
     <<: *backend
-    environment:
-      <<: *backend-env
     ports:
       - "8092:8080"
 
@@ -54,5 +92,74 @@ services:
     volumes:
       - ./nginx/rideflow.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - backend-1
-      - backend-2
+      backend-1:
+        condition: service_healthy
+      backend-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  simulator:
+    image: rideflow-simulator:local
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        MODULE: simulator
+        PORT: "8081"
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configtree:/run/rideflow/simulator/
+      RIDEFLOW_BACKEND_URL: http://loadbalancer:8080
+      RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
+      RIDEFLOW_ADMIN_PHONE: "+919999900001"
+      # A city that is busy without needing a big machine; override any of them on the command line.
+      SIMULATOR_DRIVERS: ${DEMO_DRIVERS:-200}
+      SIMULATOR_RIDERS: ${DEMO_RIDERS:-120}
+      SIMULATOR_DEMAND_REQUESTSPERMINUTE: ${DEMO_REQUESTS_PER_MINUTE:-40}
+    volumes:
+      - secrets:/run/rideflow:ro
+    ports:
+      - "8081:8081"
+    depends_on:
+      loadbalancer:
+        condition: service_healthy
+
+  # Prints where everything is once the simulator is running, then exits.
+  demo-info:
+    image: alpine:3.22
+    volumes:
+      - secrets:/run/rideflow:ro
+    depends_on:
+      simulator:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -euc
+      - |
+        . /run/rideflow/demo.env
+        cat <<EOF
+
+        ==================================================================================
+          RideFlow is up: two backends behind nginx, and the simulator driving traffic.
+
+          Live map       http://localhost:8080/admin/live-map.html
+                         sign in as $$ADMIN_PHONE / $$ADMIN_PASSWORD
+          Swagger UI     http://localhost:8080/swagger-ui.html
+          Grafana        http://localhost:3000   (admin / admin; dashboards: RideFlow)
+          Prometheus     http://localhost:9090
+          Jaeger         http://localhost:16686
+          Simulator      http://localhost:8081/actuator/prometheus
+
+          Stop with Ctrl+C. To start again from nothing: down -v with the same two -f files.
+        ==================================================================================
+        EOF
+
+volumes:
+  secrets:
