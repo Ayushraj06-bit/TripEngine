@@ -162,9 +162,9 @@ change an entry or to commit a transaction that does not balance
   by jlink, non-root, with a health check.
 - **One command for the whole system:** the infrastructure, two backend instances behind nginx,
   the simulator and the dashboards. Its secrets are generated on first start, never committed.
-- **CI in stages:** build, unit tests, integration tests, coverage gate, images. Images are pushed
-  to the GitHub Container Registry from `main` and phase tags. A nightly workflow runs the
-  end-to-end and chaos suites and starts the demo for real.
+- **CI in stages:** build, unit tests, integration tests, coverage gate, images. The images are
+  started as the one-command demo before they are pushed to the GitHub Container Registry, from
+  `main` and phase tags. A nightly workflow runs the end-to-end and chaos suites.
 - **The final review fixed:**
   - Rate limits now live in Redis, shared by every instance.
   - A concurrent update answers 409, not 500.

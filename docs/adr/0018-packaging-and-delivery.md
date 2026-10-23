@@ -46,12 +46,11 @@ deploys the demo as it is. **Exporting them by hand**, as before, made the demo 
    - **Which tests are integration:** those tagged `integration`, the ones that start Spring or
      containers.
    - **Proof the split is complete:** the unit stage passes with no Docker running.
-2. **Images:** built on every push. Pushed to the GitHub Container Registry only from `main` and
-   from `phase-*` tags, tagged `sha-<short>`, the branch or tag, and `latest` on main.
-3. **Nightly, and on demand:**
-   - the end-to-end and chaos suites
-   - the one-command demo, started for real and checked: the URLs it prints answer, and the
-     simulator's trips are booked
+2. **Images:** built on every push, then run before anything is published: the one-command demo
+   starts on them and is checked - the URLs it prints answer, and the simulator's trips are
+   booked. Pushed to the GitHub Container Registry only from `main` and from `phase-*` tags,
+   tagged `sha-<short>`, the branch or tag, and `latest` on main.
+3. **Nightly, and on demand:** the end-to-end and chaos suites.
 
 Rejected: **running the end-to-end and chaos suites on every push.** They take minutes and need the
 whole stack, and every change already passes the integration suite on real infrastructure.
@@ -59,8 +58,8 @@ whole stack, and every change already passes the integration suite on real infra
 ## Consequences
 
 - A library that loads a JDK module by name the list does not cover would fail at run time, not at
-  build time. The nightly demo starts both images and drives real traffic through them, which is
-  where that would show; the list then grows by one name.
+  build time. The demo in the image job starts both images and drives real traffic through them
+  before they are pushed, which is where that would show; the list then grows by one name.
 - The images are private, like the repository. Pulling them needs a token with `read:packages`.
 - The demo runs the `sim` profile: no per-address limits, and the mock gateway on. It is a demo,
   and `docs/deploy.md` says what a real deployment changes.

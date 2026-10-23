@@ -80,23 +80,17 @@ jobs:
           retention-days: 7
 
   images:
-    name: image (${{ matrix.module }})
+    name: images
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        include:
-          - module: backend
-            port: "8080"
-          - module: simulator
-            port: "8081"
     env:
-      # Pushed from main and from phase tags; every other build only proves the image builds.
+      # Pushed from main and from phase tags; every other build only proves the images build and run.
       PUBLISH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phase-')) }}
+      COMPOSE: docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml
 
     steps:
       - uses: actions/checkout@v5
@@ -104,38 +98,97 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       # The registry wants a lower-case name; the account's is not.
-      - name: Image name
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/rideflow-${{ matrix.module }}" >> "$GITHUB_ENV"
+      - name: Image names
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
-      - name: Tags
-        id: meta
+      - name: Backend tags
+        id: backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE }}
+          images: ${{ env.REGISTRY }}/rideflow-backend
           tags: |
             type=sha,format=short
             type=ref,event=branch
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build
+      - name: Simulator tags
+        id: simulator
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/rideflow-simulator
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Also tagged with the names the one-command demo runs, so the step below starts these images.
+      - name: Build backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          load: true
+          tags: |
+            ${{ steps.backend.outputs.tags }}
+            rideflow-backend:local
+          labels: ${{ steps.backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build simulator
         uses: docker/build-push-action@v6
         with:
           context: .
           file: infra/Dockerfile
           build-args: |
-            MODULE=${{ matrix.module }}
-            PORT=${{ matrix.port }}
+            MODULE=simulator
+            PORT=8081
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.module }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
+          tags: |
+            ${{ steps.simulator.outputs.tags }}
+            rideflow-simulator:local
+          labels: ${{ steps.simulator.outputs.labels }}
+          cache-from: type=gha,scope=simulator
+          cache-to: type=gha,mode=max,scope=simulator
 
-      - name: Image size
+      - name: Image sizes
         run: |
-          size=$(docker image inspect --format '{{.Size}}' "$IMAGE:sha-${GITHUB_SHA::7}")
-          echo "rideflow-${{ matrix.module }}: $((size / 1024 / 1024)) MiB" | tee -a "$GITHUB_STEP_SUMMARY"
+          for module in backend simulator; do
+            size=$(docker image inspect --format '{{.Size}}' "rideflow-$module:local")
+            echo "rideflow-$module: $((size / 1024 / 1024)) MiB" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+      # Nothing is published that has not run: the one-command demo, on the images just built.
+      # demo-info runs last, once both backends, the simulator and the dashboards are healthy.
+      - name: Start the one-command demo
+        run: |
+          $COMPOSE up -d --no-build
+          timeout 900 sh -c 'until [ "$(docker inspect -f "{{.State.Status}}" rideflow-demo-info-1 2>/dev/null)" = exited ]; do sleep 5; done'
+          docker logs rideflow-demo-info-1
+          test "$(docker inspect -f '{{.State.ExitCode}}' rideflow-demo-info-1)" = 0
+
+      - name: The URLs it printed answer
+        run: |
+          curl -fsS -o /dev/null http://localhost:8080/admin/live-map.html
+          curl -fsS -o /dev/null http://localhost:8080/swagger-ui/index.html
+          curl -fsS -o /dev/null http://localhost:3000/api/health
+          curl -fsS -o /dev/null http://localhost:9090/-/ready
+
+      # The simulator's riders book through the load balancer within a couple of minutes.
+      - name: Trips are being booked
+        run: |
+          query='sum(trips_requested_total)'
+          timeout 300 sh -c "until curl -fsS --get http://localhost:9090/api/v1/query --data-urlencode query='$query' | grep -q '\"value\":\[[^,]*,\"[1-9]'; do sleep 10; done"
+
+      - name: Demo logs
+        if: failure()
+        run: $COMPOSE logs --tail 200
+
+      - name: Stop the demo
+        if: always()
+        run: $COMPOSE down -v
 
       - name: Log in to GitHub Container Registry
         if: env.PUBLISH == 'true'
@@ -147,4 +200,6 @@ jobs:
 
       - name: Push
         if: env.PUBLISH == 'true'
-        run: docker push --all-tags "$IMAGE"
+        run: |
+          docker push --all-tags "$REGISTRY/rideflow-backend"
+          docker push --all-tags "$REGISTRY/rideflow-simulator"

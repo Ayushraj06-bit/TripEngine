@@ -1,7 +1,7 @@
 name: Nightly
 
-# The slow suites, against main every night or on demand: the end-to-end and chaos tests, and the
-# one-command demo started for real.
+# The slow suites, against main every night or on demand: the end-to-end and chaos tests. The
+# one-command demo runs on every push, in CI's image job, before an image is published.
 on:
   schedule:
     - cron: "37 1 * * *"
@@ -44,44 +44,3 @@ jobs:
           path: "**/target/failsafe-reports/"
           if-no-files-found: ignore
           retention-days: 7
-
-  demo:
-    name: one-command demo
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      COMPOSE: docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Start
-        run: $COMPOSE up -d --build
-
-      # demo-info runs last, once the simulator and the dashboards are healthy, and exits.
-      - name: Wait for demo-info
-        run: |
-          timeout 900 sh -c 'until [ "$(docker inspect -f "{{.State.Status}}" rideflow-demo-info-1 2>/dev/null)" = exited ]; do sleep 5; done'
-          docker logs rideflow-demo-info-1
-          test "$(docker inspect -f '{{.State.ExitCode}}' rideflow-demo-info-1)" = 0
-
-      - name: The URLs it printed answer
-        run: |
-          curl -fsS -o /dev/null http://localhost:8080/admin/live-map.html
-          curl -fsS -o /dev/null http://localhost:8080/swagger-ui/index.html
-          curl -fsS -o /dev/null http://localhost:3000/api/health
-          curl -fsS -o /dev/null http://localhost:9090/-/ready
-
-      # The simulator's riders book through the load balancer within a couple of minutes.
-      - name: Trips are being booked
-        run: |
-          query='sum(trips_requested_total)'
-          timeout 300 sh -c "until curl -fsS --get http://localhost:9090/api/v1/query --data-urlencode query='$query' | grep -q '\"value\":\[[^,]*,\"[1-9]'; do sleep 10; done"
-
-      - name: Logs
-        if: failure()
-        run: $COMPOSE logs --tail 200
-
-      - name: Stop
-        if: always()
-        run: $COMPOSE down -v
