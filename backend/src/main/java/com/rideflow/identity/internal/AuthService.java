@@ -141,7 +141,7 @@ public class AuthService {
         transactions.execute(
             status -> {
               Instant now = clock.instant();
-              User user = users.findById(found.get().id()).orElse(null);
+              User user = users.findForUpdate(found.get().id()).orElse(null);
               if (user == null) {
                 return new Attempt(null, invalidCredentials());
               }

@@ -14,12 +14,14 @@ import com.rideflow.shared.MutableClock;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -291,6 +293,37 @@ class AuthIntegrationTest {
 
       // The counter has to survive ten rolled-back-looking failures, or lockout never
       // triggers. This is what noRollbackFor is for.
+      assertThatExceptionOfType(BusinessException.class)
+          .isThrownBy(() -> auth.login(PHONE, PASSWORD))
+          .satisfies(e -> assertThat(e.code()).isEqualTo("ACCOUNT_LOCKED"));
+    }
+
+    /**
+     * Ten wrong passwords at the same moment lock the account like ten in a row. Each failure is
+     * counted under the user's row lock; read without it, two could write the same count.
+     */
+    @Test
+    void locksAfterTenFailuresEvenWhenTheyArriveTogether() throws Exception {
+      registerRider();
+      CountDownLatch go = new CountDownLatch(1);
+      List<Future<?>> guesses = new ArrayList<>();
+      try (ExecutorService guessers = Executors.newFixedThreadPool(10)) {
+        for (int guesser = 0; guesser < 10; guesser++) {
+          guesses.add(
+              guessers.submit(
+                  () -> {
+                    go.await();
+                    assertThatExceptionOfType(BusinessException.class)
+                        .isThrownBy(() -> auth.login(PHONE, "wrong"));
+                    return null;
+                  }));
+        }
+        go.countDown();
+        for (Future<?> guess : guesses) {
+          guess.get(30, TimeUnit.SECONDS);
+        }
+      }
+
       assertThatExceptionOfType(BusinessException.class)
           .isThrownBy(() -> auth.login(PHONE, PASSWORD))
           .satisfies(e -> assertThat(e.code()).isEqualTo("ACCOUNT_LOCKED"));
