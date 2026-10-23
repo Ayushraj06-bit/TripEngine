@@ -4,7 +4,7 @@
 money moves through a double-entry ledger - built as a Spring Boot modular monolith and load-tested
 with 2,000 simulated drivers.**
 
-![The admin live map: drivers by state, trips in progress and surge cells, driven by the simulator](docs/images/live-map.gif)
+<!-- Recorded from the one-command demo; restore once docs/images/live-map.gif exists. ![The admin live map: drivers by state, trips in progress and surge cells, driven by the simulator](docs/images/live-map.gif) -->
 
 Riders get fare quotes, book, follow their driver live, pay from a wallet and rate the trip.
 Drivers onboard, go online, stream their position, accept offers and complete trips. Admins approve
