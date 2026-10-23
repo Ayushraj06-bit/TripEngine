@@ -39,8 +39,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
  *   <li><strong>The connection is made on first use.</strong> The application starts while Redis is
  *       away, and readiness reports it, as for every other Redis path.
  * </ul>
+ *
+ * <p>Not final: Spring Modulith's observability wraps every bean of a module's API in a subclass.
  */
-public final class RateLimitBuckets implements AutoCloseable {
+public class RateLimitBuckets implements AutoCloseable {
 
   private static final String PREFIX = "rate:";
 
