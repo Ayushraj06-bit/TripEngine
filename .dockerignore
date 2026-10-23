@@ -1,0 +1,10 @@
+# The image build needs the Maven wrapper, the poms and the main sources; nothing else is sent to
+# the Docker daemon.
+*
+!mvnw
+!.mvn/
+!pom.xml
+!backend/pom.xml
+!backend/src/main/
+!simulator/pom.xml
+!simulator/src/main/
