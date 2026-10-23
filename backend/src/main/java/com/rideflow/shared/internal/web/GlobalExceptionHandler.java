@@ -161,7 +161,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     CannotCreateTransactionException.class
   })
   public ResponseEntity<ProblemDetail> handleUnavailable(NestedRuntimeException exception) {
-    log.warn("A backing store is unavailable: {}", exception.getMessage());
+    // The root cause too: Spring's message no longer carries it, and a 503 nobody can explain
+    // is the one that keeps happening.
+    log.warn(
+        "A backing store is unavailable: {} ({})",
+        exception.getMessage(),
+        exception.getMostSpecificCause().toString());
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.SERVICE_UNAVAILABLE, "The service is briefly unavailable. Try again.");

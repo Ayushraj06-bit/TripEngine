@@ -75,7 +75,10 @@ class RateLimitFilter extends OncePerRequestFilter {
               ? loginPerAddress.tryConsume(address)
               : registerPerAddress.tryConsume(address);
     } catch (DataAccessException unavailable) {
-      log.warn("Rate limits unavailable: {}", unavailable.getMessage());
+      log.warn(
+          "Rate limits unavailable: {} ({})",
+          unavailable.getMessage(),
+          unavailable.getMostSpecificCause().toString());
       unavailable(response);
       return;
     }
