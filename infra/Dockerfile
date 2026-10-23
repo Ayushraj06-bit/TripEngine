@@ -46,15 +46,16 @@ ENV JAVA_HOME=/opt/java \
     JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 COPY --from=build /jre /opt/java
 
-RUN addgroup -S rideflow && adduser -S rideflow -G rideflow
-USER rideflow
+# A fixed numeric id: Kubernetes can only verify runAsNonRoot against a number, not a name.
+RUN addgroup -S -g 10001 rideflow && adduser -S -u 10001 -G rideflow rideflow
+USER 10001:10001
 WORKDIR /app
 
 # Least to most often changed.
-COPY --from=build --chown=rideflow:rideflow /workspace/extracted/dependencies/ ./
-COPY --from=build --chown=rideflow:rideflow /workspace/extracted/spring-boot-loader/ ./
-COPY --from=build --chown=rideflow:rideflow /workspace/extracted/snapshot-dependencies/ ./
-COPY --from=build --chown=rideflow:rideflow /workspace/extracted/application/ ./
+COPY --from=build --chown=10001:10001 /workspace/extracted/dependencies/ ./
+COPY --from=build --chown=10001:10001 /workspace/extracted/spring-boot-loader/ ./
+COPY --from=build --chown=10001:10001 /workspace/extracted/snapshot-dependencies/ ./
+COPY --from=build --chown=10001:10001 /workspace/extracted/application/ ./
 
 EXPOSE ${PORT}
 # Ready, not merely alive: the backend's /readyz is DOWN while PostgreSQL or Redis is.

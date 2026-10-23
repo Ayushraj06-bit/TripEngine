@@ -55,6 +55,12 @@ jobs:
           docker run --rm -v "$PWD/infra/prometheus:/p" --entrypoint promtool
           prom/prometheus:v3.14.0 test rules /p/alerts.test.yml
 
+      # Against the Kubernetes API schemas; the manifests have not been run on a real cluster.
+      - name: Check Kubernetes manifests
+        run: >
+          docker run --rm -v "$PWD/infra/k8s:/m" ghcr.io/yannh/kubeconform:v0.6.4
+          -strict -summary -kubernetes-version 1.30.0 /m
+
       - name: Upload JaCoCo report
         if: always()
         uses: actions/upload-artifact@v4
