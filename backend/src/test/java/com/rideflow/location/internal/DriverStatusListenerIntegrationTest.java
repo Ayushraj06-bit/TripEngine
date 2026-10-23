@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,6 +39,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, DriverStatusListenerIntegrationTest.Clocks.class})
+@Tag("integration")
 class DriverStatusListenerIntegrationTest {
 
   private static final GeoPoint MG_ROAD = new GeoPoint(12.9752, 77.6064);

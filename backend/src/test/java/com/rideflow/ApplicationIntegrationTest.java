@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
+@Tag("integration")
 class ApplicationIntegrationTest {
 
   @Autowired private MockMvc mockMvc;

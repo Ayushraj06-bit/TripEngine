@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,6 +41,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(properties = "rideflow.location.stale-sweep-batch-size=10")
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, StaleDriverSweepIntegrationTest.Probe.class})
+@Tag("integration")
 class StaleDriverSweepIntegrationTest {
 
   private static final GeoPoint MG_ROAD = new GeoPoint(12.9752, 77.6064);

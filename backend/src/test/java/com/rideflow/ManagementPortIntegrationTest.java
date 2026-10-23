@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
@@ -22,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
     properties = "management.server.port=0")
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
+@Tag("integration")
 class ManagementPortIntegrationTest {
 
   @LocalServerPort int publicPort;

@@ -14,6 +14,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +35,7 @@ import org.testcontainers.kafka.KafkaContainer;
       "spring.kafka.consumer.auto-offset-reset=earliest"
     })
 @Testcontainers
+@Tag("integration")
 class TripEventKpisIntegrationTest {
 
   @Container @ServiceConnection

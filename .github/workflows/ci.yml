@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: ["main", "phase-*"]
+    tags: ["phase-*"]
   pull_request:
     branches: ["main"]
 
@@ -16,10 +17,10 @@ permissions:
 
 jobs:
   build:
-    name: build and verify
+    name: build and test
     # ubuntu-latest ships a Docker daemon, which Testcontainers needs.
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v5
@@ -31,8 +32,22 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Verify
-        run: ./mvnw -B -ntp verify
+      # Compiles both modules and their tests, and checks formatting and the build rules.
+      - name: Build
+        run: ./mvnw -B -ntp package -DskipTests -Djacoco.skip=true
+
+      # Pure logic, no containers: the state machine, fares, surge, geo math, validators.
+      - name: Unit tests
+        run: ./mvnw -B -ntp test -Dgroups='!integration'
+
+      # Real PostgreSQL, Redis and Kafka through Testcontainers.
+      - name: Integration tests
+        run: ./mvnw -B -ntp test -Dgroups=integration
+
+      # Both runs recorded into the same JaCoCo data. Below 80% line coverage on trip, matching,
+      # pricing, payment or shared, the build fails (PROJECT_SPEC section 12).
+      - name: Coverage gate
+        run: ./mvnw -B -ntp -pl backend jacoco:report jacoco:check@check
 
       # The alert rules' own unit tests, with the Prometheus version compose runs.
       - name: Test alert rules
@@ -57,3 +72,73 @@ jobs:
           path: "**/target/surefire-reports/"
           if-no-files-found: ignore
           retention-days: 7
+
+  images:
+    name: image (${{ matrix.module }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - module: backend
+            port: "8080"
+          - module: simulator
+            port: "8081"
+    env:
+      # Pushed from main and from phase tags; every other build only proves the image builds.
+      PUBLISH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/phase-')) }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The registry wants a lower-case name; the account's is not.
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/rideflow-${{ matrix.module }}" >> "$GITHUB_ENV"
+
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          build-args: |
+            MODULE=${{ matrix.module }}
+            PORT=${{ matrix.port }}
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
+
+      - name: Image size
+        run: |
+          size=$(docker image inspect --format '{{.Size}}' "$IMAGE:sha-${GITHUB_SHA::7}")
+          echo "rideflow-${{ matrix.module }}: $((size / 1024 / 1024)) MiB" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        if: env.PUBLISH == 'true'
+        run: docker push --all-tags "$IMAGE"

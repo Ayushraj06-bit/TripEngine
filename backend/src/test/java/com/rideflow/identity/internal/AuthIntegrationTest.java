@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -63,6 +64,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 // Imported explicitly: a @TestConfiguration nested in the outer class is silently
 // ignored for @Nested tests, which would leave the real system clock in place.
 @Import({TestcontainersConfiguration.class, AuthIntegrationTest.Clocks.class})
+@Tag("integration")
 class AuthIntegrationTest {
 
   private static final String PHONE = "+919876543210";

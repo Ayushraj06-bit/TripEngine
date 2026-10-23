@@ -17,6 +17,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.testcontainers.kafka.KafkaContainer;
@@ -25,6 +26,7 @@ import org.testcontainers.kafka.KafkaContainer;
  * The outbox end to end: events land in the Modulith registry with the change, and reach {@value
  * TripEvent#TOPIC} on a real broker, keyed by trip.
  */
+@Tag("integration")
 class TripKafkaIntegrationTest extends TripIntegrationTestBase {
 
   @Autowired KafkaContainer kafka;
