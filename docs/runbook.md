@@ -70,32 +70,40 @@ They run from the repository root, so the backend jar is packaged before the
 simulator's tests use it. A run starts its own PostgreSQL, Redis and Kafka.
 Nothing local needs to be running, only Docker.
 
-## Two-instance setup
+## Two-instance setup: the one-command demo
 
-Used to exercise the cross-instance real-time path and to load-test.
+Used to exercise the cross-instance real-time path, to load-test, and to show the system off:
+
+```bash
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up
+```
+
+The first run builds both images (`infra/Dockerfile`), which takes a few minutes. Give Docker about
+8 GB of memory: two backends, the simulator, Kafka, PostgreSQL, Redis, Prometheus, Grafana and
+Jaeger. When everything is healthy, `demo-info` prints the URLs and the admin's login for the live
+map ([ADR 0018](adr/0018-packaging-and-delivery.md)).
 
 Both instances must share two secrets, or what one signs the other refuses:
 
 - the RSA key pair for access tokens
 - the gateway webhook secret ([ADR 0013](adr/0013-mock-payment-gateway-and-webhooks.md))
 
-The compose file refuses to start without them. Generate throwaway values for
-local use. Never commit them.
+The `secrets` service generates them on first start, with the admin's password, into the `secrets`
+volume. The applications read them as a Spring config tree (`SPRING_CONFIG_IMPORT`).
+- **Your own values:** environment variables (`RIDEFLOW_RSA_PRIVATE_KEY`, ...) take precedence over
+  the files.
+- **Start from nothing:** `down -v` discards the secrets with the data.
+
+The backends run the `sim` profile: the simulator signs everyone up and in from one address, and
+tops wallets up through the mock gateway. Never in production (`docs/deploy.md`).
 
 Behind nginx, a client's address for rate limiting comes from `X-Forwarded-For`.
 Tomcat believes that header only from a trusted proxy:
 `server.tomcat.remoteip.internal-proxies`, by default private and loopback
 addresses, which covers nginx on the compose network. Behind a load balancer
 with a public address, add its address there, or every client shares one limit.
-
-```bash
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/rideflow.pem
-export RIDEFLOW_RSA_PRIVATE_KEY="$(grep -v -- ----- /tmp/rideflow.pem | tr -d '\n')"
-export RIDEFLOW_RSA_PUBLIC_KEY="$(openssl pkey -in /tmp/rideflow.pem -pubout | grep -v -- ----- | tr -d '\n')"
-export RIDEFLOW_GATEWAY_WEBHOOK_SECRET="$(openssl rand -hex 32)"
-
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml up -d --build
-```
+nginx also sends `X-Forwarded-Port`: without it, Tomcat takes the port to be 80, and the live map's
+WebSocket, whose origin says 8080, is refused as another site's.
 
 nginx listens on 8080 and round-robins between the instances, which are also
 reachable directly on 8091 and 8092. Round robin is deliberate: real-time

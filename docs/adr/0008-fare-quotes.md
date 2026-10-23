@@ -92,6 +92,6 @@ instead.
 - A failed attempt with the wrong rider or vehicle type leaves the quote intact.
 - Application instances must keep their clocks in sync, which they already need
   for JWT validation. Skew between instances shifts a quote's expiry by the skew.
-- The per-rider quote limit is in memory, per instance, like the login limits (see
-  `KeyedRateLimiter`). With several instances the effective limit multiplies until
-  it moves to Bucket4j on Redis, as section 3 intends.
+- The per-rider quote limit is a Bucket4j bucket in Redis (`KeyedRateLimiter`), shared
+  by every instance. Until Phase 11 it was in memory, and each instance allowed the
+  whole limit ([ADR 0017](0017-authentication.md)).

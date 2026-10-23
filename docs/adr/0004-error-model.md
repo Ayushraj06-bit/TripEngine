@@ -57,3 +57,17 @@ can reach a client without one.
 - `BusinessException` holds an `HttpStatus`, which puts a web type in the shared
   kernel. This is deliberate: section 10 defines errors in terms of HTTP
   statuses, so hiding that would only move the mapping somewhere less obvious.
+
+## Later additions
+
+Three answers came in with the infrastructure, not with a business rule. Each carries
+`Retry-After`, because each means "this request, again shortly, will probably work":
+
+| Status and code | When | Since |
+|---|---|---|
+| 429 `RATE_LIMITED` | a rate limit is spent; `Retry-After` is the wait | Phase 1 |
+| 503 `SERVICE_UNAVAILABLE` | PostgreSQL or Redis did not answer in time, or no connection was free | Phase 10 |
+| 409 `CONCURRENT_UPDATE` | a lock wait past `lock_timeout`, a deadlock, or a version that moved underneath | Phase 11 |
+
+Before them, the last two reached the catch-all and answered 500. A 500 says the server is
+broken and pages someone, while a retry would have gone through.
