@@ -59,6 +59,23 @@ class GlobalExceptionHandlerTest {
     }
   }
 
+  /** A lock timeout, a broken deadlock, a moved version: a conflict to retry, not a 500. */
+  @Test
+  void answers409WithRetryAfterForAConcurrentUpdate() {
+    for (var conflict :
+        java.util.List.of(
+            new org.springframework.dao.CannotAcquireLockException("lock timeout"),
+            new org.springframework.dao.PessimisticLockingFailureException("deadlock detected"),
+            new org.springframework.orm.ObjectOptimisticLockingFailureException(
+                "Trip", java.util.UUID.randomUUID()))) {
+      var response = handler.handleConcurrentUpdate(conflict);
+
+      assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+      assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("1");
+      assertThat(codeOf(response)).isEqualTo("CONCURRENT_UPDATE");
+    }
+  }
+
   @Test
   void keepsTheStatusAndCodeOfAServerSideBusinessException() {
     var response =

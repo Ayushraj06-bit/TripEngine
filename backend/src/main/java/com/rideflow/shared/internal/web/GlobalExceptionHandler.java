@@ -9,6 +9,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.NestedRuntimeException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -167,6 +168,25 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     problem.setProperty(CODE_PROPERTY, "SERVICE_UNAVAILABLE");
     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
         .header(HttpHeaders.RETRY_AFTER, "5")
+        .body(problem);
+  }
+
+  /**
+   * Someone else changed, or held, the same rows at the same moment: a lock waited on past the 2 s
+   * {@code lock_timeout}, a deadlock PostgreSQL broke, or a version that moved underneath. A retry
+   * usually goes through, so this is the state conflict PROJECT_SPEC section 10 answers with 409 -
+   * not a 500 that pages someone.
+   */
+  @ExceptionHandler(ConcurrencyFailureException.class)
+  public ResponseEntity<ProblemDetail> handleConcurrentUpdate(
+      ConcurrencyFailureException exception) {
+    log.info("Concurrent update refused: {}", exception.getMessage());
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT, "This was being changed at the same moment. Try again.");
+    problem.setProperty(CODE_PROPERTY, "CONCURRENT_UPDATE");
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .header(HttpHeaders.RETRY_AFTER, "1")
         .body(problem);
   }
 
