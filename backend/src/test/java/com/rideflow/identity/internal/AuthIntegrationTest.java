@@ -11,6 +11,8 @@ import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.MutableClock;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -680,6 +682,37 @@ class AuthIntegrationTest {
       }
 
       login("+919811299999", "198.51.100.9").andExpect(status().isTooManyRequests());
+    }
+  }
+
+  /**
+   * The account row held by someone else past PostgreSQL's 2 s {@code lock_timeout}: the lock
+   * failure travels from the driver through Hibernate and Spring to a 409 to retry, not a 500.
+   */
+  @Test
+  void answersAConcurrentUpdateWith409ToRetry() throws Exception {
+    registerRider();
+    try (Connection holder = jdbc.getDataSource().getConnection()) {
+      holder.setAutoCommit(false);
+      try (PreparedStatement lock =
+          holder.prepareStatement("SELECT id FROM users WHERE phone = ? FOR UPDATE")) {
+        lock.setString(1, PHONE);
+        lock.executeQuery().close();
+      }
+
+      mockMvc
+          .perform(
+              post("/api/v1/auth/login")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      """
+                      {"phone":"%s","password":"%s"}"""
+                          .formatted(PHONE, PASSWORD)))
+          .andExpect(status().isConflict())
+          .andExpect(header().string("Retry-After", "1"))
+          .andExpect(jsonPath("$.code").value("CONCURRENT_UPDATE"));
+
+      holder.rollback();
     }
   }
 
