@@ -9,6 +9,7 @@ import com.rideflow.shared.Money;
 import com.rideflow.shared.MutableClock;
 import com.rideflow.trip.DriverPositions;
 import com.rideflow.trip.RoutePoint;
+import com.rideflow.trip.TripPaymentStatusChanged;
 import com.rideflow.trip.TripRequested;
 import com.rideflow.trip.TripRoutes;
 import io.micrometer.tracing.TraceContext;
@@ -29,6 +30,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.modulith.events.ApplicationModuleListener;
 
@@ -84,6 +86,26 @@ class TripTestConfiguration {
 
     void clear() {
       pushes.clear();
+    }
+  }
+
+  /**
+   * Every payment status change, heard on whichever thread published it (TripEventsScenarioTest).
+   * Payment publishes it from its listener, on a pooled thread, where a test's thread-bound {@code
+   * ApplicationEvents} does not look.
+   */
+  static final List<TripPaymentStatusChanged> PAYMENT_STATUS_CHANGES = new CopyOnWriteArrayList<>();
+
+  @Bean
+  PaymentStatusChanges paymentStatusChanges() {
+    return new PaymentStatusChanges();
+  }
+
+  static class PaymentStatusChanges {
+
+    @EventListener
+    void on(TripPaymentStatusChanged event) {
+      PAYMENT_STATUS_CHANGES.add(event);
     }
   }
 

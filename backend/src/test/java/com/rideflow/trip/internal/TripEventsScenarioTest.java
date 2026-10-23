@@ -100,12 +100,13 @@ class TripEventsScenarioTest extends TripIntegrationTestBase {
     assertRecorded(tripId, 5);
 
     // Then payment charges it. This rider never topped up, so the fare waits on a top-up.
+    // Published from payment's listener thread, so read from TripTestConfiguration's recorder.
     await()
         .atMost(Duration.ofSeconds(10))
         .untilAsserted(
             () ->
                 assertThat(
-                        events.stream(TripPaymentStatusChanged.class)
+                        TripTestConfiguration.PAYMENT_STATUS_CHANGES.stream()
                             .filter(event -> event.tripId().equals(tripId)))
                     .singleElement()
                     .extracting(TripPaymentStatusChanged::paymentStatus)
