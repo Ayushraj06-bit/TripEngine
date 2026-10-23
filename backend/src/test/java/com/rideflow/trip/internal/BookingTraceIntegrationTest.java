@@ -14,14 +14,14 @@ import org.springframework.http.MediaType;
 
 /**
  * Phase 10: one booking is one trace, from the HTTP request into the module listeners that match it
- * and tell people about it. The listeners run asynchronously after the booking commits; they stay
- * in the trace only because Boot's task executor is forced and propagates context
- * (application.yml), which nothing else would notice going away.
+ * and tell people about it. The listeners run asynchronously after the booking commits, on
+ * ListenerExecutorConfig's platform threads; they stay in the trace only because that executor
+ * propagates context, which nothing else would notice going away.
  */
 class BookingTraceIntegrationTest extends TripIntegrationTestBase {
 
   @Test
-  void runsTheBookingsListenersInTheRequestsTrace() throws Exception {
+  void runsTheBookingsListenersInTheRequestsTraceOnPlatformThreads() throws Exception {
     User rider = rider();
     String traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
 
@@ -46,7 +46,10 @@ class BookingTraceIntegrationTest extends TripIntegrationTestBase {
 
     await()
         .atMost(Duration.ofSeconds(10))
-        .until(() -> TripTestConfiguration.LISTENER_TRACES.containsKey(tripId));
-    assertThat(TripTestConfiguration.LISTENER_TRACES.get(tripId)).isEqualTo(traceId);
+        .until(() -> TripTestConfiguration.LISTENER_RUNS.containsKey(tripId));
+    var run = TripTestConfiguration.LISTENER_RUNS.get(tripId);
+    assertThat(run.traceId()).isEqualTo(traceId);
+    // Not virtual: on Java 21 a virtual thread blocked in synchronized code pins its carrier.
+    assertThat(run.virtualThread()).isFalse();
   }
 }

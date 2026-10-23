@@ -87,8 +87,11 @@ class TripTestConfiguration {
     }
   }
 
-  /** The trace each booking's module listeners ran in, by trip (BookingTraceIntegrationTest). */
-  static final Map<UUID, String> LISTENER_TRACES = new ConcurrentHashMap<>();
+  /** Where each booking's module listener ran, by trip (BookingTraceIntegrationTest). */
+  static final Map<UUID, ListenerRun> LISTENER_RUNS = new ConcurrentHashMap<>();
+
+  /** The trace a listener ran in, and whether on a virtual thread. */
+  record ListenerRun(String traceId, boolean virtualThread) {}
 
   @Bean
   ListenerTraces listenerTraces(Tracer tracer) {
@@ -111,7 +114,10 @@ class TripTestConfiguration {
     @ApplicationModuleListener
     void on(TripRequested event) {
       TraceContext context = tracer.currentTraceContext().context();
-      LISTENER_TRACES.put(event.tripId(), context == null ? "none" : context.traceId());
+      LISTENER_RUNS.put(
+          event.tripId(),
+          new ListenerRun(
+              context == null ? "none" : context.traceId(), Thread.currentThread().isVirtual()));
     }
   }
 

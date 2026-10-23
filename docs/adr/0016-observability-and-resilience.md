@@ -36,8 +36,11 @@ Three things stood between a booking and one trace across its steps.
 - **Listener threads:** Boot creates its application executor only when no other `Executor` bean
   exists, and the WebSocket broker defines several. `@ApplicationModuleListener` methods
   therefore ran on Spring's fallback, a new platform thread per event with no context.
-  `spring.task.execution.mode: force` and `propagate-context: true` give them Boot's
-  virtual-thread executor, which carries the trace.
+  - **Now:** `ListenerExecutorConfig` defines `taskExecutor`: 32 platform threads, with a decorator
+    that carries the trace (`BookingTraceIntegrationTest`).
+  - **Why not virtual threads:** Boot's own executor would have been virtual. Phase 10 first used
+    that, until a CI run saw every listener stall for ten seconds at once. On Java 21 a virtual
+    thread blocked in `synchronized` code pins its carrier, and a two-core runner has two.
 - **Spans with names:** `spring-modulith-observability-core` adds a span per call into a module.
   A `realtime.publish` span marks the push to a user, and the Kafka template's observation the
   send.

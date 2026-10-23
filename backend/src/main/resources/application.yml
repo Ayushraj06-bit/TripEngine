@@ -60,15 +60,6 @@ spring:
     virtual:
       enabled: true
 
-  task:
-    execution:
-      # Phase 10. Boot backs off its application executor whenever any other Executor bean
-      # exists, and the WebSocket broker defines several. Event listeners (@Async) then ran on
-      # a bare fallback executor: a new platform thread per event, and without the trace. Forced,
-      # they run on Boot's virtual-thread executor, which carries the trace context across.
-      mode: force
-      propagate-context: true
-
   mvc:
     problemdetails:
       # Spring's own exceptions (unknown route, unsupported method, unreadable body)

@@ -44,6 +44,12 @@ Every run below used this setup unless it says otherwise.
   - HikariCP pool 10, the default
   - plain-text logs
   - one trace in ten sampled and exported to Jaeger
+  - event listeners on Boot's virtual-thread executor
+- **Changed since:** the review moved event listeners to 32 platform threads
+  (`ListenerExecutorConfig`), after a CI run saw them all stall at once. The
+  runs here were not repeated. A listener's own work is unchanged; what could
+  differ is a burst's first offer, if more than 32 listeners were ever waiting
+  at once.
 - **Stores:** `infra/docker-compose.yml` on Docker Desktop 29.8.0 (WSL 2 VM:
   10 CPUs, 7.75 GB): PostgreSQL 17.11, Redis 7.4.11, Kafka 4.2.1, Prometheus
   3.14.0 (scraping every 5 s), Jaeger 1.76.

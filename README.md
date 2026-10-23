@@ -273,7 +273,9 @@ things. The traps this project hit, all of which fail *silently*:
   bridge and the OTLP exporter, no tracer is created and no span leaves.
 - Any `Executor` bean (the WebSocket broker defines several) makes Boot skip its
   application task executor. `@Async` and Modulith listeners then run on a
-  fallback with no trace context, unless `spring.task.execution.mode: force`.
+  fallback with no trace context. RideFlow defines `taskExecutor` itself
+  (`ListenerExecutorConfig`), on platform threads: on Java 21 a virtual thread
+  blocked in `synchronized` code pins one of only as many carriers as cores.
 - Lettuce metrics are Observations: `lettuce_seconds`, by `db_operation`, not
   Boot 3's `lettuce_command_completion_seconds`.
 
