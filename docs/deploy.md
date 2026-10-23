@@ -107,6 +107,9 @@ x-backend: &backend
     RIDEFLOW_ADMIN_PHONE: "+91XXXXXXXXXX"
   volumes:
     - /etc/rideflow/secrets:/run/rideflow:ro
+  # Longer than the application's own shutdown (20 s for requests, 15 s for event listeners);
+  # Docker's default is 10 s.
+  stop_grace_period: 40s
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }

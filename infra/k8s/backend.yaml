@@ -46,8 +46,9 @@ spec:
         prometheus.io/port: "8090"
         prometheus.io/path: /actuator/prometheus
     spec:
-      # Longer than the application's 20 s to finish in-flight requests on shutdown.
-      terminationGracePeriodSeconds: 30
+      # Longer than the application's own shutdown - 20 s for requests in flight, then 15 s for
+      # event listeners - plus the 5 s pause below.
+      terminationGracePeriodSeconds: 45
       imagePullSecrets:
         - name: ghcr
       securityContext:
@@ -88,6 +89,12 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          # The Service keeps sending traffic for a moment after a pod is told to stop: keep
+          # accepting it until the endpoint is gone, then shut down.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           # Up to two and a half minutes to start, migrations included, before liveness counts.
           startupProbe:
             httpGet:

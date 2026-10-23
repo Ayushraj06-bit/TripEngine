@@ -36,6 +36,9 @@ x-backend: &backend
     RIDEFLOW_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
   volumes:
     - secrets:/run/rideflow:ro
+  # Docker's default 10 s would cut short the application's own shutdown: 20 s for requests in
+  # flight, then 15 s for event listeners.
+  stop_grace_period: 40s
   depends_on:
     secrets:
       condition: service_completed_successfully
