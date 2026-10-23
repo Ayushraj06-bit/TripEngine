@@ -8,6 +8,7 @@ import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.IdGenerator;
 import com.rideflow.shared.KeyedRateLimiter;
 import com.rideflow.shared.Money;
+import com.rideflow.shared.RateLimitBuckets;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.ServiceArea;
 import com.rideflow.shared.VehicleType;
@@ -79,7 +80,8 @@ public class QuoteService implements QuoteConsumer {
       JsonMapper json,
       RedisScript<List> quoteConsumeScript,
       HaversineRouteEstimator straightLine,
-      CircuitBreakerRegistry breakers) {
+      CircuitBreakerRegistry breakers,
+      RateLimitBuckets buckets) {
     this.straightLine = straightLine;
     this.routeBreaker = breakers.circuitBreaker("route-estimator");
     this.rateCards = rateCards;
@@ -94,10 +96,11 @@ public class QuoteService implements QuoteConsumer {
     this.quoteConsumeScript = quoteConsumeScript;
     this.quotesPerRider =
         new KeyedRateLimiter(
+            "quote-rider",
             properties.pricing().quoteRateLimitPerMinute(),
             Duration.ofMinutes(1),
             "quote requests",
-            clock);
+            buckets);
   }
 
   /**

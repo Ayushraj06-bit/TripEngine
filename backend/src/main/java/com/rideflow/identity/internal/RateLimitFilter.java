@@ -1,16 +1,17 @@
 package com.rideflow.identity.internal;
 
 import com.rideflow.shared.KeyedRateLimiter;
+import com.rideflow.shared.RateLimitBuckets;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -38,19 +39,21 @@ class RateLimitFilter extends OncePerRequestFilter {
   /** Registration is once per person, so anything more than a trickle is abuse. */
   private final KeyedRateLimiter registerPerAddress;
 
-  RateLimitFilter(IdentityProperties properties, Clock clock) {
+  RateLimitFilter(IdentityProperties properties, RateLimitBuckets buckets) {
     this.loginPerAddress =
         new KeyedRateLimiter(
+            "login-address",
             properties.loginAttemptsPerAddressPerMinute(),
             Duration.ofMinutes(1),
             "login attempts",
-            clock);
+            buckets);
     this.registerPerAddress =
         new KeyedRateLimiter(
+            "register-address",
             properties.registrationsPerAddressPerHour(),
             Duration.ofHours(1),
             "registrations",
-            clock);
+            buckets);
   }
 
   @Override
@@ -65,10 +68,17 @@ class RateLimitFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
 
     String address = clientAddress(request);
-    OptionalLong wait =
-        request.getRequestURI().equals(LOGIN_PATH)
-            ? loginPerAddress.tryConsume(address)
-            : registerPerAddress.tryConsume(address);
+    OptionalLong wait;
+    try {
+      wait =
+          request.getRequestURI().equals(LOGIN_PATH)
+              ? loginPerAddress.tryConsume(address)
+              : registerPerAddress.tryConsume(address);
+    } catch (DataAccessException unavailable) {
+      log.warn("Rate limits unavailable: {}", unavailable.getMessage());
+      unavailable(response);
+      return;
+    }
 
     if (wait.isPresent()) {
       reject(response, wait.getAsLong());
@@ -95,6 +105,23 @@ class RateLimitFilter extends OncePerRequestFilter {
    */
   private static String clientAddress(HttpServletRequest request) {
     return request.getRemoteAddr();
+  }
+
+  /**
+   * Redis, which keeps the limits, did not answer: a 503 like every other request that needs it,
+   * written here because a filter runs outside the controller advice. Refused rather than let
+   * through, since these limits are what stands between a password guesser and the database.
+   */
+  private void unavailable(HttpServletResponse response) throws IOException {
+    response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+    response.setHeader("Retry-After", "5");
+    response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+    response
+        .getWriter()
+        .write(
+            """
+            {"type":"about:blank","title":"Service Unavailable","status":503,\
+            "detail":"The service is briefly unavailable. Try again.","code":"SERVICE_UNAVAILABLE"}""");
   }
 
   /** Written here rather than thrown: a filter runs outside the controller advice. */

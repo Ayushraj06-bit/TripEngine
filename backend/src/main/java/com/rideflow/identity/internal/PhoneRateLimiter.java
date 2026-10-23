@@ -1,7 +1,7 @@
 package com.rideflow.identity.internal;
 
 import com.rideflow.shared.KeyedRateLimiter;
-import java.time.Clock;
+import com.rideflow.shared.RateLimitBuckets;
 import java.time.Duration;
 import org.springframework.stereotype.Component;
 
@@ -27,10 +27,14 @@ class PhoneRateLimiter {
 
   private final KeyedRateLimiter limiter;
 
-  PhoneRateLimiter(Clock clock) {
+  PhoneRateLimiter(RateLimitBuckets buckets) {
     this.limiter =
         new KeyedRateLimiter(
-            CAPACITY, Duration.ofMinutes(1), "login attempts for this number", clock);
+            "login-phone",
+            CAPACITY,
+            Duration.ofMinutes(1),
+            "login attempts for this number",
+            buckets);
   }
 
   /**
