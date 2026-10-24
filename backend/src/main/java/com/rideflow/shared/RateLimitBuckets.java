@@ -38,6 +38,10 @@ import org.springframework.dao.DataAccessResourceFailureException;
  *       clock refills a bucket when it moves.
  *   <li><strong>The connection is made on first use.</strong> The application starts while Redis is
  *       away, and readiness reports it, as for every other Redis path.
+ *   <li><strong>A closed connection is replaced.</strong> Spring's connection factory shuts its
+ *       client down when stopped and makes a new one when started again - which Spring's test
+ *       context cache does to every idle context - and a connection kept from the old client stays
+ *       closed.
  * </ul>
  *
  * <p>Not final: Spring Modulith's observability wraps every bean of a module's API in a subclass.
@@ -49,8 +53,10 @@ public class RateLimitBuckets implements AutoCloseable {
   private final Supplier<RedisClient> client;
   private final TimeMeter time;
   private final Duration timeout;
-  private volatile StatefulRedisConnection<String, byte[]> connection;
-  private volatile ProxyManager<String> proxies;
+  private volatile Connected connected;
+
+  private record Connected(
+      StatefulRedisConnection<String, byte[]> connection, ProxyManager<String> proxies) {}
 
   /**
    * @param client the Redis client, asked for only when a bucket is first needed
@@ -74,12 +80,12 @@ public class RateLimitBuckets implements AutoCloseable {
   }
 
   BucketProxy bucket(String limit, String key, Supplier<BucketConfiguration> configuration) {
-    return proxies().builder().build(PREFIX + limit + ":" + hash(key), configuration);
+    return connected().proxies().builder().build(PREFIX + limit + ":" + hash(key), configuration);
   }
 
   /** Discards every bucket of {@code limit}. For tests; see {@link KeyedRateLimiter#reset()}. */
   void clear(String limit) {
-    var commands = connected().sync();
+    var commands = connected().connection().sync();
     ScanArgs matching = ScanArgs.Builder.matches(PREFIX + limit + ":*").limit(500);
     KeyScanCursor<String> cursor = commands.scan(matching);
     while (true) {
@@ -94,50 +100,44 @@ public class RateLimitBuckets implements AutoCloseable {
   }
 
   @Override
-  public void close() {
-    if (connection != null) {
-      connection.close();
+  public synchronized void close() {
+    if (connected != null) {
+      connected.connection().close();
+      connected = null;
     }
   }
 
-  private ProxyManager<String> proxies() {
-    ProxyManager<String> ready = proxies;
-    if (ready == null) {
-      synchronized (this) {
-        if (proxies == null) {
-          proxies =
-              Bucket4jLettuce.casBasedBuilder(connected())
+  private Connected connected() {
+    Connected ready = connected;
+    if (ready != null && ready.connection().isOpen()) {
+      return ready;
+    }
+    synchronized (this) {
+      ready = connected;
+      if (ready != null && ready.connection().isOpen()) {
+        return ready;
+      }
+      close();
+      StatefulRedisConnection<String, byte[]> connection;
+      try {
+        connection = client.get().connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
+      } catch (RuntimeException unreachable) {
+        // Tried again on the next request: nothing is kept until a connection is made.
+        throw new DataAccessResourceFailureException(
+            "Rate limits are kept in Redis, which did not answer", unreachable);
+      }
+      connected =
+          new Connected(
+              connection,
+              Bucket4jLettuce.casBasedBuilder(connection)
                   .clientClock(time)
                   .requestTimeout(timeout)
                   .expirationAfterWrite(
                       ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(
                           Duration.ofSeconds(1)))
-                  .build();
-        }
-        ready = proxies;
-      }
+                  .build());
+      return connected;
     }
-    return ready;
-  }
-
-  private StatefulRedisConnection<String, byte[]> connected() {
-    StatefulRedisConnection<String, byte[]> ready = connection;
-    if (ready == null) {
-      synchronized (this) {
-        if (connection == null) {
-          try {
-            connection =
-                client.get().connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
-          } catch (RuntimeException unreachable) {
-            // Tried again on the next request: nothing is cached until a connection is made.
-            throw new DataAccessResourceFailureException(
-                "Rate limits are kept in Redis, which did not answer", unreachable);
-          }
-        }
-        ready = connection;
-      }
-    }
-    return ready;
   }
 
   private static String hash(String key) {

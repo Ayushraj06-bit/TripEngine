@@ -155,6 +155,32 @@ class KeyedRateLimiterTest {
     }
   }
 
+  /**
+   * What Spring's connection factory does when stopped and started again: it shuts its client down,
+   * closing every connection made from it, and makes a new client. Kept, the old connection
+   * answered every later request with 503.
+   */
+  @Test
+  void reconnectsOnceItsClientIsShutDownAndReplaced() {
+    RedisClient[] current = {RedisClient.create(REDIS.getRedisURI())};
+    try (RateLimitBuckets restarting =
+        new RateLimitBuckets(() -> current[0], CLOCK, Duration.ofSeconds(1))) {
+      KeyedRateLimiter cut =
+          new KeyedRateLimiter("restarts", 3, Duration.ofMinutes(1), "widgets", restarting);
+      assertThat(cut.tryConsume("a")).isEmpty();
+
+      current[0].shutdown();
+      current[0] = RedisClient.create(REDIS.getRedisURI());
+
+      assertThat(cut.tryConsume("a")).isEmpty();
+      assertThat(cut.tryConsume("a")).isEmpty();
+      // Still the same bucket in Redis: the reconnect lost no count.
+      assertThat(cut.tryConsume("a")).isPresent();
+    } finally {
+      current[0].shutdown();
+    }
+  }
+
   @Test
   void rejectsANonPositiveCapacity() {
     assertThatIllegalArgumentException()
