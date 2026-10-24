@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,8 +25,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * nothing about one attacker spraying a password across thousands of phone numbers, and nothing
  * about a flood of registrations. The per-phone half of the login limit lives in {@code
  * PhoneRateLimiter}, because the phone is in the request body.
+ *
+ * <p>Not under the {@code sim} profile, which the application refuses to run in production
+ * (SimProfileGuard): the simulator signs hundreds of users up and in from one address. Lifted to a
+ * huge allowance instead, that one bucket took every request in turn, and the queue for it in Redis
+ * outran its timeout.
  */
 @Component
+@Profile("!sim")
 class RateLimitFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);

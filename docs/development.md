@@ -218,7 +218,7 @@ More detail and troubleshooting: [`docs/runbook.md`](runbook.md).
 | Profile | Purpose |
 |---|---|
 | `local` (default) | Boot manages Compose, plain-text logs, every request traced |
-| `sim` | added to another, for the simulator: high per-address limits, mock gateway on. Never in production |
+| `sim` | added to another, for the simulator: no per-address limits, mock gateway on. Never in production |
 | `test` | Testcontainers supplies all connection details; no fixed hosts |
 | `prod` | Everything from the environment, no defaults, ECS JSON logs |
 

@@ -21,7 +21,7 @@ x-backend: &backend
     dockerfile: infra/Dockerfile
   environment: &backend-env
     # The simulator signs everyone up and in from one address, and tops wallets up through the
-    # mock gateway: sim lifts the per-address limits and turns the gateway on. Never in production.
+    # mock gateway: sim turns the per-address limits off and the gateway on. Never in production.
     SPRING_PROFILES_ACTIVE: sim
     # The generated secrets, one file each, named for the variable application.yml reads.
     SPRING_CONFIG_IMPORT: optional:configtree:/run/rideflow/backend/

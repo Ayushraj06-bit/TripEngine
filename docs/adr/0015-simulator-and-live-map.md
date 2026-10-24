@@ -111,8 +111,10 @@ CONNECT now clears the stored number, before the client can send anything.
 **Per-address limits are configuration.** The login and registration limits
 per address (20 a minute, 3 an hour) were hard-coded. The simulator registers
 hundreds of users from one address, so they are now
-`rideflow.security.*-per-address-*`. The new `sim` profile raises them and
-turns the mock gateway on. It is never meant for production.
+`rideflow.security.*-per-address-*`. The new `sim` profile raised them and
+turns the mock gateway on. It is never meant for production. (Phase 11: once
+the limits moved to Redis, one huge bucket shared by every simulated user
+queued past its timeout, so `sim` now turns the per-address limits off.)
 
 **Top-ups arriving together no longer fail.** Every top-up also posts to the
 platform's one clearing account. Sixty at once used up the optimistic-lock

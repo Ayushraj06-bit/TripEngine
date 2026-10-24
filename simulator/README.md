@@ -6,7 +6,7 @@ Design: [ADR 0015](../docs/adr/0015-simulator-and-live-map.md).
 
 ## Run it
 
-The backend needs the `sim` profile. It raises the per-address login and
+The backend needs the `sim` profile. It turns off the per-address login and
 registration limits, since every simulated user comes from one address, and it
 turns on the mock gateway, which tops up rider wallets. It also needs a
 bootstrap admin to approve the drivers.
