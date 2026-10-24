@@ -65,6 +65,16 @@ class ProbeSecurityTest {
     mockMvc.perform(get("/actuator/modulith")).andExpect(status().isUnauthorized());
   }
 
+  /** What the README and the one-command demo point a reader at. Off in prod, with springdoc. */
+  @Test
+  void servesSwaggerUiAndTheApiDescriptionWithoutCredentials() throws Exception {
+    mockMvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
+    mockMvc
+        .perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.paths['/api/v1/trips/{tripId}']").exists());
+  }
+
   @Test
   void keepsEverythingElseBehindAuthentication() throws Exception {
     mockMvc.perform(get("/api/v1/anything")).andExpect(status().isUnauthorized());

@@ -2,6 +2,7 @@ package com.rideflow.shared.internal.web;
 
 import org.springframework.boot.actuate.autoconfigure.web.server.ConditionalOnManagementPort;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,6 +64,22 @@ class BaseSecurityConfig {
   @ConditionalOnManagementPort(ManagementPortType.DIFFERENT)
   SecurityFilterChain managementPortSecurityFilterChain(HttpSecurity http) throws Exception {
     return http.securityMatcher(EndpointRequest.toAnyEndpoint())
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+        .csrf(csrf -> csrf.disable())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .build();
+  }
+
+  /**
+   * Swagger UI and the API description it reads, wherever springdoc is on. The prod profile turns
+   * it off (application-prod.yml), and this chain with it.
+   */
+  @Bean
+  @Order(Ordered.HIGHEST_PRECEDENCE + 2)
+  @ConditionalOnProperty(name = "springdoc.api-docs.enabled", matchIfMissing = true)
+  SecurityFilterChain apiDocsSecurityFilterChain(HttpSecurity http) throws Exception {
+    return http.securityMatcher("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
