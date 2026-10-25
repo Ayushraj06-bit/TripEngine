@@ -169,6 +169,10 @@ change an entry or to commit a transaction that does not balance
   - Rate limits now live in Redis, shared by every instance.
   - A concurrent update answers 409, not 500.
   - The scale profile builds again.
+  - A driver can no longer be left ON_TRIP with no trip: `followTrips` locks the driver first.
+  - Instances started together create one bootstrap admin, not two racing for it.
+  - A duplicate phone number reaching the database is no longer written to the log.
+  - Swagger UI is reachable wherever springdoc is on; the image is 184 MiB (backend).
 - **New documents:** the authentication ADR ([0017](adr/0017-authentication.md)), a deployment
   guide, interview notes and resume bullets.
 

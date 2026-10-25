@@ -19,6 +19,9 @@ run as a non-root user, size their heap from the container, stay small and repor
 - **Runtime:** a Java runtime cut by jlink to the modules the application uses, on Alpine.
   - **Which modules:** those jdeps finds, plus those libraries load by name at run time: elliptic
     curves for TLS, the zip file system, DNS, extra charsets.
+  - **Measured:** 184 MiB for the backend and 116 MiB for the simulator, uncompressed (`docker
+    image inspect`, CI run of commit 79b76a1). The backend is larger by its dependencies: JPA,
+    Kafka, Spring Modulith, OpenTelemetry. Each CI run writes both sizes to its summary.
 - **Hardening:** a non-root user; the heap a share of the container's memory limit; an out-of-memory
   error ends the process, so the orchestrator restarts it.
 - **Health:** checked on `/readyz`, so a container is healthy only once it can serve.

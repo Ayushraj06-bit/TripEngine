@@ -46,7 +46,9 @@ Every run below used this setup unless it says otherwise.
   - one trace in ten sampled and exported to Jaeger
   - event listeners on Boot's virtual-thread executor
 - **Changed since:** the review moved event listeners to 32 platform threads
-  (`ListenerExecutorConfig`), after a CI run saw them all stall at once. The
+  (`ListenerExecutorConfig`), after a CI run in which a driver was never freed.
+  That was blamed on the listener pool; Phase 11 found the real cause, a lost
+  update in `DriverService.followTrips`, now fixed with a row lock. The
   runs here were not repeated. A listener's own work is unchanged; what could
   differ is a burst's first offer, if more than 32 listeners were ever waiting
   at once. Phase 11 then moved the login, registration and quote rate limits
@@ -678,3 +680,15 @@ Surge tick over 300 busy cells, 1112 priced, 2,000 drivers: first 94 ms, then 75
 **Reading:** one tick takes under 0.5% of its 30-second interval. The first tick
 includes loading the Lua scripts. The test fails above 3,000 ms (a tenth of a
 tick), which leaves a wide margin for a busier city or a slower Redis.
+
+## Container images
+
+Measured by CI's image job with `docker image inspect` (uncompressed), commit 79b76a1:
+
+| Image | Size |
+|---|---|
+| `rideflow-backend` | 184 MiB |
+| `rideflow-simulator` | 116 MiB |
+
+Both run on Alpine with a Java runtime cut by jlink (ADR 0018). Every CI run writes both sizes to
+its summary, so a dependency that grows an image shows there.

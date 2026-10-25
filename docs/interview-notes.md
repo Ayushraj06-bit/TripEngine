@@ -219,7 +219,7 @@ The proof:
 
 ### 18. What did load testing find?
 
-Five things, each fixed and measured ([performance.md](performance.md)):
+Four things, each fixed and measured ([performance.md](performance.md)), and a fifth that CI found:
 1. **The test itself:** it started drivers kilometres from where the last run had left them, and the
    spoof check rightly refused the jumps.
 2. **A flag storm:** a spoofer was flagged again on every position past the threshold - 111,318 log
@@ -229,8 +229,12 @@ Five things, each fixed and measured ([performance.md](performance.md)):
    182 ms.
 4. **A bigger pool was slower:** 30 connections lost to 10 - more transactions contending inside
    one PostgreSQL.
-5. **A stall on CI:** event listeners on virtual threads all stood still at once on a two-core
-   runner. They now run on platform threads.
+5. **A lost update, found by CI:** a driver was occasionally never freed after a cancellation.
+   `DriverService.followTrips` read the trips, then set the status; handled at once, the assigned
+   and cancelled events interleaved and ON_TRIP committed last. It now locks the driver's row
+   first, and `DriverOnboardingIntegrationTest` holds that row from another connection to prove
+   the wait. I first blamed virtual-thread pinning and moved the listeners to platform threads;
+   the flake came back until the real cause was fixed.
 
 ### 19. How did you measure latency?
 
@@ -309,8 +313,9 @@ rather than a rewrite.
   doubled every limit once two instances ran.
 - **Load testing earlier:** the BCrypt-in-a-transaction pool starvation was in the code from Phase 1
   and surfaced only in Phase 10.
-- **Settle the executor early:** virtual threads for everything looked free, until a CI run showed
-  every listener stalled by pinning on Java 21.
+- **Lock every read-then-write on the first day:** `followTrips` was designed to converge however
+  events arrived, but two at once still lost an update. A CI flake found it, and I misdiagnosed it
+  once before a test held the row and proved it.
 - **Contract tests on the events:** consumers outside this repository rely on their shape;
   `docs/events.md` documents it, but no test pins it.
 - **Known limits:**

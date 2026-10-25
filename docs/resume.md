@@ -23,7 +23,7 @@ in square brackets stands in its place rather than a guess.
 ## Alternatives
 
 - **Packaged the services as hardened container images:** a jlink-trimmed Java runtime, non-root,
-  with health checks, at **[image size - see the CI run's summary]** MB. A one-command Docker
+  with health checks, at 184 MiB for the backend. A one-command Docker
   Compose demo runs two instances behind a load balancer, and a staged CI/CD pipeline publishes the
   images to the GitHub Container Registry.
 - **Hardened the service for failure with timeouts and circuit breakers** (Resilience4j), proven by
