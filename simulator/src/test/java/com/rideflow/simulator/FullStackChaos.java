@@ -246,6 +246,7 @@ class FullStackChaos {
   @Order(3)
   void assignsATripBookedBeforeTheBackendRestarted() throws Exception {
     UUID tripId;
+    long farePaise;
     UserSession rider;
     try (ConfigurableApplicationContext app =
         FullStack.simulator("simulator.drivers=0", "simulator.riders=0")) {
@@ -258,6 +259,7 @@ class FullStackChaos {
               .filter(q -> "CAR".equals(q.get("vehicleType").asString()))
               .findFirst()
               .orElseThrow();
+      farePaise = quote.get("totalPaise").asLong();
       // Nobody is online near the pickup: matching keeps searching.
       tripId =
           UUID.fromString(
@@ -315,8 +317,12 @@ class FullStackChaos {
           });
       api.goOnline(driver);
 
-      // Online at the pickup, reporting every second, until the trip is offered.
+      // Online at the pickup, reporting every second, until the trip is offered. Trips the
+      // earlier tests' riders left searching may be offered first: an offer names no trip, so
+      // anything not at this trip's exact fare is refused and the wait goes on.
       long[] seq = {0};
+      Set<String> refused = new HashSet<>();
+      tools.jackson.databind.JsonNode[] ours = {null};
       await()
           .pollInterval(Duration.ofMillis(1_100))
           .atMost(Duration.ofSeconds(90))
@@ -329,10 +335,19 @@ class FullStackChaos {
                 update.put("seq", ++seq[0]);
                 update.put("clientTime", Instant.now().toString());
                 link.send(SimulatedDriver.LOCATION, update);
-                return !inbox.getOrDefault("/user/queue/offers", List.of()).isEmpty();
+                for (var envelope : inbox.getOrDefault("/user/queue/offers", List.of())) {
+                  var payload = envelope.get("payload");
+                  String offerId = payload.get("offerId").asString();
+                  if (payload.get("estimatedFarePaise").asLong() == farePaise) {
+                    ours[0] = payload;
+                  } else if (refused.add(offerId)) {
+                    api.rejectOffer(driver, UUID.fromString(offerId));
+                  }
+                }
+                return ours[0] != null;
               });
 
-      var offer = inbox.get("/user/queue/offers").getFirst().get("payload");
+      var offer = ours[0];
       var accepted = api.acceptOffer(driver, UUID.fromString(offer.get("offerId").asString()));
       assertThat(accepted.get("tripId").asString()).isEqualTo(tripId.toString());
       assertThat(api.trip(rider, tripId).get("status").asString()).isEqualTo("DRIVER_ASSIGNED");
