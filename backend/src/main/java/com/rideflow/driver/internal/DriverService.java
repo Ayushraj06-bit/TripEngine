@@ -167,10 +167,19 @@ public class DriverService implements DriverRegistration, DriverFlagging {
    * DriverAssigned} handled after its trip had already been handed back would leave the driver
    * ON_TRIP with no trip - unable to go offline, never offered work again. Reading the state makes
    * every call converge on the right answer, however many arrive and in whatever order.
+   *
+   * <p>The driver's row is locked before the trips are read. Unlocked, two calls at once lost an
+   * update: one saw the trip still active and set ON_TRIP; the other, after the cancellation, saw
+   * no trip but still the old AVAILABLE, changed nothing, and the ON_TRIP committed after it - a
+   * driver held on a trip that no longer existed (found in CI). Locked, the second reads the trips
+   * only once the first has committed.
    */
   @Transactional
   public void followTrips(UUID driverId) {
-    Driver driver = require(driverId);
+    Driver driver =
+        drivers
+            .findForUpdate(driverId)
+            .orElseThrow(() -> BusinessException.notFound("Driver profile not found"));
     Instant now = clock.instant();
     DriverStatus previous = driver.status();
     boolean changed =

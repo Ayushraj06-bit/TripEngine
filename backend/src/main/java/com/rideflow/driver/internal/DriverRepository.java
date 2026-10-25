@@ -1,11 +1,13 @@
 package com.rideflow.driver.internal;
 
 import com.rideflow.driver.ApprovalStatus;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
@@ -24,6 +26,11 @@ interface DriverRepository extends JpaRepository<Driver, UUID> {
       ApprovalStatus approvalStatus, UUID cursor, Limit limit);
 
   Optional<Driver> findByUserId(UUID userId);
+
+  /** Locked until the transaction ends: two changes to one driver's status take turns. */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select d from Driver d where d.userId = :driverId")
+  Optional<Driver> findForUpdate(UUID driverId);
 
   @Modifying
   @Query("update Driver d set d.offersReceived = d.offersReceived + 1 where d.userId = :driverId")

@@ -11,8 +11,15 @@ import com.rideflow.identity.Role;
 import com.rideflow.identity.internal.AuthService;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.VehicleType;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -397,6 +404,35 @@ class DriverOnboardingIntegrationTest {
       jdbc.update("UPDATE drivers SET status = 'ON_TRIP' WHERE user_id = ?", driverId);
 
       drivers.followTrips(driverId);
+
+      assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.AVAILABLE);
+    }
+
+    /**
+     * Another change to the same driver, not yet committed - here, a DriverAssigned handled a
+     * moment earlier putting them ON_TRIP. Unlocked, this call read the old AVAILABLE, changed
+     * nothing, and the ON_TRIP committed after it: a driver held on a trip that no longer existed.
+     */
+    @Test
+    void waitsForAConcurrentChangeToTheSameDriverBeforeReadingTheirTrips() throws Exception {
+      onlineWithACar();
+      try (Connection other = jdbc.getDataSource().getConnection();
+          ExecutorService listener = Executors.newSingleThreadExecutor()) {
+        other.setAutoCommit(false);
+        try (PreparedStatement onTrip =
+            other.prepareStatement("UPDATE drivers SET status = 'ON_TRIP' WHERE user_id = ?")) {
+          onTrip.setObject(1, driverId);
+          onTrip.executeUpdate();
+        }
+
+        Future<?> following = listener.submit(() -> drivers.followTrips(driverId));
+        // Under PostgreSQL's 2 s lock_timeout: it waits rather than acting on the old row.
+        assertThatExceptionOfType(TimeoutException.class)
+            .isThrownBy(() -> following.get(1, TimeUnit.SECONDS));
+
+        other.commit();
+        following.get(10, TimeUnit.SECONDS);
+      }
 
       assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.AVAILABLE);
     }
