@@ -117,12 +117,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
       DataIntegrityViolationException exception) {
-    log.warn("Constraint violation translated to 409", exception);
+    // The constraint's name, never the exception: PostgreSQL's message quotes the clashing
+    // value, which for users_phone_unique is a phone number (PROJECT_SPEC section 11).
+    log.warn("Constraint violation translated to 409: {}", constraintName(exception));
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.CONFLICT, "That record already exists or conflicts with an existing one");
     problem.setProperty(CODE_PROPERTY, CONFLICT);
     return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+  }
+
+  private static String constraintName(DataIntegrityViolationException exception) {
+    return exception.getCause() instanceof org.hibernate.exception.ConstraintViolationException v
+            && v.getConstraintName() != null
+        ? v.getConstraintName()
+        : exception.getMostSpecificCause().getClass().getSimpleName();
   }
 
   /**

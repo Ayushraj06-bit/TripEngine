@@ -131,6 +131,11 @@ management:
         enabled: false
 
 logging:
+  level:
+    # Hibernate logs each SQL error it sees, and PostgreSQL's quotes the value a unique
+    # constraint refused - a phone number for users_phone_unique (PROJECT_SPEC section 11). The
+    # exception still reaches the caller and the error handler, which logs the constraint's name.
+    org.hibernate.orm.jdbc.error: error
   structured:
     format:
       # ECS JSON on the console, with trace and span ids attached by Micrometer.

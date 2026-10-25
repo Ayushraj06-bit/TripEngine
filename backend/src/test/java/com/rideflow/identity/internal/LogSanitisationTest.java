@@ -2,6 +2,7 @@ package com.rideflow.identity.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -10,7 +11,10 @@ import ch.qos.logback.core.read.ListAppender;
 import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
 import com.rideflow.shared.BusinessException;
+import com.rideflow.shared.internal.web.GlobalExceptionHandler;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -19,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -45,6 +50,8 @@ class LogSanitisationTest {
   @Autowired private AuthService auth;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private PhoneRateLimiter phoneRateLimiter;
+  @Autowired private UserRepository users;
+  @Autowired private GlobalExceptionHandler errors;
 
   private Logger rootLogger;
   private ListAppender<ILoggingEvent> captured;
@@ -103,6 +110,33 @@ class LogSanitisationTest {
     assertThat(output).doesNotContain(PHONE).doesNotContain("9876543210");
     // The masked form is fine, and is what makes the log useful at all.
     assertThat(output).contains("****3210");
+  }
+
+  /**
+   * A duplicate number that reaches the database, as two registrations at once can: PostgreSQL's
+   * error quotes the value that clashed, and both Hibernate and the 409 handler logged it whole.
+   */
+  @Test
+  void neverLogsThePhoneNumberAUniqueConstraintQuotes() {
+    auth.register(PHONE, "Asha", PASSWORD, Role.RIDER);
+    // Hibernate logs outside com.rideflow: listen to everything for this one.
+    Logger everything = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+    everything.addAppender(captured);
+    try {
+      DataIntegrityViolationException duplicate =
+          catchThrowableOfType(
+              DataIntegrityViolationException.class,
+              () ->
+                  users.saveAndFlush(
+                      new User(UUID.randomUUID(), PHONE, "Asha", "x", Role.RIDER, Instant.now())));
+      errors.handleDataIntegrityViolation(duplicate);
+    } finally {
+      everything.detachAppender(captured);
+    }
+
+    String output = allLogOutput();
+    assertThat(output).contains("users_phone_unique");
+    assertThat(output).doesNotContain(PHONE).doesNotContain("9876543210");
   }
 
   @Test
