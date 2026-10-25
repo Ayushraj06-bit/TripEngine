@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Runs only when no admin exists at all, so it cannot resurrect a deliberately removed account
  * or silently reset a password on every restart.
+ *
+ * <p>Every instance starts it, so instances started together take turns on a PostgreSQL advisory
+ * lock: without it, both found no admin, both inserted one, and the loser failed to start on the
+ * unique phone number (the one-command demo in CI).
  */
 @Component
 class AdminBootstrap {
@@ -29,6 +34,7 @@ class AdminBootstrap {
   private static final int MIN_PASSWORD_LENGTH = 12;
 
   private final UserRepository users;
+  private final JdbcTemplate jdbc;
   private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
   private final IdGenerator ids;
   private final Clock clock;
@@ -38,11 +44,13 @@ class AdminBootstrap {
 
   AdminBootstrap(
       UserRepository users,
+      JdbcTemplate jdbc,
       org.springframework.security.crypto.password.PasswordEncoder passwordEncoder,
       IdGenerator ids,
       Clock clock,
       IdentityProperties properties) {
     this.users = users;
+    this.jdbc = jdbc;
     this.passwordEncoder = passwordEncoder;
     this.ids = ids;
     this.clock = clock;
@@ -58,6 +66,8 @@ class AdminBootstrap {
   @EventListener(ApplicationReadyEvent.class)
   @Transactional
   void createFirstAdminIfNoneExists() {
+    // Released when this transaction ends; the next instance then finds the admin.
+    jdbc.query("SELECT pg_advisory_xact_lock(hashtext('rideflow:admin-bootstrap'))", row -> {});
     if (users.existsByRole(Role.ADMIN)) {
       return;
     }
