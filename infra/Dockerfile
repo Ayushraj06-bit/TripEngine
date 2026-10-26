@@ -33,7 +33,7 @@ RUN jlink --add-modules "$(jdeps --ignore-missing-deps -q -R --multi-release 21 
         extracted/application/BOOT-INF/classes),jdk.crypto.ec,jdk.zipfs,jdk.naming.dns,jdk.charsets" \
       --strip-debug --no-man-pages --no-header-files --compress=zip-6 --output /jre
 
-FROM alpine:3.22
+FROM alpine:3.24
 ARG MODULE
 # The backend's public port; the simulator's is 8081. The backend's actuator, on 8090, is for the
 # internal network only and never published.
