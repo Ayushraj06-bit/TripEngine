@@ -7,7 +7,7 @@
 
 ARG MODULE=backend
 
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM eclipse-temurin:25-jdk-alpine AS build
 ARG MODULE
 WORKDIR /workspace
 
