@@ -1,0 +1,2281 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptedOffer": {
+        "properties": {
+          "offerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tripId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AccountMismatch": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cachedBalancePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entriesBalancePaise": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BookingRequest": {
+        "properties": {
+          "paymentMethod": {
+            "enum": [
+              "WALLET",
+              "CASH"
+            ],
+            "type": "string"
+          },
+          "quoteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "vehicleType": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "paymentMethod",
+          "quoteId",
+          "vehicleType"
+        ],
+        "type": "object"
+      },
+      "BreakdownView": {
+        "properties": {
+          "basePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "distancePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "minimumFareTopUpPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "roundingPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "surgePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timePaise": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CancelRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "Cell": {
+        "properties": {
+          "cell": {
+            "type": "string"
+          },
+          "centerLat": {
+            "format": "double",
+            "type": "number"
+          },
+          "centerLng": {
+            "format": "double",
+            "type": "number"
+          },
+          "demand": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxLat": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxLng": {
+            "format": "double",
+            "type": "number"
+          },
+          "minLat": {
+            "format": "double",
+            "type": "number"
+          },
+          "minLng": {
+            "format": "double",
+            "type": "number"
+          },
+          "multiplier": {
+            "type": "number"
+          },
+          "supply": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CellOverride": {
+        "properties": {
+          "cell": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "multiplier": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "DriverProfile": {
+        "properties": {
+          "approvalStatus": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "averageRating": {
+            "format": "double",
+            "type": "number"
+          },
+          "driverId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ratingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rejectionReason": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OFFLINE",
+              "AVAILABLE",
+              "ON_TRIP"
+            ],
+            "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleView"
+          }
+        },
+        "type": "object"
+      },
+      "FlaggedTrip": {
+        "properties": {
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "distanceMeters": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driverId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "durationSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finalFarePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "flaggedReason": {
+            "type": "string"
+          },
+          "quotedFarePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "riderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REQUESTED",
+              "DRIVER_ASSIGNED",
+              "DRIVER_ARRIVED",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED",
+              "NO_DRIVER_FOUND"
+            ],
+            "type": "string"
+          },
+          "tripId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Heatmap": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/Cell"
+            },
+            "type": "array"
+          },
+          "killSwitchOn": {
+            "type": "boolean"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/CellOverride"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "KillSwitch": {
+        "properties": {
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "KillSwitchRequest": {
+        "properties": {
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "phone": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "phone"
+        ],
+        "type": "object"
+      },
+      "Movement": {
+        "properties": {
+          "amountPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "type": "string"
+          },
+          "entryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "referenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "transactionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "TOPUP",
+              "TRIP_CHARGE",
+              "CASH_COMMISSION",
+              "CANCELLATION_FEE",
+              "REFUND"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NearbyDriver": {
+        "properties": {
+          "lat": {
+            "format": "double",
+            "type": "number"
+          },
+          "lng": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "OfferView": {
+        "properties": {
+          "estimatedFarePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "offerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "vehicleType": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OverrideRequest": {
+        "properties": {
+          "cell": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "multiplier": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "cell",
+          "expiresAt",
+          "multiplier"
+        ],
+        "type": "object"
+      },
+      "Page": {
+        "properties": {
+          "nextCursor": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/FlaggedTrip"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Payment": {
+        "properties": {
+          "delayMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "gatewayRef": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Point": {
+        "properties": {
+          "lat": {
+            "format": "double",
+            "type": "number"
+          },
+          "lng": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "QuoteRequest": {
+        "properties": {
+          "drop": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Point"
+          }
+        },
+        "required": [
+          "drop",
+          "pickup"
+        ],
+        "type": "object"
+      },
+      "QuoteView": {
+        "properties": {
+          "breakdown": {
+            "$ref": "#/components/schemas/BreakdownView"
+          },
+          "distanceMeters": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "durationSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "quoteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rateCardId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "surgeMultiplier": {
+            "type": "number"
+          },
+          "totalPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "vehicleType": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "QuotesResponse": {
+        "properties": {
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteView"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "RatingRequest": {
+        "properties": {
+          "comment": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "stars": {
+            "format": "int32",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stars"
+        ],
+        "type": "object"
+      },
+      "RatingView": {
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "raterRole": {
+            "enum": [
+              "RIDER",
+              "DRIVER",
+              "SYSTEM"
+            ],
+            "type": "string"
+          },
+          "ratingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stars": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tripId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refreshToken": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object"
+      },
+      "Refund": {
+        "properties": {
+          "amountPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "refundTransactionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "refundedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refundedTransactionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 72,
+            "minLength": 8,
+            "type": "string"
+          },
+          "phone": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "password",
+          "phone"
+        ],
+        "type": "object"
+      },
+      "RejectRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RejectedOffer": {
+        "properties": {
+          "offerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Report": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "consistent": {
+            "type": "boolean"
+          },
+          "mismatchedAccountCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mismatchedAccounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountMismatch"
+            },
+            "type": "array"
+          },
+          "totalBalancePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unbalancedTransactionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unbalancedTransactions": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "StartRequest": {
+        "properties": {
+          "otp": {
+            "pattern": "\\d{4}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "otp"
+        ],
+        "type": "object"
+      },
+      "StatusView": {
+        "properties": {
+          "status": {
+            "enum": [
+              "OFFLINE",
+              "AVAILABLE",
+              "ON_TRIP"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Tokens": {
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TopupRequest": {
+        "properties": {
+          "amountPaise": {
+            "exclusiveMinimum": 0,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amountPaise"
+        ],
+        "type": "object"
+      },
+      "TopupView": {
+        "properties": {
+          "amountPaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "paymentUrl": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "topupId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TripPage": {
+        "properties": {
+          "nextCursor": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/TripView"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TripView": {
+        "properties": {
+          "arrivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "assignedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cancelReason": {
+            "type": "string"
+          },
+          "cancellationFeePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cancelledBy": {
+            "enum": [
+              "RIDER",
+              "DRIVER",
+              "SYSTEM"
+            ],
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "distanceMeters": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driverId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "drop": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "durationSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finalFarePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "noDriverFoundAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "otp": {
+            "type": "string"
+          },
+          "paymentMethod": {
+            "enum": [
+              "WALLET",
+              "CASH"
+            ],
+            "type": "string"
+          },
+          "paymentStatus": {
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "PENDING_SETTLEMENT",
+              "REFUNDED"
+            ],
+            "type": "string"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "quotedFarePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "riderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REQUESTED",
+              "DRIVER_ASSIGNED",
+              "DRIVER_ARRIVED",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED",
+              "NO_DRIVER_FOUND"
+            ],
+            "type": "string"
+          },
+          "surgeMultiplier": {
+            "type": "number"
+          },
+          "vehicleType": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UserProfile": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "registeredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "RIDER",
+              "DRIVER",
+              "ADMIN"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VehicleRequest": {
+        "properties": {
+          "colour": {
+            "maxLength": 30,
+            "minLength": 0,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 0,
+            "type": "string"
+          },
+          "plateNumber": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "colour",
+          "model",
+          "plateNumber",
+          "type"
+        ],
+        "type": "object"
+      },
+      "VehicleView": {
+        "properties": {
+          "colour": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "plateNumber": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "BIKE",
+              "AUTO",
+              "CAR"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Wallet": {
+        "properties": {
+          "account": {
+            "enum": [
+              "RIDER_WALLET",
+              "DRIVER_EARNINGS",
+              "PLATFORM_REVENUE",
+              "PLATFORM_CLEARING"
+            ],
+            "type": "string"
+          },
+          "balancePaise": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "movements": {
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/admin/drivers": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "approvalStatus",
+            "required": false,
+            "schema": {
+              "default": "PENDING",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-driver-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/drivers/{driverId}/approve": {
+      "post": {
+        "operationId": "approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driverId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admin-driver-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/drivers/{driverId}/reject": {
+      "post": {
+        "operationId": "reject_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driverId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admin-driver-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/ledger/reconcile": {
+      "get": {
+        "operationId": "reconcile",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-payment-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/payments/{transactionId}/refund": {
+      "post": {
+        "operationId": "refund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transactionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refund"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-payment-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/surge": {
+      "get": {
+        "operationId": "heatmap",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Heatmap"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-surge-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/surge/kill-switch": {
+      "post": {
+        "operationId": "killSwitch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KillSwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitch"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-surge-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/surge/overrides": {
+      "post": {
+        "operationId": "setOverride",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CellOverride"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-surge-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/surge/overrides/{cell}": {
+      "delete": {
+        "operationId": "removeOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cell",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admin-surge-controller"
+        ]
+      }
+    },
+    "/api/v1/admin/trips/flagged": {
+      "get": {
+        "operationId": "flagged",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-trip-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/register/driver": {
+      "post": {
+        "operationId": "registerDriver",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/register/rider": {
+      "post": {
+        "operationId": "registerRider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tokens"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/drivers/me": {
+      "get": {
+        "operationId": "me_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "driver-controller"
+        ]
+      }
+    },
+    "/api/v1/drivers/me/offline": {
+      "post": {
+        "operationId": "goOffline",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "driver-controller"
+        ]
+      }
+    },
+    "/api/v1/drivers/me/online": {
+      "post": {
+        "operationId": "goOnline",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "driver-controller"
+        ]
+      }
+    },
+    "/api/v1/drivers/me/vehicle": {
+      "put": {
+        "operationId": "registerVehicle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "driver-controller"
+        ]
+      }
+    },
+    "/api/v1/drivers/nearby": {
+      "get": {
+        "operationId": "nearby",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "format": "double",
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "required": true,
+            "schema": {
+              "format": "double",
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "BIKE",
+                "AUTO",
+                "CAR"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NearbyDriver"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "nearby-drivers-controller"
+        ]
+      }
+    },
+    "/api/v1/fares/quotes": {
+      "post": {
+        "operationId": "quote",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "quote-controller"
+        ]
+      }
+    },
+    "/api/v1/offers/current": {
+      "get": {
+        "operationId": "current",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "offer-controller"
+        ]
+      }
+    },
+    "/api/v1/offers/{offerId}/accept": {
+      "post": {
+        "operationId": "accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedOffer"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "offer-controller"
+        ]
+      }
+    },
+    "/api/v1/offers/{offerId}/reject": {
+      "post": {
+        "operationId": "reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectedOffer"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "offer-controller"
+        ]
+      }
+    },
+    "/api/v1/trips": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      },
+      "post": {
+        "operationId": "book",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/active": {
+      "get": {
+        "operationId": "active",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}/arrive": {
+      "post": {
+        "operationId": "arrive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}/cancel": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}/complete": {
+      "post": {
+        "operationId": "complete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}/rating": {
+      "post": {
+        "operationId": "rate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "rating-controller"
+        ]
+      }
+    },
+    "/api/v1/trips/{tripId}/start": {
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tripId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "trip-controller"
+        ]
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "user-controller"
+        ]
+      }
+    },
+    "/api/v1/wallet": {
+      "get": {
+        "operationId": "wallet",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Wallet"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "wallet-controller"
+        ]
+      }
+    },
+    "/api/v1/wallet/topups": {
+      "post": {
+        "operationId": "topUp",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopupView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "wallet-controller"
+        ]
+      }
+    },
+    "/api/v1/webhooks/payment-gateway": {
+      "post": {
+        "operationId": "receive",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Gateway-Timestamp",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Gateway-Signature",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "payment-webhook-controller"
+        ]
+      }
+    },
+    "/mock-gateway/payments/{gatewayRef}/pay": {
+      "post": {
+        "operationId": "pay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gatewayRef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "enum": [
+                "SUCCEEDED",
+                "FAILED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "delayMs",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "maximum": 60000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            },
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "mock-gateway-controller"
+        ]
+      }
+    }
+  }
+}
