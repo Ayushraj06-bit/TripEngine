@@ -11,6 +11,7 @@ import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.identity.Role;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.MutableClock;
+import jakarta.servlet.http.Cookie;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Clock;
@@ -45,7 +46,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
@@ -640,6 +643,123 @@ class AuthIntegrationTest {
     void isIdempotentForAnUnknownToken() {
       auth.logout("never-issued");
       auth.logout("never-issued");
+    }
+  }
+
+  /** A browser's refresh token travels as an httpOnly cookie, never in a body script can read. */
+  @Nested
+  class RefreshCookies {
+
+    private MockHttpServletRequestBuilder webLogin() {
+      return post("/api/v1/auth/login")
+          .header("X-RideFlow-Client", "web")
+          .contentType(MediaType.APPLICATION_JSON)
+          .content(
+              """
+              {"phone":"%s","password":"%s"}"""
+                  .formatted(PHONE, PASSWORD));
+    }
+
+    private String setCookie(MvcResult result) {
+      String header = result.getResponse().getHeader("Set-Cookie");
+      assertThat(header).as("Set-Cookie").isNotNull();
+      return header;
+    }
+
+    private String cookieValue(MvcResult result) {
+      String header = setCookie(result);
+      return header.substring("rf_refresh=".length(), header.indexOf(';'));
+    }
+
+    @Test
+    void givesABrowserItsRefreshTokenAsAnHttpOnlyCookieAndNotInTheBody() throws Exception {
+      registerRider();
+
+      MvcResult result =
+          mockMvc
+              .perform(webLogin())
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.accessToken").isNotEmpty())
+              .andExpect(jsonPath("$.refreshToken").doesNotExist())
+              .andReturn();
+
+      assertThat(setCookie(result))
+          .startsWith("rf_refresh=")
+          .contains("HttpOnly", "SameSite=Strict", "Path=/api/v1/auth", "Max-Age=604800")
+          // Plain HTTP here; over HTTPS it is Secure (below).
+          .doesNotContain("Secure");
+      assertThat(cookieValue(result)).isNotBlank();
+    }
+
+    @Test
+    void marksTheCookieSecureWhenTheRequestCameOverHttps() throws Exception {
+      registerRider();
+
+      MvcResult result = mockMvc.perform(webLogin().secure(true)).andReturn();
+
+      assertThat(setCookie(result)).contains("Secure");
+    }
+
+    @Test
+    void renewsTheSessionFromTheCookieAloneAndRotatesIt() throws Exception {
+      registerRider();
+      String first = cookieValue(mockMvc.perform(webLogin()).andReturn());
+
+      MvcResult renewed =
+          mockMvc
+              .perform(
+                  post("/api/v1/auth/refresh")
+                      .header("X-RideFlow-Client", "web")
+                      .cookie(new Cookie("rf_refresh", first)))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.accessToken").isNotEmpty())
+              .andExpect(jsonPath("$.refreshToken").doesNotExist())
+              .andReturn();
+
+      assertThat(cookieValue(renewed)).isNotBlank().isNotEqualTo(first);
+    }
+
+    @Test
+    void endsTheSessionAndClearsTheCookieOnSignOut() throws Exception {
+      registerRider();
+      String token = cookieValue(mockMvc.perform(webLogin()).andReturn());
+
+      MvcResult signedOut =
+          mockMvc
+              .perform(post("/api/v1/auth/logout").cookie(new Cookie("rf_refresh", token)))
+              .andExpect(status().isNoContent())
+              .andReturn();
+      assertThat(setCookie(signedOut)).startsWith("rf_refresh=;").contains("Max-Age=0");
+
+      mockMvc
+          .perform(post("/api/v1/auth/refresh").cookie(new Cookie("rf_refresh", token)))
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
+    }
+
+    @Test
+    void refusesARenewalWithNoTokenAtAll() throws Exception {
+      mockMvc
+          .perform(post("/api/v1/auth/refresh").header("X-RideFlow-Client", "web"))
+          .andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
+    }
+
+    @Test
+    void keepsGivingEveryOtherClientItsTokenInTheBody() throws Exception {
+      registerRider();
+
+      mockMvc
+          .perform(
+              post("/api/v1/auth/login")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      """
+                      {"phone":"%s","password":"%s"}"""
+                          .formatted(PHONE, PASSWORD)))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+          .andExpect(header().doesNotExist("Set-Cookie"));
     }
   }
 

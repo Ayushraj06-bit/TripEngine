@@ -1358,6 +1358,16 @@
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-RideFlow-Client",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1388,6 +1398,16 @@
     "/api/v1/auth/logout": {
       "post": {
         "operationId": "logout",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "rf_refresh",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1395,8 +1415,7 @@
                 "$ref": "#/components/schemas/RefreshRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "204": {
@@ -1411,6 +1430,24 @@
     "/api/v1/auth/refresh": {
       "post": {
         "operationId": "refresh",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "rf_refresh",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-RideFlow-Client",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1418,8 +1455,7 @@
                 "$ref": "#/components/schemas/RefreshRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1441,6 +1477,16 @@
     "/api/v1/auth/register/driver": {
       "post": {
         "operationId": "registerDriver",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-RideFlow-Client",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1471,6 +1517,16 @@
     "/api/v1/auth/register/rider": {
       "post": {
         "operationId": "registerRider",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-RideFlow-Client",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

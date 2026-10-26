@@ -1203,7 +1203,9 @@ export interface operations {
     login: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-RideFlow-Client"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1229,9 +1231,11 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                rf_refresh?: string;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["RefreshRequest"];
             };
@@ -1249,11 +1253,15 @@ export interface operations {
     refresh: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-RideFlow-Client"?: string;
+            };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                rf_refresh?: string;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["RefreshRequest"];
             };
@@ -1273,7 +1281,9 @@ export interface operations {
     registerDriver: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-RideFlow-Client"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1297,7 +1307,9 @@ export interface operations {
     registerRider: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-RideFlow-Client"?: string;
+            };
             path?: never;
             cookie?: never;
         };
