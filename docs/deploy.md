@@ -138,7 +138,7 @@ docker compose -f infra/deploy/compose.yml up -d --wait
 - PostgreSQL, Redis and Kafka assumed managed, outside the cluster
 
 **Run every night on a real cluster** (nightly job `kubernetes`): kind, with the stores inside it
-([`infra/k8s/kind/`](../infra/k8s/kind/)) and the manifests otherwise unchanged. The job checks that
+([`infra/k8s-kind/`](../infra/k8s-kind/)) and the manifests otherwise unchanged. The job checks that
 both replicas become ready, that they run as uid 10001 and cannot write their filesystem, that the
 autoscaler reads CPU through metrics-server, that the first admin signs in through the Service, and
 that a rolling restart drops none of the requests sent during it. Not exercised: scaling under real

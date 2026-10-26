@@ -46,7 +46,7 @@ jobs:
           retention-days: 7
 
   # infra/k8s/backend.yaml on a real, if throwaway, cluster: kind, with the stores inside it
-  # (infra/k8s/kind) and the image built here.
+  # (infra/k8s-kind) and the image built here.
   kubernetes:
     name: Kubernetes (kind)
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
 
       - name: Deploy
         run: |
-          kubectl apply -k infra/k8s/kind
+          kubectl apply -k infra/k8s-kind
           kubectl wait --for=condition=Available deployment/postgres deployment/redis deployment/kafka \
             --timeout=240s
           kubectl rollout status deployment/rideflow-backend --timeout=420s
