@@ -9,7 +9,8 @@
 #
 # The secrets the two instances must share - the token signing key, the webhook secret - and the
 # admin's password are generated on first start into the "secrets" volume. They are never in the
-# repository and never leave the machine; `down -v` discards them with the data.
+# repository and never leave the machine; `down -v` discards them with the data. The demo's
+# PostgreSQL, Redis and Kafka data are its own too, so they always match those secrets.
 #
 # The instances are also published on 8091 and 8092, to inspect them one at a time.
 name: rideflow
@@ -164,5 +165,21 @@ services:
         ==================================================================================
         EOF
 
+  # The demo keeps its own data, apart from the development stack's. An admin left in the
+  # development database with another password would lock the demo out of the login it generated,
+  # and the simulator out of approving its drivers. Compose replaces a mount by its path.
+  postgres:
+    volumes:
+      - demo-postgres-data:/var/lib/postgresql/data
+  redis:
+    volumes:
+      - demo-redis-data:/data
+  kafka:
+    volumes:
+      - demo-kafka-data:/var/lib/kafka/data
+
 volumes:
   secrets:
+  demo-postgres-data:
+  demo-redis-data:
+  demo-kafka-data:

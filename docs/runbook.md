@@ -93,6 +93,9 @@ volume. The applications read them as a Spring config tree (`SPRING_CONFIG_IMPOR
 - **Your own values:** environment variables (`RIDEFLOW_RSA_PRIVATE_KEY`, ...) take precedence over
   the files.
 - **Start from nothing:** `down -v` discards the secrets with the data.
+- **Its own data:** the demo's PostgreSQL, Redis and Kafka use `demo-*` volumes, not the
+  development stack's. An admin already in the development database, with another password, would
+  otherwise lock the demo out of the login it generated, and the simulator out of approving drivers.
 
 The backends run the `sim` profile: the simulator signs everyone up and in from one address, and
 tops wallets up through the mock gateway. Never in production (`docs/deploy.md`).
