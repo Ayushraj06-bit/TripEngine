@@ -114,12 +114,13 @@ jobs:
           curl -fsS http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
             -d "{\"phone\":\"+919999900001\",\"password\":\"$password\"}" | grep -q accessToken
 
-      # Every request from inside the cluster, five a second, while each pod is replaced in turn:
-      # maxUnavailable 0, the 5 s preStop pause and graceful shutdown should drop none.
+      # A real request from inside the cluster, five a second, while each pod is replaced in turn:
+      # maxUnavailable 0, the 5 s preStop pause and graceful shutdown should drop none. Not
+      # /readyz, which a stopping pod rightly answers 503 so that traffic leaves it.
       - name: A rolling restart drops no request
         run: |
           kubectl run poller --image=curlimages/curl:8.15.0 --restart=Never --command -- sh -c \
-            'while true; do curl -s -o /dev/null -m 2 -w "%{http_code}\n" http://rideflow-backend/readyz; sleep 0.2; done'
+            'while true; do curl -s -o /dev/null -m 2 -w "%{http_code}\n" http://rideflow-backend/admin/live-map.html; sleep 0.2; done'
           kubectl wait --for=condition=Ready pod/poller --timeout=60s
           kubectl rollout restart deployment/rideflow-backend
           kubectl rollout status deployment/rideflow-backend --timeout=420s
@@ -200,11 +201,12 @@ jobs:
           url='http://localhost:9090/api/v1/query?query=sum(up%7Bjob%3D%22rideflow-backend-scale%22%7D)'
           timeout 120 sh -c "until $COMPOSE exec -T prometheus wget -qO- '$url' | grep -q '\"2\"'; do sleep 5; done"
 
-      # The guide's upgrade: one instance at a time, each back on /readyz before the next.
+      # The guide's upgrade: one instance at a time, each back on /readyz before the next. The
+      # requests counted are real ones, not /readyz, which a stopping instance rightly answers 503.
       - name: An upgrade drops no request
         run: |
           (while true; do
-             curl -s -o /dev/null -m 3 -w '%{http_code}\n' --cacert root.crt https://localhost/readyz
+             curl -s -o /dev/null -m 3 -w '%{http_code}\n' --cacert root.crt https://localhost/admin/live-map.html
              sleep 0.2
            done) > codes.txt &
           poller=$!

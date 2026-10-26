@@ -23,3 +23,19 @@ patches:
         RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
         RIDEFLOW_JWT_ISSUER: http://rideflow-backend
         RIDEFLOW_ADMIN_PHONE: "+919999900001"
+  # A CI runner for a private repository has two cores, and kind's own components take half of
+  # one: three replicas at the production request (two, and one more during a rolling restart)
+  # would not be scheduled. The limit and everything else are unchanged.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: rideflow-backend
+      spec:
+        template:
+          spec:
+            containers:
+              - name: backend
+                resources:
+                  requests:
+                    cpu: 200m
