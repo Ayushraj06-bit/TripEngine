@@ -1,0 +1,12 @@
+# HTTPS for RIDEFLOW_DOMAIN (infra/deploy/.env), with a certificate Caddy obtains and renews from
+# Let's Encrypt; plain HTTP is redirected. For "localhost", as in CI, Caddy uses its own local CA.
+{$RIDEFLOW_DOMAIN} {
+	reverse_proxy backend-1:8080 backend-2:8080 {
+		lb_policy round_robin
+		# An instance stopping for an upgrade is noticed within two seconds...
+		health_uri /readyz
+		health_interval 2s
+		# ...and a request that reached it in the meantime is retried on the other.
+		lb_try_duration 5s
+	}
+}
