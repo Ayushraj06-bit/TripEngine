@@ -38,7 +38,7 @@ if (mode === 'fetch') {
   const [live, committed] = await Promise.all([current(), readFile(snapshot, 'utf8')]);
   if (live !== committed) {
     console.error(
-      'The backend API differs from web/src/api/openapi.json. Run `npm run api:update` in web/ and commit the result.',
+      'The backend API differs from Frontend/src/api/openapi.json. Run `npm run api:update` in Frontend/ and commit the result.',
     );
     process.exit(1);
   }

@@ -81,13 +81,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  web:
-    name: web app
+  frontend:
+    name: frontend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: web
+        working-directory: Frontend
 
     steps:
       - uses: actions/checkout@v5
@@ -96,7 +96,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: Frontend/package-lock.json
 
       - name: Install
         run: npm ci
@@ -217,10 +217,10 @@ jobs:
           curl -fsS -o /dev/null http://localhost:9090/-/ready
 
       # The simulator's riders book through the load balancer within a couple of minutes.
-      # The web client's types are generated from a committed copy of this API (web/src/api).
+      # The web client's types are generated from a committed copy of this API (Frontend/src/api).
       # A backend change that alters the API must update that copy in the same commit.
       - name: The API matches the web client's snapshot
-        run: node web/scripts/openapi.mjs check
+        run: node Frontend/scripts/openapi.mjs check
 
       - name: Trips are being booked
         run: |

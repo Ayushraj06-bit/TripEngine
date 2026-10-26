@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Tests run from web/.
+// Tests run from Frontend/.
 const WEB = process.cwd();
 const SRC = join(WEB, 'src');
 const THEME = join(SRC, 'styles', 'theme.css');

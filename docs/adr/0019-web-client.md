@@ -5,7 +5,7 @@
 
 ## Context
 
-Riders and drivers get a web app in `web/`, beside the backend and the simulator, built in stages
+Riders and drivers get a web app in `Frontend/`, beside the backend and the simulator, built in stages
 against the backend as it stands. It must not drift from the API, must look like one product
 rather than a pile of defaults, and must stay correct when the network, the socket or the session
 misbehaves.
@@ -26,7 +26,7 @@ Leaflet with OpenStreetMap tiles, and Vitest, Testing Library and MSW for tests.
 
 ### The client cannot drift from the API
 
-- **A committed snapshot** of the backend's OpenAPI document (`web/src/api/openapi.json`), with the
+- **A committed snapshot** of the backend's OpenAPI document (`Frontend/src/api/openapi.json`), with the
   types generated from it (`schema.d.ts`). `npm run api:update` refreshes both.
 - **Two checks keep them honest:** CI regenerates the types and fails on any difference, and CI's
   image job compares the snapshot with the running backend. An API change has to update the
@@ -36,7 +36,7 @@ Leaflet with OpenStreetMap tiles, and Vitest, Testing Library and MSW for tests.
 
 ### One way to talk to the backend
 
-`web/src/api/client.ts` attaches the access token and turns every failure into an `ApiError`
+`Frontend/src/api/client.ts` attaches the access token and turns every failure into an `ApiError`
 carrying the backend's `code`.
 - **On a 401 it renews the session once and retries once.** Requests that fail during a renewal
   wait for that same renewal. Refresh tokens are rotated (ADR 0017), so a second, concurrent
@@ -48,7 +48,7 @@ carrying the backend's `code`.
 ### One design system
 
 Eight colour tokens, a five-step type scale, two weights, three radii and one shadow, defined once
-in `web/src/styles/theme.css`.
+in `Frontend/src/styles/theme.css`.
 - **Tailwind's own palette, sizes, radii and shadows are removed**, so only the tokens exist as
   classes.
 - **A test fails** when any other file writes a colour, a type size, a weight, a radius or a shadow.

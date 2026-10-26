@@ -223,12 +223,12 @@ More detail and troubleshooting: [`docs/runbook.md`](runbook.md).
 
 ## The web app
 
-The rider and driver app lives in [`web/`](../web/) ([ADR 0019](adr/0019-web-client.md)). Its
+The rider and driver app lives in [`Frontend/`](../Frontend/) ([ADR 0019](adr/0019-web-client.md)). Its
 dev server sends `/api` and `/ws` to the backend at `http://localhost:8080` - the one-command
 demo's load balancer, or a backend run on its own; set `BACKEND_URL` for another.
 
 ```bash
-cd web
+cd Frontend
 npm ci
 npm run dev           # http://localhost:5173, and the design system at /design-system
 npm run typecheck     # strict TypeScript
@@ -276,7 +276,7 @@ JaCoCo reports coverage; the 80% gate on `trip`, `matching`, `pricing` and
 ├── simulator/      fake drivers and riders over the public API, and the E2E tests
 ├── infra/          docker compose, prometheus, grafana dashboards as code
 ├── load-tests/     k6 scripts: ingest, booking burst, soak, login storm
-├── web/            the rider and driver web app: React, TypeScript, Vite
+├── Frontend/       the rider and driver web app: React, TypeScript, Vite
 └── docs/           ADRs, event catalog, measured performance, runbook
 ```
 

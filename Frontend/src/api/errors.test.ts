@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { describeError, ERROR_COPY, NOT_SHOWN_TO_USERS, waitText } from './errors';
 import { ApiError } from './problem';
 
-// Tests run from web/, so the backend's sources sit one level up.
+// Tests run from Frontend/, so the backend's sources sit one level up.
 const BACKEND = resolve(process.cwd(), '../backend/src/main/java');
 
 /** Codes the client makes up itself, never sent by the backend. */
