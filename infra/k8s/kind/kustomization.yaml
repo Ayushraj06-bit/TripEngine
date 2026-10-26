@@ -1,0 +1,24 @@
+# The backend's manifests, unchanged, on a throwaway kind cluster in CI (.github/workflows/
+# nightly.yml). Only what a real cluster would provide differently is replaced: the stores run in
+# the cluster, and the image is the one the job just built and loaded into kind.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../backend.yaml
+  - stores.yaml
+images:
+  - name: ghcr.io/ayushraj06-bit/rideflow-backend
+    newName: rideflow-backend
+    newTag: local
+patches:
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: rideflow-backend
+      data:
+        RIDEFLOW_DB_URL: jdbc:postgresql://postgres:5432/rideflow
+        RIDEFLOW_REDIS_HOST: redis
+        RIDEFLOW_KAFKA_BOOTSTRAP: kafka:19092
+        RIDEFLOW_JWT_ISSUER: http://rideflow-backend
+        RIDEFLOW_ADMIN_PHONE: "+919999900001"

@@ -44,3 +44,187 @@ jobs:
           path: "**/target/failsafe-reports/"
           if-no-files-found: ignore
           retention-days: 7
+
+  # infra/k8s/backend.yaml on a real, if throwaway, cluster: kind, with the stores inside it
+  # (infra/k8s/kind) and the image built here.
+  kubernetes:
+    name: Kubernetes (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          load: true
+          tags: rideflow-backend:local
+          cache-from: type=gha,scope=backend
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: rideflow
+
+      # metrics-server, so the autoscaler has CPU figures to read; kind's kubelets have
+      # self-signed certificates.
+      - name: Load the image and start metrics-server
+        run: |
+          kind load docker-image rideflow-backend:local --name rideflow
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+          kubectl -n kube-system patch deployment metrics-server --type=json \
+            -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+
+      # Made by the deployment guide's own script, then handed to Kubernetes as its manifest says.
+      - name: Secrets
+        run: |
+          sudo infra/deploy/generate-secrets.sh /tmp/rideflow-secrets
+          mkdir "$RUNNER_TEMP/secrets"
+          for f in $(sudo ls /tmp/rideflow-secrets); do
+            sudo cat "/tmp/rideflow-secrets/$f" > "$RUNNER_TEMP/secrets/$f"
+          done
+          kubectl create secret generic rideflow-secrets --from-file="$RUNNER_TEMP/secrets"
+
+      - name: Deploy
+        run: |
+          kubectl apply -k infra/k8s/kind
+          kubectl wait --for=condition=Available deployment/postgres deployment/redis deployment/kafka \
+            --timeout=240s
+          kubectl rollout status deployment/rideflow-backend --timeout=420s
+
+      - name: Two ready replicas, non-root, read-only, with their budget and autoscaler
+        run: |
+          kubectl get pods -o wide
+          test "$(kubectl get deployment rideflow-backend -o jsonpath='{.status.readyReplicas}')" = 2
+          test "$(kubectl exec deployment/rideflow-backend -- id -u)" = 10001
+          ! kubectl exec deployment/rideflow-backend -- touch /app/written
+          kubectl get pdb rideflow-backend
+          timeout 240 sh -c 'until [ -n "$(kubectl get hpa rideflow-backend -o jsonpath="{.status.currentMetrics[0].resource.current.averageUtilization}")" ]; do sleep 10; done'
+          kubectl get hpa rideflow-backend | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: The first admin signs in through the Service
+        run: |
+          kubectl port-forward service/rideflow-backend 8080:80 >/dev/null 2>&1 &
+          timeout 30 sh -c 'until curl -fsS -o /dev/null http://localhost:8080/readyz; do sleep 1; done'
+          password=$(cat "$RUNNER_TEMP/secrets/RIDEFLOW_ADMIN_PASSWORD")
+          curl -fsS http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
+            -d "{\"phone\":\"+919999900001\",\"password\":\"$password\"}" | grep -q accessToken
+
+      # Every request from inside the cluster, five a second, while each pod is replaced in turn:
+      # maxUnavailable 0, the 5 s preStop pause and graceful shutdown should drop none.
+      - name: A rolling restart drops no request
+        run: |
+          kubectl run poller --image=curlimages/curl:8.15.0 --restart=Never --command -- sh -c \
+            'while true; do curl -s -o /dev/null -m 2 -w "%{http_code}\n" http://rideflow-backend/readyz; sleep 0.2; done'
+          kubectl wait --for=condition=Ready pod/poller --timeout=60s
+          kubectl rollout restart deployment/rideflow-backend
+          kubectl rollout status deployment/rideflow-backend --timeout=420s
+          sleep 5
+          kubectl logs poller > codes.txt
+          total=$(wc -l < codes.txt)
+          dropped=$(grep -cvx 200 codes.txt || true)
+          echo "Rolling restart: $total requests, $dropped not answered 200" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$total" -gt 100
+          test "$dropped" = 0
+
+      - name: State on failure
+        if: failure()
+        run: |
+          kubectl get all,pdb,hpa,events
+          kubectl logs deployment/rideflow-backend --all-containers --tail=200 || true
+
+  # docs/deploy.md, end to end, on a fresh VM: the guide's own files (infra/deploy), HTTPS from
+  # Caddy for "localhost" with its local CA, and an upgrade one instance at a time.
+  vm:
+    name: one-VM deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPOSE: docker compose -f infra/deploy/compose.yml
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          load: true
+          tags: rideflow-backend:local
+          cache-from: type=gha,scope=backend
+
+      - name: Secrets and configuration, as the guide makes them
+        run: |
+          sudo infra/deploy/generate-secrets.sh
+          sudo ls -l /etc/rideflow/secrets
+          printf '%s\n' RIDEFLOW_DOMAIN=localhost RIDEFLOW_ADMIN_PHONE=+919999900001 \
+            RIDEFLOW_IMAGE=rideflow-backend:local > infra/deploy/.env
+
+      - name: Start
+        run: $COMPOSE up -d --wait --wait-timeout 420
+
+      - name: HTTPS from Caddy, plain HTTP redirected
+        run: |
+          $COMPOSE cp caddy:/data/caddy/pki/authorities/local/root.crt root.crt
+          curl -fsS --cacert root.crt -o /dev/null https://localhost/readyz
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/readyz)" = 308
+
+      - name: The first admin signs in
+        run: |
+          password=$(sudo cat /etc/rideflow/secrets/RIDEFLOW_ADMIN_PASSWORD)
+          curl -fsS --cacert root.crt https://localhost/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"phone\":\"+919999900001\",\"password\":\"$password\"}" | grep -q accessToken
+
+      - name: Nothing internal is public
+        run: |
+          for path in /actuator/prometheus /swagger-ui.html /v3/api-docs; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --cacert root.crt "https://localhost$path")
+            echo "$path: $code"
+            test "$code" != 200
+          done
+          # Published on every address: Caddy alone. Grafana is on loopback only.
+          $COMPOSE ps --format '{{.Service}} {{.Ports}}'
+          test -z "$($COMPOSE ps --format '{{.Service}} {{.Ports}}' | grep '0.0.0.0:' | grep -v '^caddy ')"
+
+      - name: Prometheus scrapes both backends
+        run: |
+          # sum(up{job="rideflow-backend-scale"}), URL-encoded.
+          url='http://localhost:9090/api/v1/query?query=sum(up%7Bjob%3D%22rideflow-backend-scale%22%7D)'
+          timeout 120 sh -c "until $COMPOSE exec -T prometheus wget -qO- '$url' | grep -q '\"2\"'; do sleep 5; done"
+
+      # The guide's upgrade: one instance at a time, each back on /readyz before the next.
+      - name: An upgrade drops no request
+        run: |
+          (while true; do
+             curl -s -o /dev/null -m 3 -w '%{http_code}\n' --cacert root.crt https://localhost/readyz
+             sleep 0.2
+           done) > codes.txt &
+          poller=$!
+          for instance in backend-1 backend-2; do
+            $COMPOSE up -d --no-deps --force-recreate --wait --wait-timeout 300 "$instance"
+          done
+          sleep 3
+          kill "$poller"
+          total=$(wc -l < codes.txt)
+          dropped=$(grep -cvx 200 codes.txt || true)
+          echo "Upgrade: $total requests, $dropped not answered 200" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$total" -gt 100
+          test "$dropped" = 0
+
+      - name: Logs
+        if: failure()
+        run: $COMPOSE logs --tail 200
+
+      - name: Stop
+        if: always()
+        run: |
+          $COMPOSE down -v
+          sudo rm -rf /etc/rideflow

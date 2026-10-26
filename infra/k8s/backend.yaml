@@ -1,5 +1,6 @@
 # The backend on Kubernetes (docs/deploy.md). PostgreSQL, Redis and Kafka are assumed managed,
-# outside the cluster. Schema-checked in CI with kubeconform; not yet run on a real cluster.
+# outside the cluster. Schema-checked in CI with kubeconform, and run every night on a kind cluster
+# (infra/k8s/kind, .github/workflows/nightly.yml), rolling restart included.
 #
 # Secrets are never committed. Create them from the files docs/deploy.md generates:
 #   kubectl create secret generic rideflow-secrets --from-file=/etc/rideflow/secrets/
