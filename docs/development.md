@@ -186,6 +186,7 @@ change an entry or to commit a transaction that does not balance
 | JDK | 21 (LTS) |
 | Maven | use the bundled `./mvnw` |
 | Docker | with Compose v2, running |
+| Node | 22 or newer, for the web app only |
 
 Docker is required, not optional: integration tests run on Testcontainers and
 PROJECT_SPEC section 12 rules out H2 and embedded Redis.
@@ -219,6 +220,27 @@ docker compose -f infra/docker-compose.yml ps     # all six healthy?
 | Jaeger | http://localhost:16686 |
 
 More detail and troubleshooting: [`docs/runbook.md`](runbook.md).
+
+## The web app
+
+The rider and driver app lives in [`web/`](../web/) ([ADR 0019](adr/0019-web-client.md)). Its
+dev server sends `/api` and `/ws` to the backend at `http://localhost:8080` - the one-command
+demo's load balancer, or a backend run on its own; set `BACKEND_URL` for another.
+
+```bash
+cd web
+npm ci
+npm run dev           # http://localhost:5173, and the design system at /design-system
+npm run typecheck     # strict TypeScript
+npm run lint          # ESLint and Prettier
+npm test              # Vitest, Testing Library, MSW
+npm run build         # type check, then the production bundle in dist/
+npm run api:update    # after a backend API change: refresh the API snapshot and its types
+```
+
+The client's types are generated from a committed copy of the backend's OpenAPI document. CI
+fails when that copy and the running backend disagree, so an API change and `npm run api:update`
+go in the same commit.
 
 ## Profiles
 
@@ -254,6 +276,7 @@ JaCoCo reports coverage; the 80% gate on `trip`, `matching`, `pricing` and
 ├── simulator/      fake drivers and riders over the public API, and the E2E tests
 ├── infra/          docker compose, prometheus, grafana dashboards as code
 ├── load-tests/     k6 scripts: ingest, booking burst, soak, login storm
+├── web/            the rider and driver web app: React, TypeScript, Vite
 └── docs/           ADRs, event catalog, measured performance, runbook
 ```
 
