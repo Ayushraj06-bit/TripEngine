@@ -97,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # The registry wants a lower-case name; the account's is not.
       - name: Image names
