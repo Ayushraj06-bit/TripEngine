@@ -313,10 +313,9 @@ class StompSecurityIntegrationTest {
 
       sendPosition(session, "/app/driver/location");
 
-      assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
-          .contains("Not permitted");
+      assertRefusedToSend(connection, session);
       // The interceptor rejected the frame before it reached the controller, so the
-      // ERROR arriving proves nothing was written - no waiting needed to show absence.
+      // refusal proves nothing was written - no waiting needed to show absence.
       assertThat(hasPosition(idOf("+919000020002"))).isFalse();
     }
 
@@ -327,8 +326,19 @@ class StompSecurityIntegrationTest {
 
       sendPosition(session, "/app/rider/anything");
 
+      assertRefusedToSend(connection, session);
+    }
+
+    /**
+     * The server sends ERROR and closes the connection; the client sometimes sees the close before
+     * it reads the frame. Either way the session ends, which is the refusal.
+     */
+    private void assertRefusedToSend(Connection connection, StompSession session) throws Exception {
       assertThat(connection.error().get(EVENTUALLY.toSeconds(), TimeUnit.SECONDS))
-          .contains("Not permitted");
+          .satisfiesAnyOf(
+              reason -> assertThat(reason).contains("Not permitted"),
+              reason -> assertThat(reason).startsWith("transport:"));
+      await().atMost(EVENTUALLY).until(() -> !session.isConnected());
     }
   }
 
