@@ -70,6 +70,11 @@ class User {
     return lockedUntil != null && lockedUntil.isAfter(now);
   }
 
+  /** When a lock lifts; null when the account has never been locked. */
+  Instant lockedUntil() {
+    return lockedUntil;
+  }
+
   /**
    * Counts a failed attempt, locking the account once the limit is reached.
    *

@@ -286,6 +286,45 @@ class AuthIntegrationTest {
   @Nested
   class Lockout {
 
+    /** The failure that locks the account says so, and when it lifts - not the attempt after it. */
+    @Test
+    void saysWhenTheLockLiftsTheMomentItLocks() {
+      registerRider();
+      for (int attempt = 0; attempt < 9; attempt++) {
+        assertThat(catchBusinessException(() -> auth.login(PHONE, "wrong")).code())
+            .isEqualTo("INVALID_CREDENTIALS");
+      }
+
+      BusinessException tenth = catchBusinessException(() -> auth.login(PHONE, "wrong"));
+
+      assertThat(tenth.code()).isEqualTo("ACCOUNT_LOCKED");
+      assertThat(tenth.properties())
+          .containsEntry("retryAfterSeconds", 900L)
+          .containsEntry("lockedUntil", START.plus(Duration.ofMinutes(15)).toString());
+    }
+
+    @Test
+    void tellsAClientOverHttpWhenToComeBack() throws Exception {
+      registerRider();
+      for (int attempt = 0; attempt < 10; attempt++) {
+        catchBusinessException(() -> auth.login(PHONE, "wrong"));
+      }
+      CLOCK.advance(Duration.ofMinutes(5));
+
+      mockMvc
+          .perform(
+              post("/api/v1/auth/login")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      """
+                      {"phone":"%s","password":"%s"}"""
+                          .formatted(PHONE, PASSWORD)))
+          .andExpect(status().isUnauthorized())
+          .andExpect(header().string("Retry-After", "600"))
+          .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"))
+          .andExpect(jsonPath("$.lockedUntil").value("2026-09-27T10:15:00Z"));
+    }
+
     @Test
     void locksAfterTenFailuresAndRejectsEvenTheCorrectPassword() {
       registerRider();

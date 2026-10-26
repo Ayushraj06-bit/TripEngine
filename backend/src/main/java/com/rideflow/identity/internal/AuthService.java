@@ -4,8 +4,11 @@ import com.rideflow.driver.DriverRegistration;
 import com.rideflow.identity.Role;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
+import com.rideflow.shared.KeyedRateLimiter;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -132,7 +135,7 @@ public class AuthService {
       throw invalidCredentials();
     }
     if (found.get().isLockedAt(clock.instant())) {
-      throw accountLocked();
+      throw accountLocked(found.get().lockedUntil(), clock.instant());
     }
     boolean correct = passwordEncoder.matches(rawPassword, found.get().passwordHash());
 
@@ -146,13 +149,19 @@ public class AuthService {
                 return new Attempt(null, invalidCredentials());
               }
               if (user.isLockedAt(now)) {
-                return new Attempt(null, accountLocked());
+                return new Attempt(null, accountLocked(user.lockedUntil(), now));
               }
               if (!correct) {
                 user.recordFailedLogin(
                     now, properties.maxLoginAttempts(), properties.loginLockDuration());
                 log.info("Failed login for {}", PhoneNumber.mask(phone));
-                return new Attempt(null, invalidCredentials());
+                // The attempt that locks the account says so, with when it unlocks, rather than
+                // leaving the next attempt to find out. It reveals nothing that one did not.
+                return new Attempt(
+                    null,
+                    user.isLockedAt(now)
+                        ? accountLocked(user.lockedUntil(), now)
+                        : invalidCredentials());
               }
               user.recordSuccessfulLogin(now);
               return new Attempt(startSession(user), null);
@@ -163,9 +172,18 @@ public class AuthService {
     return attempt.tokens();
   }
 
-  private static BusinessException accountLocked() {
+  /**
+   * Says when the lock lifts: as {@code retryAfterSeconds}, which the error handler also sends as a
+   * Retry-After header, and as the instant itself, so a client can show the time.
+   */
+  private static BusinessException accountLocked(Instant lockedUntil, Instant now) {
+    long seconds = Math.max(1, Math.ceilDiv(Duration.between(now, lockedUntil).toMillis(), 1000));
     return new BusinessException(
-        "ACCOUNT_LOCKED", HttpStatus.UNAUTHORIZED, "Too many failed attempts. Try again later.");
+        "ACCOUNT_LOCKED",
+        HttpStatus.UNAUTHORIZED,
+        "Too many failed attempts. Try again in %d minutes.".formatted(Math.ceilDiv(seconds, 60)),
+        Map.of(
+            KeyedRateLimiter.RETRY_AFTER_SECONDS, seconds, "lockedUntil", lockedUntil.toString()));
   }
 
   /**
