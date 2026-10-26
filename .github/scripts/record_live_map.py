@@ -12,7 +12,7 @@ import sys
 import time
 
 from PIL import Image
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 URL = os.environ.get("LIVE_MAP_URL", "http://localhost:8080/admin/live-map.html")
 FRAMES = 40
@@ -30,10 +30,9 @@ def record(out: str) -> None:
         page.fill("#password", os.environ["ADMIN_PASSWORD"])
         page.click("button[type=submit]")
         page.wait_for_selector("#login", state="hidden", timeout=15_000)
-        # The first snapshot fills the counters; the map tiles get a few seconds more.
-        page.wait_for_function(
-            "document.getElementById('k-online').textContent !== '-'", timeout=60_000
-        )
+        # The first snapshot fills the counters; the map tiles get a few seconds more. A locator,
+        # not wait_for_function: the page's CSP rightly refuses to evaluate strings.
+        expect(page.locator("#k-online")).not_to_have_text("-", timeout=60_000)
         time.sleep(5)
         for _ in range(FRAMES):
             shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
