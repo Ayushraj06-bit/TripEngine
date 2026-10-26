@@ -6,6 +6,8 @@ on:
     tags: ["phase-*"]
   pull_request:
     branches: ["main"]
+  # By hand: everything above, plus a recording of the live map from the demo (docs/images).
+  workflow_dispatch:
 
 # A new push to the same branch cancels the previous run.
 concurrency:
@@ -55,11 +57,11 @@ jobs:
           docker run --rm -v "$PWD/infra/prometheus:/p" --entrypoint promtool
           prom/prometheus:v3.14.0 test rules /p/alerts.test.yml
 
-      # Against the Kubernetes API schemas; the manifests have not been run on a real cluster.
+      # Against the Kubernetes API schemas. The nightly workflow runs them on a kind cluster.
       - name: Check Kubernetes manifests
         run: >
           docker run --rm -v "$PWD/infra/k8s:/m" ghcr.io/yannh/kubeconform:v0.6.4
-          -strict -summary -kubernetes-version 1.30.0 /m
+          -strict -summary -kubernetes-version 1.30.0 /m/backend.yaml /m/kind/stores.yaml
 
       - name: Upload JaCoCo report
         if: always()
@@ -181,6 +183,31 @@ jobs:
         run: |
           query='sum(trips_requested_total)'
           timeout 300 sh -c "until curl -fsS --get http://localhost:9090/api/v1/query --data-urlencode query='$query' | grep -q '\"value\":\[[^,]*,\"[1-9]'; do sleep 10; done"
+
+      # Only on a manual run: the README's GIF, from the demo just checked.
+      - uses: actions/setup-python@v5
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          python-version: "3.12"
+
+      - name: Record the live map
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          pip install -q playwright==1.55.0 pillow==11.3.0
+          python -m playwright install --with-deps chromium
+          # The admin login the demo generated, from its secrets volume.
+          set -a
+          eval "$(docker run --rm -v rideflow_secrets:/s:ro alpine:3.22 cat /s/demo.env)"
+          set +a
+          python .github/scripts/record_live_map.py live-map.gif
+
+      - name: Upload the recording
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-map
+          path: live-map.gif
+          retention-days: 7
 
       - name: Demo logs
         if: failure()

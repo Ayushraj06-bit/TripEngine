@@ -173,6 +173,9 @@ change an entry or to commit a transaction that does not balance
   - Instances started together create one bootstrap admin, not two racing for it.
   - A duplicate phone number reaching the database is no longer written to the log.
   - Swagger UI is reachable wherever springdoc is on; the image is 184 MiB (backend).
+  - Two status changes for one driver, handled out of order, no longer hide them from matching.
+- **Rehearsed every night:** the deployment guide's own files on a fresh VM, and the Kubernetes
+  manifests on a kind cluster, each with an upgrade that must drop no request.
 - **New documents:** the authentication ADR ([0017](adr/0017-authentication.md)), a deployment
   guide, interview notes and resume bullets.
 

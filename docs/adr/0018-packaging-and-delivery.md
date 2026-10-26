@@ -53,7 +53,13 @@ deploys the demo as it is. **Exporting them by hand**, as before, made the demo 
    starts on them and is checked - the URLs it prints answer, and the simulator's trips are
    booked. Pushed to the GitHub Container Registry only from `main` and from `phase-*` tags,
    tagged `sha-<short>`, the branch or tag, and `latest` on main.
-3. **Nightly, and on demand:** the end-to-end and chaos suites.
+3. **Nightly, and on demand:**
+   - the end-to-end and chaos suites
+   - **the deployment guide on a fresh VM:** its own files (`infra/deploy/`), HTTPS from Caddy,
+     and an upgrade one instance at a time that must drop no request
+   - **the Kubernetes manifests on a kind cluster:** two ready replicas, non-root and read-only,
+     the autoscaler reading CPU, and a rolling restart that must drop no request
+4. **By hand:** the same CI run records the README's live-map GIF from the demo.
 
 Rejected: **running the end-to-end and chaos suites on every push.** They take minutes and need the
 whole stack, and every change already passes the integration suite on real infrastructure.
@@ -66,3 +72,5 @@ whole stack, and every change already passes the integration suite on real infra
 - The images are private, like the repository. Pulling them needs a token with `read:packages`.
 - The demo runs the `sim` profile: no per-address limits, and the mock gateway on. It is a demo,
   and `docs/deploy.md` says what a real deployment changes.
+- What CI cannot rehearse: a public DNS name with a Let's Encrypt certificate (it serves
+  `localhost` from Caddy's local CA), scaling under real load, and a managed cloud's networking.
