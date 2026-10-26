@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.1.1</version>
+    <version>4.1.2</version>
     <relativePath/>
   </parent>
 
@@ -28,7 +28,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- Versions not managed by spring-boot-dependencies. -->
-    <spring-modulith.version>2.1.1</spring-modulith.version>
+    <spring-modulith.version>2.1.2</spring-modulith.version>
     <springdoc.version>3.1.1</springdoc.version>
     <resilience4j.version>2.4.0</resilience4j.version>
     <shedlock.version>7.10.1</shedlock.version>
