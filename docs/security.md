@@ -120,7 +120,9 @@ Spring Boot's own versions catch up. Dependabot checks weekly.
 ## A07 Identification and authentication failures
 
 **In place.**
-- **Lockout:** after 10 failed logins.
+- **Lockout:** after 10 failed logins, saying when it lifts.
+- **The browser's refresh token:** an `HttpOnly`, `SameSite=Strict` cookie scoped to the sign-in
+  endpoints, so no script - injected or not - can read it (ADR 0017).
 - **Rate limits:** per address and per phone.
 - **Token lifetimes:** access tokens live 15 minutes. A WebSocket session closes when the token
   it was opened with expires.

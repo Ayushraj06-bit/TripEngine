@@ -27,6 +27,22 @@ Every instance must hold the same RSA key pair (`RIDEFLOW_RSA_PRIVATE_KEY` and `
 Without one, an instance generates an ephemeral pair and warns, which suits a single process on a
 laptop and nothing else.
 
+### In a browser, the refresh token is a cookie no script can read
+
+Added with the web app (Stage 1 of the front end, ADR 0019). A token in a JSON body ends up where
+script can reach it, and one injected script would then hold a seven-day session. A browser sends
+`X-RideFlow-Client: web`, and the refresh token comes back as a cookie instead of in the body:
+- **`HttpOnly`:** never readable by script.
+- **`SameSite=Strict`:** never sent with a request another site starts, so a forged request can
+  neither renew nor end a session.
+- **`Path=/api/v1/auth`:** sent to the sign-in endpoints and nowhere else.
+- **`Secure`:** whenever the request arrived over HTTPS, as it always does behind the production
+  proxy. Plain HTTP on a developer's machine leaves it off, since browsers would refuse it.
+
+Refresh and logout read the cookie when no body is sent, and logout clears it. Every other client -
+the simulator, the load tests - sends and receives the token in JSON, unchanged. The access token
+stays in the web app's memory only, so a reload renews it silently from the cookie.
+
 ### Refresh-token families
 
 A login starts a family, and each refresh continues it. Presenting a token that was already spent
@@ -37,6 +53,9 @@ everyone holding it must log in again. Logout revokes the family too.
 
 - **Lockout:** ten wrong passwords lock the account for fifteen minutes. The count is recorded in a
   short transaction that locks the user's row, so ten guesses sent at once count as ten.
+  - **Saying when it lifts:** `ACCOUNT_LOCKED` carries `lockedUntil` and a `Retry-After`, and the
+    tenth failure itself answers with it, not the attempt after. Neither reveals more than the
+    next attempt already did.
 - **Rate limits:**
   - **Per phone:** 15 login attempts a minute. Deliberately above the lockout, so the lockout is
     what a guesser meets.
@@ -58,7 +77,8 @@ does not keep a socket for days.
 ## Alternatives rejected
 
 - **Sessions with cookies:** state on the server, and CSRF to defend, for clients that are mostly
-  not browsers.
+  not browsers. The browser's refresh cookie is not that: it carries the same rotating token, is
+  sent only to the sign-in endpoints, and SameSite=Strict keeps other sites from using it.
 - **Long-lived access tokens:** nothing to revoke them with short of a deny list, which is the state
   JWTs exist to avoid.
 - **An external identity provider:** the right answer for a real product, and out of scope here
