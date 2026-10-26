@@ -81,6 +81,44 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  web:
+    name: web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The committed types are exactly what the committed API snapshot generates.
+      - name: API types match the snapshot
+        run: npm run api:types && git diff --exit-code src/api/schema.d.ts
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Includes the check that every error code the backend can send has words in the app,
+      # read from backend/src - so a new backend code fails here until it has copy.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
   images:
     name: images
     needs: build
@@ -179,6 +217,11 @@ jobs:
           curl -fsS -o /dev/null http://localhost:9090/-/ready
 
       # The simulator's riders book through the load balancer within a couple of minutes.
+      # The web client's types are generated from a committed copy of this API (web/src/api).
+      # A backend change that alters the API must update that copy in the same commit.
+      - name: The API matches the web client's snapshot
+        run: node web/scripts/openapi.mjs check
+
       - name: Trips are being booked
         run: |
           query='sum(trips_requested_total)'
