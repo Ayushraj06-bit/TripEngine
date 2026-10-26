@@ -39,9 +39,6 @@ class DriverStatusListener {
         event.newStatus());
 
     store.applyStatusChange(
-        event.driverId(),
-        event.newStatus().name(),
-        event.vehicleType(),
-        event.previousVehicleType());
+        event.driverId(), event.newStatus().name(), event.vehicleType(), event.driverVersion());
   }
 }

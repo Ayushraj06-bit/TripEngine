@@ -111,7 +111,7 @@ class LocationIngestIntegrationTest {
 
   /** Puts the driver on the map as an available car, the way DriverStatusChanged would. */
   private void driverIsAvailableCar() {
-    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, null);
+    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, 1);
   }
 
   private LocationUpdate at(GeoPoint point, long seq) {
@@ -426,15 +426,28 @@ class LocationIngestIntegrationTest {
 
     @Test
     void neverPlacesAnOfflineDriverOnTheMap() {
-      store.applyStatusChange(driverId, DriverStatus.OFFLINE.name(), VehicleType.CAR, null);
+      store.applyStatusChange(driverId, DriverStatus.OFFLINE.name(), VehicleType.CAR, 1);
 
       assertThat(ingest.accept(driverId, at(MG_ROAD, 1))).isEqualTo("accepted");
       assertThat(availableCount(VehicleType.CAR)).isZero();
     }
 
+    /**
+     * Two changes handled out of order: the ON_TRIP of version 4 arrives after the AVAILABLE of
+     * version 5. Applied, it would hide an idle driver from matching; it changes nothing.
+     */
+    @Test
+    void ignoresAStatusChangeOlderThanTheOneAlreadyApplied() {
+      store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, 5);
+      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, 4);
+
+      assertThat(ingest.accept(driverId, at(MG_ROAD, 1))).isEqualTo("accepted");
+      assertThat(availableCount(VehicleType.CAR)).isOne();
+    }
+
     @Test
     void neverPlacesADriverOnATripOnTheMap() {
-      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, null);
+      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, 1);
 
       assertThat(ingest.accept(driverId, at(MG_ROAD, 1))).isEqualTo("accepted");
       // Being offered a second trip while driving the first is the failure this
@@ -553,7 +566,7 @@ class LocationIngestIntegrationTest {
     }
 
     private void onTrip(TripStatus status) {
-      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, null);
+      store.applyStatusChange(driverId, DriverStatus.ON_TRIP.name(), VehicleType.CAR, 1);
       store.applyTripContext(
           driverId, Optional.of(new ActiveTrip(tripId, riderId, status, pickup, drop)));
     }

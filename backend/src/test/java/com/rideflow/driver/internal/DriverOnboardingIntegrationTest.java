@@ -7,6 +7,7 @@ import com.rideflow.TestcontainersConfiguration;
 import com.rideflow.driver.ApprovalStatus;
 import com.rideflow.driver.DriverAdministration;
 import com.rideflow.driver.DriverStatus;
+import com.rideflow.driver.DriverStatusChanged;
 import com.rideflow.identity.Role;
 import com.rideflow.identity.internal.AuthService;
 import com.rideflow.shared.BusinessException;
@@ -29,12 +30,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 
 /** Driver onboarding, approval and availability against real PostgreSQL. */
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
 @Tag("integration")
+@RecordApplicationEvents
 class DriverOnboardingIntegrationTest {
 
   private static final String PASSWORD = "correct-horse-battery";
@@ -43,6 +47,7 @@ class DriverOnboardingIntegrationTest {
   @Autowired private DriverService drivers;
   @Autowired private DriverAdministration administration;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private ApplicationEvents events;
 
   private UUID driverId;
 
@@ -435,6 +440,21 @@ class DriverOnboardingIntegrationTest {
       }
 
       assertThat(drivers.profile(driverId).status()).isEqualTo(DriverStatus.AVAILABLE);
+    }
+
+    /**
+     * Each change carries the version it gives the driver's row, so location can tell an older
+     * change arriving late from a newer one. Read before the flush, every event carried the same.
+     */
+    @Test
+    void numbersEachStatusChangeWithTheRowsNewVersion() {
+      onlineWithACar();
+      drivers.goOffline(driverId);
+      drivers.goOnline(driverId);
+
+      List<Long> versions =
+          events.stream(DriverStatusChanged.class).map(DriverStatusChanged::driverVersion).toList();
+      assertThat(versions).hasSize(3).isSorted().doesNotHaveDuplicates();
     }
 
     @Test

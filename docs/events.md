@@ -83,7 +83,9 @@ once, under [Trip events](#trip-events), rather than eight times.
   already offline, changes vehicle type while on the map, or - from Phase 4 -
   starts or ends a trip.
 - **Payload:** driverId, previousStatus, newStatus, vehicleType,
-  previousVehicleType, occurredAt
+  previousVehicleType, occurredAt, driverVersion (from Phase 11: the driver
+  row's version after the change; `location` applies a change only if no later
+  version has been, since two can be handled in either order)
 - **Consumed by:** `location`, which adds the driver to or removes them from the
   Redis GEO set for their vehicle type; `matching`, which treats a driver going
   OFFLINE while holding an offer as having rejected it.

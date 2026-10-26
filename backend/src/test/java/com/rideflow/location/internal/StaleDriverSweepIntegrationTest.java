@@ -101,7 +101,7 @@ class StaleDriverSweepIntegrationTest {
   /** An available car that has reported one position, now. */
   private UUID availableDriverPingingNow() {
     UUID driverId = UUID.randomUUID();
-    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, null);
+    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, 1);
     ingest.accept(
         driverId,
         new LocationUpdate(

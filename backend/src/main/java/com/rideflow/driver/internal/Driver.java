@@ -72,6 +72,11 @@ class Driver {
     return status;
   }
 
+  /** Moves forward with every change to the row, once it is flushed. */
+  long version() {
+    return version;
+  }
+
   String rejectionReason() {
     return rejectionReason;
   }

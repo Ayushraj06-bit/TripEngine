@@ -58,6 +58,7 @@ class DriverStateStore implements DriverPositions, LiveDrivers {
   private final RedisScript<List> locationUpdateScript;
   private final RedisScript<List> staleDriversScript;
   private final RedisScript<Long> tripContextScript;
+  private final RedisScript<Long> driverStatusScript;
   private final RideFlowProperties properties;
   private final Clock clock;
 
@@ -66,12 +67,14 @@ class DriverStateStore implements DriverPositions, LiveDrivers {
       RedisScript<List> locationUpdateScript,
       RedisScript<List> staleDriversScript,
       RedisScript<Long> tripContextScript,
+      RedisScript<Long> driverStatusScript,
       RideFlowProperties properties,
       Clock clock) {
     this.redis = redis;
     this.locationUpdateScript = locationUpdateScript;
     this.staleDriversScript = staleDriversScript;
     this.tripContextScript = tripContextScript;
+    this.driverStatusScript = driverStatusScript;
     this.properties = properties;
     this.clock = clock;
   }
@@ -114,36 +117,31 @@ class DriverStateStore implements DriverPositions, LiveDrivers {
   }
 
   /**
-   * Records a status or vehicle-type change from the driver module.
+   * Records a status or vehicle-type change from the driver module, unless a later one already has
+   * been: changes for one driver can be handled in either order, and an ON_TRIP applied after the
+   * AVAILABLE that followed it would hide an idle driver from matching. See {@code
+   * driver_status.lua}.
    *
-   * <p>Removes the driver from the previous type's set before adding them to the new one; without
-   * that a driver who swapped a car for a bike would stay listed as a car and be offered the wrong
-   * trips until their next position happened to be written.
+   * <p>Takes the driver out of every available set but the new vehicle type's: a driver who swapped
+   * a car for a bike is not offered car trips. They join the new type's set with their next
+   * position, the only thing that knows where they are.
+   *
+   * @param driverVersion the driver row's version after the change
    */
   void applyStatusChange(
-      UUID driverId, String status, VehicleType vehicleType, VehicleType previousVehicleType) {
-
-    String stateKey = LocationKeys.state(driverId);
-    redis.opsForHash().put(stateKey, "status", status);
-    if (vehicleType != null) {
-      redis.opsForHash().put(stateKey, "vehicleType", vehicleType.name());
-    }
-    redis.expire(stateKey, STATE_TTL);
-
-    boolean available = "AVAILABLE".equals(status);
-    if (!available) {
-      LocationKeys.allAvailable()
-          .forEach(key -> redis.opsForZSet().remove(key, driverId.toString()));
-      return;
-    }
-
-    if (previousVehicleType != null && previousVehicleType != vehicleType) {
-      redis.opsForZSet().remove(LocationKeys.available(previousVehicleType), driverId.toString());
-    }
-    // The driver is added to the new set by their next position update, which is the
-    // only thing that knows where they are. Going online without a fix leaves them
-    // absent from the map, which is correct: nobody should be offered a trip from an
-    // unknown location.
+      UUID driverId, String status, VehicleType vehicleType, long driverVersion) {
+    List<String> keys = new ArrayList<>();
+    keys.add(LocationKeys.state(driverId));
+    keys.addAll(LocationKeys.allAvailable());
+    redis.execute(
+        driverStatusScript,
+        keys,
+        status,
+        vehicleType == null ? "" : vehicleType.name(),
+        Long.toString(driverVersion),
+        Long.toString(STATE_TTL.toSeconds()),
+        driverId.toString(),
+        vehicleType == null ? "" : LocationKeys.available(vehicleType));
   }
 
   /**

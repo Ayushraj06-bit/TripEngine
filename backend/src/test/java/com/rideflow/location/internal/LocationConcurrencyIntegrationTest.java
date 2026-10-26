@@ -94,7 +94,7 @@ class LocationConcurrencyIntegrationTest {
       // Half available, so both the GEO write and the "remove from every set" branch
       // run under contention.
       if (i % 2 == 0) {
-        store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, null);
+        store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, 1);
       }
     }
 

@@ -125,7 +125,15 @@ public class DriverService implements DriverRegistration, DriverFlagging {
       // Already on the map under the old type: tell location to move them.
       events.publishEvent(
           new DriverStatusChanged(
-              driverId, driver.status(), driver.status(), type, previousType, clock.instant()));
+              driverId,
+              driver.status(),
+              driver.status(),
+              type,
+              previousType,
+              clock.instant(),
+              // The driver's row is unchanged, so its version too: applied after any status
+              // change already seen, never instead of a later one.
+              driver.version()));
     }
 
     log.info("Driver {} registered vehicle {} ({})", driverId, plate, type);
@@ -207,10 +215,18 @@ public class DriverService implements DriverRegistration, DriverFlagging {
   private void publishStatusChange(
       Driver driver, DriverStatus previous, VehicleType vehicleType, Instant now) {
     // Published inside this transaction, so the Modulith registry commits it with the
-    // state change. A listener that fails is retried, not lost.
+    // state change. A listener that fails is retried, not lost. Flushed first, so the event
+    // carries the version this change gives the row.
+    drivers.flush();
     events.publishEvent(
         new DriverStatusChanged(
-            driver.userId(), previous, driver.status(), vehicleType, vehicleType, now));
+            driver.userId(),
+            previous,
+            driver.status(),
+            vehicleType,
+            vehicleType,
+            now,
+            driver.version()));
   }
 
   private Driver require(UUID driverId) {

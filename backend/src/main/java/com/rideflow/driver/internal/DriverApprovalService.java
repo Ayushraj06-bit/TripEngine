@@ -90,9 +90,17 @@ class DriverApprovalService implements DriverAdministration {
     if (driver.reject(reason, now)) {
       // The driver was on the map; rejection takes them off it.
       var vehicleType = vehicles.findByDriverId(driverId).map(Vehicle::type).orElse(null);
+      // Flushed first, so the event carries the version this change gives the row.
+      drivers.flush();
       events.publishEvent(
           new DriverStatusChanged(
-              driverId, previous, driver.status(), vehicleType, vehicleType, now));
+              driverId,
+              previous,
+              driver.status(),
+              vehicleType,
+              vehicleType,
+              now,
+              driver.version()));
     }
     log.info("Driver {} rejected", driverId);
   }

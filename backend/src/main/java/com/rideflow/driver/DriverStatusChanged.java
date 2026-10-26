@@ -20,6 +20,9 @@ import java.util.UUID;
  * topic.
  *
  * @param previousVehicleType null on the first status change, or when the driver has no vehicle yet
+ * @param driverVersion the driver row's version once this change is made. Listeners run on several
+ *     threads, so two changes for one driver can be handled in either order; {@code location}
+ *     applies one only if no later version already has been.
  */
 public record DriverStatusChanged(
     UUID driverId,
@@ -27,4 +30,5 @@ public record DriverStatusChanged(
     DriverStatus newStatus,
     VehicleType vehicleType,
     VehicleType previousVehicleType,
-    Instant occurredAt) {}
+    Instant occurredAt,
+    long driverVersion) {}

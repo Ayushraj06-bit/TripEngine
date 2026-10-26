@@ -81,7 +81,7 @@ class NearbyDriversIntegrationTest {
   /** Puts an available car at {@code position}, the way a driver's first ping would. */
   private UUID carAt(GeoPoint position) {
     UUID driverId = UUID.randomUUID();
-    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, null);
+    store.applyStatusChange(driverId, DriverStatus.AVAILABLE.name(), VehicleType.CAR, 1);
     ingest.accept(
         driverId,
         new LocationUpdate(

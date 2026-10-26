@@ -38,6 +38,15 @@ class LocationScripts {
   }
 
   @Bean
+  RedisScript<Long> driverStatusScript() {
+    DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+    script.setScriptSource(
+        new ResourceScriptSource(new ClassPathResource("redis/driver_status.lua")));
+    script.setResultType(Long.class);
+    return script;
+  }
+
+  @Bean
   RedisScript<Long> tripContextScript() {
     DefaultRedisScript<Long> script = new DefaultRedisScript<>();
     script.setScriptSource(
