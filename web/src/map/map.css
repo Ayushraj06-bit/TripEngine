@@ -1,0 +1,29 @@
+/* The tiles, a little quieter, so the signal-amber marker and the pins read first. Only the tile
+   layer is filtered: markers, pins and the route keep their full colour. */
+.rf-map .leaflet-tile-pane {
+  filter: saturate(0.6) contrast(0.96);
+}
+
+.rf-map .leaflet-container {
+  font-family: inherit;
+  background: var(--wash);
+}
+
+/* OpenStreetMap's attribution must stay readable. It sits top right, where the sheet never is. */
+.rf-map .leaflet-control-attribution {
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+  border-bottom-left-radius: var(--radius-input);
+}
+
+.rf-map .leaflet-control-attribution a {
+  color: var(--ink);
+}
+
+/* Pins are drawn as divIcons; Leaflet's default white box around a divIcon goes. */
+.rf-map .rf-pin {
+  background: none;
+  border: none;
+}
