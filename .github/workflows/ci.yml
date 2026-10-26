@@ -127,7 +127,7 @@ jobs:
 
       # Also tagged with the names the one-command demo runs, so the step below starts these images.
       - name: Build backend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/Dockerfile
@@ -140,7 +140,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
       - name: Build simulator
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/Dockerfile
