@@ -242,6 +242,13 @@ The client's types are generated from a committed copy of the backend's OpenAPI 
 fails when that copy and the running backend disagree, so an API change and `npm run api:update`
 go in the same commit.
 
+To try it, create an account at `/sign-up`. The dev server serves `/api` from its own address, so
+the refresh cookie works as it will in production and a reload keeps you signed in. A new driver
+waits for approval: approve one as the admin with
+`POST /api/v1/admin/drivers/{driverId}/approve`, and the approval page moves on by itself within
+half a minute. The demo's `demo-info` prints the admin's sign-in; a backend run on its own creates
+the admin from `RIDEFLOW_ADMIN_PHONE` and `RIDEFLOW_ADMIN_PASSWORD`.
+
 ## Profiles
 
 | Profile | Purpose |
