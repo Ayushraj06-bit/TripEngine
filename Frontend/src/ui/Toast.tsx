@@ -14,7 +14,7 @@ function ToastCard({ toast }: { toast: ToastItem }) {
     <div
       data-surface="ink"
       className={cx(
-        'pointer-events-auto flex items-center gap-2 rounded-card border-l-4 bg-ink py-2 pr-2 pl-4 text-body text-paper',
+        'pointer-events-auto flex items-center gap-2 rounded-card border-l-4 material-ink py-2 pr-2 pl-4 text-subhead text-paper',
         BAR[toast.tone],
       )}
     >

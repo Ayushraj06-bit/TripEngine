@@ -23,7 +23,7 @@ describe('Button', () => {
   });
 
   it.each([
-    ['secondary', 'border'],
+    ['secondary', 'bg-wash'],
     ['quiet', 'bg-transparent'],
   ] as const)('has a %s variant', (variant, marker) => {
     render(<Button variant={variant}>Change</Button>);
@@ -66,6 +66,25 @@ describe('Button', () => {
     expect(button.className).not.toMatch(/disabled:bg-wash/);
     await userEvent.click(button);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('is 50 px tall when it is the one button pinned to the bottom', () => {
+    render(<Button size="large">Confirm Auto</Button>);
+    expect(screen.getByRole('button')).toHaveClass('min-h-12.5');
+  });
+
+  it('can be a capsule', () => {
+    render(<Button capsule>Pickup now</Button>);
+    expect(screen.getByRole('button')).toHaveClass('rounded-full');
+  });
+
+  it('uses Apple’s grey fill for a secondary button on ink', () => {
+    render(
+      <Button surface="ink" variant="secondary">
+        Decline
+      </Button>,
+    );
+    expect(screen.getByRole('button')).toHaveClass('bg-paper/12', 'text-paper');
   });
 
   it('can fill the width of the sheet', () => {

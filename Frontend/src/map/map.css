@@ -11,8 +11,8 @@
 
 /* OpenStreetMap's attribution must stay readable. It sits top right, where the sheet never is. */
 .rf-map .leaflet-control-attribution {
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
+  font-size: var(--text-footnote);
+  line-height: var(--text-footnote--line-height);
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--paper) 85%, transparent);
   border-bottom-left-radius: var(--radius-input);

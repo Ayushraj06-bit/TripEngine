@@ -15,7 +15,7 @@ describe('Money', () => {
   });
 
   it('sets figures in tabular numerals', () => {
-    render(<Money paise={14800} className="text-hero" />);
-    expect(screen.getByText('₹148')).toHaveClass('tabular-nums', 'text-hero');
+    render(<Money paise={14800} className="text-large" />);
+    expect(screen.getByText('₹148')).toHaveClass('tabular-nums', 'text-large');
   });
 });

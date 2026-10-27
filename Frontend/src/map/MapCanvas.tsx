@@ -62,6 +62,11 @@ interface MapCanvasProps {
   label: string;
   /** Marker layers: pins, nearby drivers, the live driver. */
   children?: ReactNode;
+  /** Fill a positioned parent - a panel - instead of the whole screen. */
+  contained?: boolean;
+  /** A picture of the city, not a control: no panning or zooming, so scrolling the page past it
+   * never moves it. */
+  still?: boolean;
 }
 
 /**
@@ -74,15 +79,27 @@ export function MapCanvas({
   fit = [],
   label,
   children,
+  contained = false,
+  still = false,
 }: MapCanvasProps) {
   return (
-    <div className="rf-map fixed inset-0 z-0" role="region" aria-label={label}>
+    <div
+      className={contained ? 'rf-map absolute inset-0' : 'rf-map fixed inset-0 z-0'}
+      role="region"
+      aria-label={label}
+    >
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
         zoomControl={false}
         attributionControl={false}
         className="h-full w-full"
+        dragging={!still}
+        scrollWheelZoom={!still}
+        doubleClickZoom={!still}
+        touchZoom={!still}
+        boxZoom={!still}
+        keyboard={!still}
       >
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -125,10 +125,12 @@ export function Sheet({ height, onHeightChange, label, children, footer }: Sheet
       aria-label={label}
       data-height={height}
       className={cx(
-        'fixed inset-x-0 bottom-0 z-30 flex flex-col rounded-t-sheet bg-paper shadow-sheet',
-        'md:top-4 md:bottom-4 md:left-4 md:w-105 md:rounded-sheet',
+        // Above the top bar: a phone's full-height sheet keeps its handle within reach. From
+        // tablet width it is a side panel under the 56 px bar.
+        'fixed inset-x-0 bottom-0 z-40 flex flex-col rounded-t-sheet bg-paper shadow-sheet',
+        'md:top-18 md:bottom-4 md:left-4 md:w-105 md:rounded-sheet',
         dragPx === null &&
-          'motion-safe:transition-[height] motion-safe:duration-300 motion-safe:ease-out',
+          'motion-safe:transition-[height] motion-safe:duration-500 motion-safe:ease-sheet',
       )}
       style={wide ? undefined : { height: shown }}
     >

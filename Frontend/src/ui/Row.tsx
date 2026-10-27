@@ -15,7 +15,7 @@ interface RowProps {
 export function Row({ label, value, action, numeric = false }: RowProps) {
   return (
     <div className="flex min-h-11 items-center gap-3">
-      <span className="w-16 shrink-0 text-meta text-ink-soft">{label}</span>
+      <span className="w-16 shrink-0 text-footnote text-ink-soft">{label}</span>
       <span className={cx('min-w-0 flex-1 truncate text-body text-ink', numeric && 'tabular-nums')}>
         {value}
       </span>

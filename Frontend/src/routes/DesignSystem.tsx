@@ -8,9 +8,11 @@ import { Icon, ICON_NAMES } from '@/ui/Icon';
 import { Input } from '@/ui/Input';
 import { Money } from '@/ui/Money';
 import { Row } from '@/ui/Row';
+import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Skeleton } from '@/ui/Skeleton';
 import { Spinner } from '@/ui/Spinner';
 import { toast } from '@/ui/toasts';
+import { TopBar } from '@/ui/TopBar';
 
 const TOKENS = ['ink', 'ink-soft', 'mute', 'paper', 'wash', 'signal', 'go', 'stop'] as const;
 
@@ -37,7 +39,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       aria-labelledby={`ds-${title}`}
       className="flex flex-col gap-4 border-t border-wash py-8"
     >
-      <h2 id={`ds-${title}`} className="text-emph font-semibold">
+      <h2 id={`ds-${title}`} className="text-body font-semibold">
         {title}
       </h2>
       {children}
@@ -46,7 +48,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Caption({ children }: { children: ReactNode }) {
-  return <p className="text-meta text-ink-soft">{children}</p>;
+  return <p className="text-footnote text-ink-soft">{children}</p>;
 }
 
 /**
@@ -55,6 +57,7 @@ function Caption({ children }: { children: ReactNode }) {
  */
 export function DesignSystem() {
   const [tier, setTier] = useState('auto');
+  const [account, setAccount] = useState<'RIDER' | 'DRIVER'>('RIDER');
   const [phone, setPhone] = useState('98765 43210');
   const [countdownFrom] = useState(() => Date.now() + 2 * 60_000);
 
@@ -77,29 +80,33 @@ export function DesignSystem() {
           {TOKENS.map((name) => (
             <li key={name} className="flex flex-col gap-1">
               <span className={`h-14 rounded-card border border-mute/30 ${SWATCH[name]}`} />
-              <span className="text-meta font-semibold">--{name}</span>
-              <span className="text-meta text-ink-soft tabular-nums">{tokenValue(name)}</span>
+              <span className="text-footnote font-semibold">--{name}</span>
+              <span className="text-footnote text-ink-soft tabular-nums">{tokenValue(name)}</span>
             </li>
           ))}
         </ul>
       </Section>
 
       <Section title="Type">
-        <p className="text-hero font-semibold tabular-nums">
+        <p className="text-large font-semibold tabular-nums">
           <Money paise={14800} /> · 4:59
         </p>
         <Caption>
-          34 px, for the two numbers that matter: the fare on a tier card, the arrival countdown.
+          Large title, 34/41: a dark screen’s title, and the two numbers that matter - the fare on a
+          tier card, the arrival countdown.
         </Caption>
         <p className="text-title font-semibold">Choose a ride</p>
-        <Caption>22 px screen title</Caption>
-        <p className="text-emph font-semibold">Confirm Auto</p>
-        <Caption>17 px emphasis</Caption>
+        <Caption>Title, 22/28: section heads, and the name in the top bar.</Caption>
+        <p className="text-body font-semibold">Confirm Auto</p>
         <p className="text-body">Your driver is on the way.</p>
-        <Caption>15 px body</Caption>
-        <p className="text-meta text-ink-soft">Prices valid for 4:59</p>
+        <Caption>Body, 17/22: what is read, at 400 and at 600 for emphasis.</Caption>
+        <p className="text-subhead">Use the phone number you signed up with.</p>
+        <Caption>Subhead, 15/20: the lead under a title, and the links in a bar.</Caption>
+        <p className="text-footnote text-ink-soft">Prices valid for 4:59</p>
         <Caption>
-          13 px meta. Weights 400 and 600 only; figures tabular wherever they count.
+          Footnote, 13/18: labels and hints. Apple’s text styles, in the device’s own font - San
+          Francisco on Apple devices, Segoe UI on Windows, Roboto on Android. Weights 400 and 600
+          only; figures tabular wherever they count.
         </Caption>
       </Section>
 
@@ -116,7 +123,15 @@ export function DesignSystem() {
           </Button>
           <Button loading>Confirm Auto</Button>
         </div>
-        <Button block>Confirm Auto</Button>
+        <Button size="large" block>
+          Confirm Auto
+        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button capsule>Sign up</Button>
+          <Button capsule variant="secondary">
+            Sign in
+          </Button>
+        </div>
         <div data-surface="ink" className="flex flex-wrap gap-3 rounded-card bg-ink p-4">
           <Button surface="ink">Accept ride</Button>
           <Button surface="ink" variant="secondary">
@@ -130,7 +145,8 @@ export function DesignSystem() {
           </Button>
         </div>
         <Caption>
-          On the white sheet the primary button is ink; on ink surfaces it is signal.
+          On the white sheet the primary button is ink; on ink surfaces it is signal. Large, for the
+          one action that ends a screen; capsules, for chips and the actions in a bar.
         </Caption>
       </Section>
 
@@ -150,12 +166,85 @@ export function DesignSystem() {
         <Field label="Empty, with a placeholder">
           {(control) => <Input {...control} placeholder="Where to?" />}
         </Field>
-        <Field label="Password" error="Use at least 8 characters.">
+        <Field label="Password" error="Use 8 to 72 characters.">
           {(control) => <Input {...control} type="password" defaultValue="short" />}
         </Field>
         <Field label="Disabled">
           {(control) => <Input {...control} disabled defaultValue="Not editable" />}
         </Field>
+        <div data-surface="ink" className="flex flex-col gap-4 rounded-card bg-ink p-4">
+          <Field label="Where to?" surface="ink">
+            {(control) => (
+              <Input
+                {...control}
+                surface="ink"
+                placeholder="Where to?"
+                leading={<span className="block size-3 bg-paper" />}
+              />
+            )}
+          </Field>
+          <Field label="Password, on ink" error="Use 8 to 72 characters." surface="ink">
+            {(control) => <Input {...control} surface="ink" type="password" defaultValue="short" />}
+          </Field>
+        </div>
+        <Caption>
+          On ink an error is light text beside a stop-red mark: red text on ink is too faint to read
+          at this size.
+        </Caption>
+      </Section>
+
+      <Section title="Segmented control">
+        <SegmentedControl
+          label="Sample account type"
+          value={account}
+          onChange={setAccount}
+          segments={[
+            { value: 'RIDER', label: 'Rider' },
+            { value: 'DRIVER', label: 'Driver' },
+          ]}
+        />
+        <Caption>
+          One of a few choices, all in view. A single tab stop; the arrow keys move and choose.
+        </Caption>
+      </Section>
+
+      <Section title="Bar and materials">
+        <div className="overflow-hidden rounded-card border border-wash">
+          <TopBar
+            surface="paper"
+            actions={
+              <Button capsule variant="secondary">
+                Sign out
+              </Button>
+            }
+          />
+        </div>
+        <div data-surface="ink" className="overflow-hidden rounded-card bg-ink">
+          <TopBar
+            surface="ink"
+            actions={
+              <Button capsule surface="ink" variant="secondary">
+                Sign in
+              </Button>
+            }
+          />
+        </div>
+        <div className="relative grid h-28 grid-cols-4 overflow-hidden rounded-card">
+          <span className="bg-signal" />
+          <span className="bg-go" />
+          <span className="bg-stop" />
+          <span className="bg-wash" />
+          <p className="absolute inset-x-0 top-0 flex h-14 items-center px-4 text-subhead font-semibold material">
+            material
+          </p>
+          <p className="absolute inset-x-0 bottom-0 flex h-14 items-center px-4 text-subhead font-semibold text-paper material-ink">
+            material-ink
+          </p>
+        </div>
+        <Caption>
+          Frosted glass for bars over the map and the dark screens, so what passes beneath still
+          shows through. Solid instead when the device asks for reduced transparency.
+        </Caption>
       </Section>
 
       <Section title="Row">
@@ -220,10 +309,10 @@ export function DesignSystem() {
             >
               <Icon name={option.icon} size={24} />
               <span className="flex flex-1 flex-col">
-                <span className="text-emph font-semibold">{option.name}</span>
-                <span className="text-meta text-ink-soft">{option.note}</span>
+                <span className="text-body font-semibold">{option.name}</span>
+                <span className="text-footnote text-ink-soft">{option.note}</span>
               </span>
-              <Money paise={option.paise} className="text-emph font-semibold" />
+              <Money paise={option.paise} className="text-body font-semibold" />
             </ChoiceCard>
           ))}
           <ChoiceCard selected={false} disabled>
@@ -289,7 +378,7 @@ export function DesignSystem() {
         <p className="text-body">
           <Money paise={124000} /> · <Money paise={8450} /> · <Money paise={0} />
         </p>
-        <p className="text-emph font-semibold">
+        <p className="text-body font-semibold">
           Prices valid for <Countdown until={countdownFrom} label="Prices valid for" />
         </p>
         <Caption>Paise from the backend become rupees in one place, with Indian grouping.</Caption>
@@ -300,7 +389,7 @@ export function DesignSystem() {
           {ICON_NAMES.map((name) => (
             <li key={name} className="flex flex-col items-center gap-1 text-ink-soft">
               <Icon name={name} size={24} />
-              <span className="text-meta">{name}</span>
+              <span className="text-footnote">{name}</span>
             </li>
           ))}
         </ul>

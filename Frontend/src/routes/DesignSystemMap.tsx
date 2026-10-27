@@ -5,6 +5,7 @@ import { MapPin } from '@/map/MapPin';
 import { Button } from '@/ui/Button';
 import { Row } from '@/ui/Row';
 import { Sheet, type SheetHeight } from '@/ui/Sheet';
+import { TopBar } from '@/ui/TopBar';
 
 /** Sample positions in Bengaluru: MG Road to Indiranagar, and a driver between. */
 const PICKUP: LatLng = { lat: 12.9756, lng: 77.6069 };
@@ -25,6 +26,17 @@ export function DesignSystemMap() {
         <MapPin kind="drop" at={DROP} />
         <MapPin kind="driver" at={DRIVER} />
       </MapCanvas>
+      <TopBar
+        surface="paper"
+        actions={
+          <Link
+            to="/design-system"
+            className="flex min-h-11 items-center rounded-full px-4 text-subhead font-semibold material"
+          >
+            Design system
+          </Link>
+        }
+      />
       <Sheet
         height={height}
         onHeightChange={setHeight}
@@ -49,11 +61,8 @@ export function DesignSystemMap() {
             </Button>
           ))}
         </div>
-        <p className="py-2 text-meta text-ink-soft">
-          Sample content. Drag the handle, or focus it and use the arrow keys.{' '}
-          <Link to="/design-system" className="font-semibold text-ink underline">
-            Back to the design system
-          </Link>
+        <p className="py-2 text-footnote text-ink-soft">
+          Sample content. Drag the handle, or focus it and use the arrow keys.
         </p>
       </Sheet>
     </>
