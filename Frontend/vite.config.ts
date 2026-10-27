@@ -35,5 +35,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     restoreMocks: true,
+    // Clock times read the same on a laptop in Bengaluru and a CI runner in UTC.
+    env: { TZ: 'Asia/Kolkata' },
   },
 });

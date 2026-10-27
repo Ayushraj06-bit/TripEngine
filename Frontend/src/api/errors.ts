@@ -28,6 +28,14 @@ export function waitText(seconds: number): string {
   return minutes === 1 ? '1 minute' : `${minutes} minutes`;
 }
 
+/** The clock time `seconds` from now, as people in India read it: "2:32 pm". */
+export function clockTimeIn(seconds: number, now: number = Date.now()): string {
+  return new Date(now + seconds * 1000).toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function after(error: ApiError, otherwise: string): string {
   return error.retryAfterSeconds === undefined
     ? otherwise
@@ -60,7 +68,9 @@ export const ERROR_COPY: Readonly<Record<string, Copy>> = {
   },
   ACCOUNT_LOCKED: {
     message: (e) =>
-      `This account is locked after several failed sign-ins. Try again ${after(e, 'later')}.`,
+      e.retryAfterSeconds === undefined
+        ? 'This account is locked after several failed sign-ins. Try again later.'
+        : `This account is locked after several failed sign-ins. Try again at ${clockTimeIn(e.retryAfterSeconds)}.`,
     recovery: 'wait',
   },
   PHONE_INVALID: {

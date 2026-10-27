@@ -1,8 +1,8 @@
 /// <reference types="node" />
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-import { describeError, ERROR_COPY, NOT_SHOWN_TO_USERS, waitText } from './errors';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { clockTimeIn, describeError, ERROR_COPY, NOT_SHOWN_TO_USERS, waitText } from './errors';
 import { ApiError } from './problem';
 
 // Tests run from Frontend/, so the backend's sources sit one level up.
@@ -139,6 +139,26 @@ describe('describeError', () => {
       code: 'UNKNOWN',
       recovery: 'retry',
     });
+  });
+});
+
+describe('a locked account', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('says when it unlocks, by the clock', () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-27T08:00:00Z') }); // 1:30 pm in India
+    expect(describeError(new ApiError(401, 'ACCOUNT_LOCKED', undefined, {}, 900)).message).toBe(
+      'This account is locked after several failed sign-ins. Try again at 1:45 pm.',
+    );
+    expect(clockTimeIn(0, Date.parse('2026-10-27T03:00:00Z'))).toBe('8:30 am');
+  });
+
+  it('still reads well without it', () => {
+    expect(describeError(new ApiError(401, 'ACCOUNT_LOCKED', undefined)).message).toBe(
+      'This account is locked after several failed sign-ins. Try again later.',
+    );
   });
 });
 
