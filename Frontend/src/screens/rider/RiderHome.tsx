@@ -84,120 +84,122 @@ export function RiderHome() {
   return (
     <>
       <title>RideFlow</title>
-      <MapCanvas
-        label={
-          step === 'map'
-            ? `Map. Move it to put the pin on your ${kind}. With a keyboard, use the arrow keys.`
-            : 'Map of the city'
-        }
-        center={pickup?.at ?? CITY_CENTRE}
-        zoom={13}
-        fit={fit}
-      >
-        {step !== 'map' && pickup && <MapPin kind="pickup" at={pickup.at} />}
-        {step !== 'map' && drop && <MapPin kind="drop" at={drop.at} />}
-        {step !== 'map' && nearby && <NearbyDrivers drivers={nearby} />}
-        {step === 'map' && <CentrePin key={kind} kind={kind} start={start} onSettle={setPinAt} />}
-      </MapCanvas>
       <TopBar surface="paper" actions={<SignOutButton surface="paper" />} />
-      <Sheet
-        height={height}
-        onHeightChange={(next) => {
-          setHeights({ ...heights, [view]: next });
-        }}
-        label={
-          step === 'where-to'
-            ? 'Plan your ride'
-            : step === 'map'
-              ? `Set your ${kind}`
-              : ready
-                ? 'Your ride'
-                : 'Where to?'
-        }
-        footer={
-          view === 'summary' ? (
-            <div className="flex flex-col gap-2">
-              <Button size="large" block disabled aria-describedby="prices-later">
-                See prices
-              </Button>
-              <p id="prices-later" className="text-center text-footnote text-ink-soft">
-                Prices arrive in the next stage of this app.
+      <main>
+        <MapCanvas
+          label={
+            step === 'map'
+              ? `Map. Move it to put the pin on your ${kind}. With a keyboard, use the arrow keys.`
+              : 'Map of the city'
+          }
+          center={pickup?.at ?? CITY_CENTRE}
+          zoom={13}
+          fit={fit}
+        >
+          {step !== 'map' && pickup && <MapPin kind="pickup" at={pickup.at} />}
+          {step !== 'map' && drop && <MapPin kind="drop" at={drop.at} />}
+          {step !== 'map' && nearby && <NearbyDrivers drivers={nearby} />}
+          {step === 'map' && <CentrePin key={kind} kind={kind} start={start} onSettle={setPinAt} />}
+        </MapCanvas>
+        <Sheet
+          height={height}
+          onHeightChange={(next) => {
+            setHeights({ ...heights, [view]: next });
+          }}
+          label={
+            step === 'where-to'
+              ? 'Plan your ride'
+              : step === 'map'
+                ? `Set your ${kind}`
+                : ready
+                  ? 'Your ride'
+                  : 'Where to?'
+          }
+          footer={
+            view === 'summary' ? (
+              <div className="flex flex-col gap-2">
+                <Button size="large" block disabled aria-describedby="prices-later">
+                  See prices
+                </Button>
+                <p id="prices-later" className="text-center text-footnote text-ink-soft">
+                  Prices arrive in the next stage of this app.
+                </p>
+              </div>
+            ) : undefined
+          }
+        >
+          {step === 'where-to' ? (
+            <WhereTo
+              initial={kind}
+              onChooseOnMap={(field) => {
+                open('map', field);
+              }}
+              onDone={() => {
+                void navigate('/', { replace: true });
+              }}
+              onClose={back}
+            />
+          ) : step === 'map' ? (
+            <ChooseOnMap kind={kind} at={pinAt} onConfirm={chosenOnMap} />
+          ) : ready ? (
+            <div className="flex flex-col gap-1 pb-4">
+              <Row
+                label="Pickup"
+                value={pickup.name}
+                action={
+                  <Button
+                    variant="quiet"
+                    className="px-3"
+                    aria-label="Change pickup"
+                    onClick={() => {
+                      open('where-to', 'pickup');
+                    }}
+                  >
+                    Change
+                  </Button>
+                }
+              />
+              <Row
+                label="Drop"
+                value={drop.name}
+                action={
+                  <Button
+                    variant="quiet"
+                    className="px-3"
+                    aria-label="Change drop"
+                    onClick={() => {
+                      open('where-to', 'drop');
+                    }}
+                  >
+                    Change
+                  </Button>
+                }
+              />
+              <p aria-live="polite" className="pt-2 text-subhead text-ink-soft">
+                {nearby ? nearbyWords(nearby) : ''}
               </p>
             </div>
-          ) : undefined
-        }
-      >
-        {step === 'where-to' ? (
-          <WhereTo
-            initial={kind}
-            onChooseOnMap={(field) => {
-              open('map', field);
-            }}
-            onDone={() => {
-              void navigate('/', { replace: true });
-            }}
-            onClose={back}
-          />
-        ) : step === 'map' ? (
-          <ChooseOnMap kind={kind} at={pinAt} onConfirm={chosenOnMap} />
-        ) : ready ? (
-          <div className="flex flex-col gap-1 pb-4">
-            <Row
-              label="Pickup"
-              value={pickup.name}
-              action={
-                <Button
-                  variant="quiet"
-                  className="px-3"
-                  aria-label="Change pickup"
-                  onClick={() => {
-                    open('where-to', 'pickup');
-                  }}
-                >
-                  Change
-                </Button>
-              }
-            />
-            <Row
-              label="Drop"
-              value={drop.name}
-              action={
-                <Button
-                  variant="quiet"
-                  className="px-3"
-                  aria-label="Change drop"
-                  onClick={() => {
-                    open('where-to', 'drop');
-                  }}
-                >
-                  Change
-                </Button>
-              }
-            />
-            <p aria-live="polite" className="pt-2 text-subhead text-ink-soft">
-              {nearby ? nearbyWords(nearby) : ''}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3 pb-4">
-            <p className="text-subhead text-ink-soft">
-              {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                open('where-to', pickup || !drop ? 'drop' : 'pickup');
-              }}
-              className="flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-input bg-wash px-3 text-left text-body"
-            >
-              <Icon name="search" />
-              <span className={dropQuery ? 'truncate text-ink' : 'text-mute'}>
-                {dropQuery || 'Where to?'}
-              </span>
-            </button>
-          </div>
-        )}
-      </Sheet>
+          ) : (
+            <div className="flex flex-col gap-3 pb-4">
+              <p className="text-subhead text-ink-soft">
+                {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  open('where-to', pickup || !drop ? 'drop' : 'pickup');
+                }}
+                className="flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-input bg-wash px-3 text-left text-body"
+              >
+                <Icon name="search" />
+                <span className={dropQuery ? 'truncate text-ink' : 'text-mute'}>
+                  {dropQuery || 'Where to?'}
+                </span>
+              </button>
+            </div>
+          )}
+        </Sheet>
+      </main>
     </>
   );
 }
