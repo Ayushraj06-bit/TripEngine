@@ -5,6 +5,8 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { routes } from '@/app/router';
 import { sendToSignIn } from '@/app/sessionEnded';
 import { installAuth, resetSessionForTests } from '@/auth/auth';
+import type { LatLng } from '@/map/MapCanvas';
+import { resetPlacesForTests } from '@/places/nominatim';
 import { useBookingDraft } from '@/state/bookingDraft';
 import { useSession, type SessionUser } from '@/state/session';
 import { useToasts } from '@/ui/toasts';
@@ -19,6 +21,8 @@ export function resetApp(): void {
   sessionStorage.clear();
   localStorage.clear();
   seen.length = 0;
+  resetPlacesForTests();
+  Reflect.deleteProperty(navigator, 'geolocation');
 }
 
 /** As if `user` had signed in: the token in memory, the profile known. */
@@ -65,4 +69,32 @@ export async function signInWith(
 /** The screen's own alert. The toaster's live regions stay mounted, outside <main>, all along. */
 export function screenAlert() {
   return within(screen.getByRole('main')).findByRole('alert');
+}
+
+function geolocation(answer: (ok: PositionCallback, fail: PositionErrorCallback) => void) {
+  Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    value: {
+      getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback) => {
+        answer(ok, fail);
+      },
+    },
+  });
+}
+
+/** The device says it is at `at`, to within `accuracy` metres. */
+export function deviceAt(at: LatLng, accuracy = 15): void {
+  geolocation((ok) => {
+    ok({
+      coords: { latitude: at.lat, longitude: at.lng, accuracy },
+      timestamp: Date.now(),
+    } as GeolocationPosition);
+  });
+}
+
+/** The rider said no to sharing their location (1), or it could not be found (2), or in time (3). */
+export function locationFails(code: 1 | 2 | 3): void {
+  geolocation((_ok, fail) => {
+    fail({ code, message: '' } as GeolocationPositionError);
+  });
 }
