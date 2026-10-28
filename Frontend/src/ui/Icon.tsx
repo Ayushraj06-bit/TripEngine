@@ -29,6 +29,11 @@ const PATHS = {
 export type IconName = keyof typeof PATHS;
 export const ICON_NAMES = Object.keys(PATHS) as IconName[];
 
+/** The same icon as markup, for a map marker: Leaflet draws markers outside React. */
+export function iconMarkup(name: IconName, size: 16 | 20 | 24 = 16): string {
+  return `<svg width="${String(size)}" height="${String(size)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${PATHS[name]}"/></svg>`;
+}
+
 export function Icon({ name, size = 20 }: { name: IconName; size?: 16 | 20 | 24 }) {
   return (
     <svg
