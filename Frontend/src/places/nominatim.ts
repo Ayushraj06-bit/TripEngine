@@ -104,9 +104,15 @@ const SAID_ALREADY = /^(India|Karnataka|\d{6})$/;
 
 export function placeFrom(raw: RawPlace): Place {
   const parts = raw.display_name.split(', ');
-  const name = raw.name?.trim() || parts[0] || raw.display_name;
-  const detail = parts
-    .filter((part, i) => !(i === 0 && part === name) && !SAID_ALREADY.test(part))
+  const own = raw.name?.trim();
+  // An address with no name of its own starts with a house number: "83, 5th Main Road", not "83".
+  const numbered = !own && parts.length > 1 && /^\d/.test(parts[0] ?? '');
+  const name = own || (numbered ? parts.slice(0, 2).join(', ') : parts[0] || raw.display_name);
+  const rest = own
+    ? parts.filter((part, i) => !(i === 0 && part === own))
+    : parts.slice(numbered ? 2 : 1);
+  const detail = rest
+    .filter((part) => !SAID_ALREADY.test(part))
     .slice(0, 3)
     .join(', ');
   const at = { lat: Number(raw.lat), lng: Number(raw.lon) };
@@ -132,7 +138,17 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
     },
     signal,
   );
-  const places = (Array.isArray(raw) ? raw : []).filter(isRawPlace).map(placeFrom);
+  const named = new Set<string>();
+  const places = (Array.isArray(raw) ? raw : [])
+    .filter(isRawPlace)
+    .map(placeFrom)
+    // A suburb, its bus stop and its station often share a name and an address: one row each.
+    .filter((place) => {
+      const key = `${place.name}|${place.detail}`;
+      if (named.has(key)) return false;
+      named.add(key);
+      return true;
+    });
   // A stable sort: the places that can be chosen first, each group in Nominatim's order.
   places.sort((a, b) => Number(b.served) - Number(a.served));
   searches.set(key, places);

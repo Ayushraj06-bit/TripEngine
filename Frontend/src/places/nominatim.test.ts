@@ -51,6 +51,14 @@ describe('searching for a place', () => {
     ]);
   });
 
+  it('shows a place once, though Nominatim lists it twice', async () => {
+    searchAnswers([INDIRANAGAR, INDIRANAGAR, MG_ROAD]);
+    expect((await searchPlaces('Indiranagar')).map((p) => p.name)).toEqual([
+      'Indiranagar',
+      'MG Road',
+    ]);
+  });
+
   it('never asks the same question twice', async () => {
     const asked = searchAnswers([INDIRANAGAR]);
     await searchPlaces('Indiranagar');
@@ -82,6 +90,23 @@ describe('the address under a pin', () => {
     server.use(http.get(`${NOMINATIM}/reverse`, () => HttpResponse.json(INDIRANAGAR)));
     const pin = { lat: 12.97837, lng: 77.64084 };
     expect(await placeAt(pin)).toMatchObject({ name: 'Indiranagar', at: pin, served: true });
+  });
+
+  it('names a building with no name by its number and street', async () => {
+    server.use(
+      http.get(`${NOMINATIM}/reverse`, () =>
+        HttpResponse.json({
+          lat: '12.9611',
+          lon: '77.6387',
+          display_name:
+            '83, 5th Main Road, Domlur 2nd Stage, Domlur, Bengaluru, Karnataka, 560071, India',
+        }),
+      ),
+    );
+    expect(await placeAt({ lat: 12.9611, lng: 77.6387 })).toMatchObject({
+      name: '83, 5th Main Road',
+      detail: 'Domlur 2nd Stage, Domlur, Bengaluru',
+    });
   });
 
   it('is null where there is no address, and asked for once', async () => {
