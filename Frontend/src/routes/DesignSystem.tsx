@@ -7,6 +7,7 @@ import { Field } from '@/ui/Field';
 import { Icon, ICON_NAMES } from '@/ui/Icon';
 import { Input } from '@/ui/Input';
 import { Money } from '@/ui/Money';
+import { OptionRow } from '@/ui/OptionRow';
 import { Row } from '@/ui/Row';
 import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Skeleton } from '@/ui/Skeleton';
@@ -205,6 +206,34 @@ export function DesignSystem() {
         />
         <Caption>
           One of a few choices, all in view. A single tab stop; the arrow keys move and choose.
+        </Caption>
+      </Section>
+
+      <Section title="Option row">
+        <ul aria-label="Sample options" className="flex flex-col">
+          <li>
+            <OptionRow icon="locate" name="Use my location" onChoose={() => undefined} />
+          </li>
+          <li>
+            <OptionRow
+              icon="drop"
+              name="Indiranagar"
+              detail="Bengaluru East City Corporation, Bengaluru"
+              onChoose={() => undefined}
+            />
+          </li>
+          <li>
+            <OptionRow
+              icon="drop"
+              name="Kempegowda International Airport"
+              detail="Outside the area RideFlow serves"
+              disabled
+              onChoose={() => undefined}
+            />
+          </li>
+        </ul>
+        <Caption>
+          Sample places. A row that cannot be chosen stays in the list, with its reason.
         </Caption>
       </Section>
 

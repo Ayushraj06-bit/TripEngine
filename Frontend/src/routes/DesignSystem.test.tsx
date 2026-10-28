@@ -25,6 +25,7 @@ describe('the design system page', () => {
       'Button',
       'Field',
       'Segmented control',
+      'Option row',
       'Bar and materials',
       'Row',
       'Card',
