@@ -1,5 +1,6 @@
 import { useSession } from '@/state/session';
 import { networkError, problemFrom } from './problem';
+import { heardFromServer } from './serverClock';
 import type { BodyPart, Method, PathFor, PathPart, QueryPart, ResponseBody } from './types';
 
 /**
@@ -82,13 +83,15 @@ async function send(
   if (body !== undefined) all['Content-Type'] = 'application/json';
   if (token) all['Authorization'] = `Bearer ${token}`;
   try {
-    return await fetch(target, {
+    const response = await fetch(target, {
       method: method.toUpperCase(),
       headers: all,
       body: body === undefined ? null : JSON.stringify(body),
       signal: signal ?? null,
       credentials: 'same-origin',
     });
+    heardFromServer(response.headers.get('Date'));
+    return response;
   } catch (error) {
     // Cancelled on purpose - a newer search replaced this one - is not a failure to report.
     // Judged by the caller's own signal, not the error's class, which differs between runtimes.
