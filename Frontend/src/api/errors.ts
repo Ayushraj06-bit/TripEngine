@@ -124,7 +124,8 @@ export const ERROR_COPY: Readonly<Record<string, Copy>> = {
   },
   ACTIVE_TRIP_EXISTS: { message: 'You already have a ride in progress.', recovery: 'open-trip' },
   OUTSTANDING_BALANCE: {
-    message: 'An earlier ride is still unpaid. Top up your wallet, or choose cash, to book.',
+    // Cash does not help: the backend refuses every booking until the wallet is back to zero.
+    message: 'An earlier ride is still unpaid. Top up your wallet to book again.',
     recovery: 'top-up',
   },
   IDEMPOTENCY_KEY_IN_FLIGHT: {
