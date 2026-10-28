@@ -135,6 +135,13 @@
     outline-color: var(--signal);
   }
 
+  /* The browser's own clear button is drawn in its colours, not ours, and the field has a search
+     button of its own. */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
