@@ -1,8 +1,8 @@
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import type { Surface } from './Button';
 import { cx } from './cx';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends ComponentProps<'input'> {
   /** On the white sheet, or on the dark welcome and sign-in screens. */
   surface?: Surface;
   /** A mark inside the field, before the text: the pickup's ring, the drop's square. */
