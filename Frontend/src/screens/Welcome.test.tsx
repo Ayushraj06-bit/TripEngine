@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { renderApp, resetApp, signInWith } from '@/test/app';
-import { backendFor, RIDER } from '@/test/backend';
+import { backendFor, INDIRANAGAR, placesAre, RIDER } from '@/test/backend';
 
 beforeEach(resetApp);
 
@@ -19,22 +19,24 @@ describe('the welcome screen', () => {
     expect(screen.queryByText(/₹/)).not.toBeInTheDocument();
   });
 
-  it('keeps where the rider is going through signing in', async () => {
+  it('keeps where the rider is going through signing in, and looks it up', async () => {
     backendFor(RIDER);
+    placesAre([INDIRANAGAR]);
     const user = userEvent.setup();
     const { router } = renderApp('/welcome');
-    await user.type(await screen.findByLabelText('Where to?'), 'Kempegowda Airport');
+    await user.type(await screen.findByLabelText('Where to?'), 'Indiranagar');
     await user.click(screen.getByRole('button', { name: 'See prices' }));
 
-    expect(
-      await screen.findByText('Sign in to see prices to Kempegowda Airport.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to see prices to Indiranagar.')).toBeInTheDocument();
     await signInWith('98765 43210', 'correct-horse', user);
 
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/');
+      expect(router.state.location.search).toBe('?step=where-to&field=drop');
     });
-    expect(await screen.findByText('Kempegowda Airport')).toBeInTheDocument();
+    expect(await screen.findByRole('searchbox', { name: 'Drop' })).toHaveValue('Indiranagar');
+    expect(
+      await screen.findByRole('list', { name: 'Places matching “Indiranagar”' }),
+    ).toBeInTheDocument();
   });
 
   it('starts a would-be driver on a driver’s account', async () => {

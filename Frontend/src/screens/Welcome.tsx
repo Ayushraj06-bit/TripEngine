@@ -33,7 +33,9 @@ export function Welcome() {
 
   function seePrices(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    void navigate('/sign-in?returnTo=%2F', { state: { reason: 'see-prices' } });
+    void navigate(`/sign-in?returnTo=${encodeURIComponent('/?step=where-to&field=drop')}`, {
+      state: { reason: 'see-prices' },
+    });
   }
 
   return (
