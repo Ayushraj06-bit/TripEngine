@@ -74,7 +74,9 @@ class StaleDriverSweeper {
    * Runs every {@code rideflow.location.stale-sweep-interval} - five seconds, well inside {@code
    * stale-after-seconds}, so a driver is noticed promptly rather than up to a whole window late.
    */
-  @Scheduled(fixedDelayString = "${rideflow.location.stale-sweep-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.location.stale-sweep-interval}",
+      initialDelayString = "${rideflow.location.stale-sweep-interval}")
   @SchedulerLock(name = "location-stale-driver-sweep", lockAtMostFor = "PT30S")
   void sweep() {
     int swept = 0;

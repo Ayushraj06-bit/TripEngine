@@ -34,7 +34,9 @@ class OfferPoller {
     this.properties = properties;
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.matching.offer-poll-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.matching.offer-poll-interval}",
+      initialDelayString = "${rideflow.matching.offer-poll-interval}")
   void poll() {
     Instant now = clock.instant();
     int batch = properties.matching().offerPollBatchSize();

@@ -148,7 +148,9 @@ class IdempotencyStore {
   }
 
   /** PROJECT_SPEC section 7: keys are kept for {@code idempotency-retention-hours}. */
-  @Scheduled(fixedDelayString = "${rideflow.trip.idempotency-purge-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.trip.idempotency-purge-interval}",
+      initialDelayString = "${rideflow.trip.idempotency-purge-interval}")
   @SchedulerLock(name = "idempotency-key-purge", lockAtMostFor = "PT5M")
   void purgeExpired() {
     Instant cutoff =

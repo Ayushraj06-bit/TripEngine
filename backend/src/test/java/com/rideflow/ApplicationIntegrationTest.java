@@ -67,13 +67,48 @@ class ApplicationIntegrationTest {
           .extracting(row -> row.get("version"))
           .containsSubsequence("1", "2", "3", "4", "5");
       // The tables those migrations own must actually be there. shedlock is only
-      // checked for existence, not emptiness: the stale-driver sweep runs every five
-      // seconds and writes its lock row here, so an empty table would mean the job
-      // never ran rather than that the migration worked.
+      // checked for existence, not emptiness: whether a job has written its lock row
+      // yet depends on timing, not on the migration.
       assertThat(jdbc.queryForObject("SELECT count(*) FROM shedlock", Integer.class))
           .isNotNegative();
       assertThat(jdbc.queryForObject("SELECT count(*) FROM event_publication", Integer.class))
           .isZero();
+    }
+
+    /**
+     * Every background job is scheduled, and none at startup: each first run waits one interval
+     * (ShedLockConfig), so a test driving a job itself never races the scheduler's own run.
+     */
+    @Test
+    void schedulesEveryJobToStartOneIntervalAfterBoot(
+        @Autowired
+            java.util.List<org.springframework.scheduling.config.ScheduledTaskHolder> holders) {
+      var tasks =
+          holders.stream()
+              .flatMap(holder -> holder.getScheduledTasks().stream())
+              .map(org.springframework.scheduling.config.ScheduledTask::getTask)
+              .toList();
+
+      assertThat(tasks)
+          .extracting(Object::toString)
+          .anySatisfy(name -> assertThat(name).endsWith("LiveMapPublisher.scheduled"))
+          .anySatisfy(name -> assertThat(name).endsWith("StaleDriverSweeper.sweep"))
+          .anySatisfy(name -> assertThat(name).endsWith("ExpiringSessions.closeExpired"))
+          .anySatisfy(name -> assertThat(name).endsWith("OfferPoller.poll"))
+          .anySatisfy(name -> assertThat(name).endsWith("RecoverySweeper.sweep"))
+          .anySatisfy(name -> assertThat(name).endsWith("SurgeJob.tick"))
+          .anySatisfy(name -> assertThat(name).endsWith("EventRedelivery.redeliver"))
+          .anySatisfy(name -> assertThat(name).endsWith("IdempotencyStore.purgeExpired"))
+          .anySatisfy(name -> assertThat(name).endsWith("SilentDriverCheck.check"));
+      assertThat(tasks)
+          .filteredOn(org.springframework.scheduling.config.IntervalTask.class::isInstance)
+          .hasSize(9)
+          .allSatisfy(
+              task -> {
+                var interval = (org.springframework.scheduling.config.IntervalTask) task;
+                assertThat(interval.getInitialDelayDuration())
+                    .isEqualTo(interval.getIntervalDuration());
+              });
     }
 
     /**

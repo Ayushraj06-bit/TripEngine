@@ -47,7 +47,9 @@ class SilentDriverCheck {
     this.properties = properties;
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.trip.driver-silence-check-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.trip.driver-silence-check-interval}",
+      initialDelayString = "${rideflow.trip.driver-silence-check-interval}")
   @SchedulerLock(name = "trip-driver-silence-check", lockAtMostFor = "PT5M")
   void check() {
     var rules = properties.trip();

@@ -104,7 +104,9 @@ class SurgeJob {
     }
   }
 
-  @Scheduled(fixedRateString = "${rideflow.surge.tick-interval}")
+  @Scheduled(
+      fixedRateString = "${rideflow.surge.tick-interval}",
+      initialDelayString = "${rideflow.surge.tick-interval}")
   @SchedulerLock(
       name = "surge-tick",
       lockAtMostFor = "PT2M",

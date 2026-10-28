@@ -64,7 +64,9 @@ class LiveMapPublisher {
     this.clock = clock;
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.admin.live-map-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.admin.live-map-interval}",
+      initialDelayString = "${rideflow.admin.live-map-interval}")
   @SchedulerLock(name = "live-map", lockAtMostFor = "PT10S", lockAtLeastFor = "PT1S")
   void scheduled() {
     publish();

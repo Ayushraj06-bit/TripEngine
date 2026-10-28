@@ -9,9 +9,10 @@ spring:
 
 rideflow:
   location:
-    # Background jobs that mutate shared Redis state race any test that moves the
-    # clock. Tests that need a sweep call it explicitly. It still runs once at
-    # startup, so the scheduling wiring itself stays exercised.
+    # Background jobs that mutate shared state race any test that moves the clock,
+    # so every job's interval here is an hour - and its first run waits one interval
+    # (ShedLockConfig), so none runs during a test. Tests that need a sweep call it
+    # explicitly; ApplicationIntegrationTest checks every job is still scheduled.
     stale-sweep-interval: PT1H
     session-expiry-check-interval: PT1H
   surge:

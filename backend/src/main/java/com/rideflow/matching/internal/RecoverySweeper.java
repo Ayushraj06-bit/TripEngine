@@ -36,7 +36,9 @@ class RecoverySweeper {
     this.properties = properties;
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.matching.recovery-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.matching.recovery-interval}",
+      initialDelayString = "${rideflow.matching.recovery-interval}")
   @SchedulerLock(name = "matching-recovery", lockAtMostFor = "PT1M")
   void sweep() {
     Instant now = clock.instant();

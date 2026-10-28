@@ -22,6 +22,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * <p>{@code defaultLockAtMostFor} is the safety net for an instance that dies holding a lock: the
  * lock is released after it regardless. It is deliberately longer than any job's expected runtime;
  * individual jobs override it when they need something tighter.
+ *
+ * <p>Every interval job's first run waits one interval after boot rather than running at once.
+ * Nothing needs a run at the moment of startup, and a test that drives a job itself would otherwise
+ * race the scheduler's run of it: the lock makes the loser skip without a word.
  */
 @Configuration
 @EnableScheduling

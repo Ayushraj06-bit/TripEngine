@@ -32,7 +32,9 @@ public class EventRedelivery {
     this.after = Duration.ofSeconds(properties.events().redeliverAfterSeconds());
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.events.redelivery-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.events.redelivery-interval}",
+      initialDelayString = "${rideflow.events.redelivery-interval}")
   @SchedulerLock(name = "event-redelivery", lockAtMostFor = "PT5M")
   void redeliver() {
     redeliverOlderThan(after);

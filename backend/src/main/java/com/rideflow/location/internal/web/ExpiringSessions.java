@@ -61,7 +61,9 @@ class ExpiringSessions implements WebSocketHandlerDecoratorFactory {
     };
   }
 
-  @Scheduled(fixedDelayString = "${rideflow.location.session-expiry-check-interval}")
+  @Scheduled(
+      fixedDelayString = "${rideflow.location.session-expiry-check-interval}",
+      initialDelayString = "${rideflow.location.session-expiry-check-interval}")
   void closeExpired() {
     closeExpired(clock.instant());
   }
