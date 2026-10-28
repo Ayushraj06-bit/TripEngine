@@ -249,6 +249,10 @@ waits for approval: approve one as the admin with
 half a minute. The demo's `demo-info` prints the admin's sign-in; a backend run on its own creates
 the admin from `RIDEFLOW_ADMIN_PHONE` and `RIDEFLOW_ADMIN_PASSWORD`.
 
+Choosing a pickup and a drop searches OpenStreetMap's Nominatim ([ADR 0020](adr/0020-places-and-location.md)).
+It needs no key, only a connection. A search goes out when you press Search, at most one a second,
+so its fair-use policy holds even while you test.
+
 ## Profiles
 
 | Profile | Purpose |
