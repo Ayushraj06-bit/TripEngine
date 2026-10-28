@@ -1,5 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type { Schemas } from '@/api/types';
+import type { LatLng } from '@/map/MapCanvas';
+import { NOMINATIM } from '@/places/nominatim';
 import type { SessionUser } from '@/state/session';
 import { server } from './server';
 
@@ -70,6 +72,7 @@ export function backendFor(user: SessionUser, password = 'correct-horse') {
     ),
     http.get('/api/v1/trips/active', () => new HttpResponse(null, { status: 204 })),
     http.post('/api/v1/auth/refresh', () => problem(401, 'REFRESH_TOKEN_INVALID')),
+    http.get('/api/v1/drivers/nearby', () => HttpResponse.json([])),
     http.post('/api/v1/auth/logout', async ({ request }) => {
       await record(request);
       return new HttpResponse(null, { status: 204 });
@@ -94,3 +97,68 @@ export const VEHICLE: Schemas['VehicleView'] = {
   model: 'Maruti Swift',
   colour: 'White',
 };
+
+/** A place as Nominatim's jsonv2 format sends it. */
+export interface RawPlace {
+  name: string;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+export const INDIRANAGAR: RawPlace = {
+  name: 'Indiranagar',
+  display_name:
+    'Indiranagar, Bengaluru East City Corporation, Bengaluru, Bangalore North, Bengaluru Urban, Karnataka, 560038, India',
+  lat: '12.9783692',
+  lon: '77.6408356',
+};
+
+export const MG_ROAD: RawPlace = {
+  name: 'MG Road',
+  display_name: 'MG Road, Shanthala Nagar, Ashok Nagar, Bengaluru, Karnataka, 560001, India',
+  lat: '12.9756',
+  lon: '77.6069',
+};
+
+/** North of the service area's edge, so it is found but cannot be chosen. */
+export const AIRPORT: RawPlace = {
+  name: 'Kempegowda International Airport',
+  display_name:
+    'Kempegowda International Airport, Airport Road, Devanahalli, Bengaluru Rural, Karnataka, 560300, India',
+  lat: '13.1989089',
+  lon: '77.7068182',
+};
+
+export function at(place: RawPlace): LatLng {
+  return { lat: Number(place.lat), lng: Number(place.lon) };
+}
+
+/** Place search answers with `places`, whatever is asked. */
+export function placesAre(places: RawPlace[]) {
+  server.use(
+    http.get(`${NOMINATIM}/search`, async ({ request }) => {
+      await record(request);
+      return HttpResponse.json(places);
+    }),
+  );
+}
+
+/** The address under any pin is `place`, or there is none. */
+export function addressIs(place: RawPlace | null) {
+  server.use(
+    http.get(`${NOMINATIM}/reverse`, async ({ request }) => {
+      await record(request);
+      return HttpResponse.json(place ?? { error: 'Unable to geocode' });
+    }),
+  );
+}
+
+export function nearbyAre(byType: Partial<Record<'BIKE' | 'AUTO' | 'CAR', LatLng[]>>) {
+  server.use(
+    http.get('/api/v1/drivers/nearby', ({ request }) => {
+      const type = new URL(request.url).searchParams.get('type') as 'BIKE' | 'AUTO' | 'CAR';
+      return HttpResponse.json(byType[type] ?? []);
+    }),
+  );
+}
