@@ -7,7 +7,7 @@ import { decode, encode, type Frame, type SocketLike } from '@/realtime/stomp';
 class FakeSocket implements SocketLike {
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((event: { code?: number }) => void) | null = null;
   onerror: (() => void) | null = null;
   readonly subscriptions = new Map<string, string>();
   private closed = false;
@@ -34,10 +34,10 @@ class FakeSocket implements SocketLike {
     }
   }
 
-  close(): void {
+  close(code = 1000): void {
     if (this.closed) return;
     this.closed = true;
-    queueMicrotask(() => this.onclose?.());
+    queueMicrotask(() => this.onclose?.({ code }));
   }
 
   reply(frame: Frame): void {
@@ -92,9 +92,14 @@ export class FakeLiveServer {
     });
   }
 
-  /** The server goes away: the open connection closes. */
+  /** The server goes away: the open connection closes abnormally. */
   drop(): void {
-    this.current?.close();
+    this.current?.close(1006);
+  }
+
+  /** The server closes the session because its access token ran out, as it does every 15 min. */
+  expire(): void {
+    this.current?.close(1008);
   }
 
   /** What the client sent to `destination`, parsed. */

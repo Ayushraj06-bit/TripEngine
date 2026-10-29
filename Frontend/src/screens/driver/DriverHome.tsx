@@ -55,7 +55,8 @@ export function DriverHome() {
     driver?.approvalStatus === 'APPROVED' && driver.status === 'AVAILABLE' && !trip.data;
   const sharing = useShareLocation(online);
   const offer = useOffer(online);
-  const connected = useLive((state) => state.status === 'open');
+  // A renewal of the session's token is a blink, not an outage.
+  const connected = useLive((state) => state.status === 'open' || state.status === 'renewing');
 
   if (profile.isPending || trip.isPending) return <Splash />;
   if (profile.isError || trip.isError) {

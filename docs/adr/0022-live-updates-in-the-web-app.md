@@ -25,6 +25,9 @@ frame by frame, so no new dependency was added. Reconnecting lives one level up 
   randomised so a server restart is not met by every client at once.
 - **A refused CONNECT** (a token that ran out while the connection was down) renews the session
   first, through the same single-flight renewal REST uses, so the two never renew at once.
+- **A planned close is quiet.** The backend closes a session when the token it opened with expires,
+  every 15 minutes, with code 1008. The app renews and reopens at once, without the
+  "Reconnecting…" notice, and only falls back to the backoff if that fails.
 - **Subscriptions are restored** after every reconnect.
 - **A "Reconnecting…" notice** shows while the connection is down.
 

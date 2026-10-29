@@ -16,7 +16,7 @@ export interface SocketLike {
   close: () => void;
   onopen: (() => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
-  onclose: (() => void) | null;
+  onclose: ((event: { code?: number }) => void) | null;
   onerror: (() => void) | null;
 }
 
@@ -78,11 +78,20 @@ export function decode(data: string): Frame[] {
 export interface StompHandlers {
   /** The server accepted the connection. */
   onConnected: () => void;
-  /** The connection ended; `refused` when the server said no (ERROR), such as to a stale token. */
-  onClosed: (refused: boolean) => void;
+  /**
+   * The connection ended: `refused` when the server said no (ERROR), such as to a stale token;
+   * `expired` when the server closed it because the token it opened with ran out.
+   */
+  onClosed: (refused: boolean, expired: boolean) => void;
 }
 
 const HEARTBEAT_MS = 10_000;
+
+/**
+ * The close code the backend sends when the access token a session opened with runs out
+ * (ExpiringSessions: POLICY_VIOLATION, "Access token expired") - every 15 minutes, by design.
+ */
+const TOKEN_EXPIRED = 1008;
 
 export class StompClient {
   private readonly socket: SocketLike;
@@ -123,11 +132,11 @@ export class StompClient {
         }
       }
     };
-    this.socket.onclose = () => {
+    this.socket.onclose = (event) => {
       this.stopHeartbeat();
       if (this.closed) return;
       this.closed = true;
-      events.onClosed(this.refused);
+      events.onClosed(this.refused, event.code === TOKEN_EXPIRED);
     };
     this.socket.onerror = () => {
       this.socket.close();

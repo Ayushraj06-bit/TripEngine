@@ -74,6 +74,28 @@ describe('the live connection', () => {
     expect(liveServer.tokens).toEqual(['Bearer first-token', 'Bearer renewed-token']);
   });
 
+  it('renews and reopens at once, quietly, when the server closes an expired session', async () => {
+    const back = vi.fn();
+    onReconnect(back);
+    startLive(token);
+    await opened();
+    const seen: string[] = [];
+    const unwatch = useLive.subscribe((state) => seen.push(state.status));
+
+    act(() => {
+      liveServer.expire();
+    });
+    await waitFor(() => {
+      expect(liveServer.tokens).toEqual(['Bearer first-token', 'Bearer renewed-token']);
+    });
+    await opened();
+    unwatch();
+    expect(seen).toContain('renewing');
+    expect(seen).not.toContain('reconnecting');
+    // Back on: screens read REST again, in case anything was pushed in the blink.
+    expect(back).toHaveBeenCalled();
+  });
+
   it('stops for good when stopped', async () => {
     startLive(token);
     await opened();

@@ -7,7 +7,11 @@ import { StompClient, type SocketFactory } from './stomp';
  * back, so a message lost while it was down costs a moment, not data.
  */
 
-export type LiveStatus = 'off' | 'connecting' | 'open' | 'reconnecting';
+/**
+ * `renewing`: the server closed the connection because its token ran out, and it is being
+ * reopened at once with a renewed one - a planned blink, not an outage, so nothing says so.
+ */
+export type LiveStatus = 'off' | 'connecting' | 'open' | 'renewing' | 'reconnecting';
 
 export const useLive = create<{ status: LiveStatus }>()(() => ({ status: 'off' }));
 
@@ -75,7 +79,7 @@ export function backoffMs(n: number): number {
   return Math.round(base * (0.8 + Math.random() * 0.4));
 }
 
-async function connect(renew: boolean): Promise<void> {
+async function connect(renew: boolean, quietly = false): Promise<void> {
   if (!tokenFor) return;
   const run = generation;
   const token = await tokenFor(renew).catch(() => null);
@@ -85,7 +89,7 @@ async function connect(renew: boolean): Promise<void> {
     stopLive();
     return;
   }
-  useLive.setState({ status: wasOpen ? 'reconnecting' : 'connecting' });
+  useLive.setState({ status: quietly ? 'renewing' : wasOpen ? 'reconnecting' : 'connecting' });
   unsubscribers.clear();
   client = new StompClient(url(), token, factory, {
     onConnected: () => {
@@ -95,10 +99,15 @@ async function connect(renew: boolean): Promise<void> {
       wasOpen = true;
       attempt = 0;
     },
-    onClosed: (refused) => {
+    onClosed: (refused, expired) => {
       client = null;
       unsubscribers.clear();
       if (!tokenFor) return;
+      // Closed on schedule for a token that ran out: renew and reopen straight away, once.
+      if (expired && !quietly) {
+        void connect(true, true);
+        return;
+      }
       useLive.setState({ status: 'reconnecting' });
       const delay = backoffMs(attempt);
       attempt += 1;
