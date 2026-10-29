@@ -256,6 +256,19 @@ so its fair-use policy holds even while you test.
 Booking in the app creates a real trip in your local database, and in the demo the simulator's
 drivers may accept it. The prices are the backend's own, surge included ([ADR 0021](adr/0021-prices-and-booking.md)).
 
+Live updates and the driver's position travel over `/ws` ([ADR 0022](adr/0022-live-updates-in-the-web-app.md)),
+and three things trip people up:
+
+- **The live connection must come from the backend's own origin.** The backend refuses other
+  origins with a 403. The dev server rewrites the Origin header for you; any other proxy you put
+  in front must do the same, or set `rideflow.web.allowed-origins`.
+- **Location needs a secure page**: https, or localhost. A phone opening the dev server over the
+  office network on plain http gets no location at all, and the app says so. Use a tunnel with
+  https, or test location on the laptop.
+- **To see your own driver take your own ride**, the simulator's drivers must not be nearer.
+  Stop the simulator (`docker stop rideflow-simulator-1`), wait half a minute for its drivers to go
+  stale, put your driver and your rider at the same spot, and `docker start` it again afterwards.
+
 ## Profiles
 
 | Profile | Purpose |
