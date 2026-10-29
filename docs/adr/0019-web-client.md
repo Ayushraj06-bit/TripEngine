@@ -89,3 +89,12 @@ materials, defined once in `Frontend/src/styles/theme.css`.
 - The design system is reviewable in one place, at `/design-system`.
 - The app looks a little different on each platform, because the font is the platform's. That is
   the point: it reads like the device it runs on.
+
+## Decisions built on this one
+
+- [ADR 0020](0020-places-and-location.md): places and location. OpenStreetMap's Nominatim for
+  search, the device's position asked in context, and the service area held to the backend's.
+- [ADR 0021](0021-prices-and-booking.md): prices and booking. Countdowns on the server's clock,
+  and one Idempotency-Key per booking attempt.
+- [ADR 0022](0022-live-updates-in-the-web-app.md): live updates. A small STOMP client, REST as the
+  source of truth, and pushes ordered by `seq`.
