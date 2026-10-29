@@ -26,4 +26,14 @@ describe('locate', () => {
   it('says unavailable where the browser has no location at all', async () => {
     await expect(locate()).resolves.toEqual({ ok: false, reason: 'unavailable' });
   });
+
+  it('says the page is not secure, rather than that location is off, when that is why', async () => {
+    Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
+    try {
+      locationFails(1);
+      await expect(locate()).resolves.toEqual({ ok: false, reason: 'insecure' });
+    } finally {
+      Reflect.deleteProperty(window, 'isSecureContext');
+    }
+  });
 });

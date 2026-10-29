@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { LatLng } from '@/map/MapCanvas';
-import type { LocationFailure } from '@/places/location';
+import { failureOf, type LocationFailure } from '@/places/location';
 import { onReconnect, publish } from '@/realtime/live';
 
 export const LOCATION_DESTINATION = '/app/driver/location';
@@ -78,10 +78,7 @@ export function useShareLocation(active: boolean): Sharing {
       },
       (error) => {
         last = null;
-        setSharing({
-          state: 'failed',
-          reason: error.code === 1 ? 'denied' : error.code === 3 ? 'timeout' : 'unavailable',
-        });
+        setSharing({ state: 'failed', reason: failureOf(error.code) });
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20_000 },
     );

@@ -14,6 +14,8 @@ const LOCATION_WORDS: Record<LocationFailure | 'outside', string> = {
   denied: 'Location is off for RideFlow. Search for your pickup, or choose it on the map.',
   unavailable: 'Your location isn’t available. Search for your pickup, or choose it on the map.',
   timeout: 'Finding your location took too long. Try again, or choose your pickup on the map.',
+  insecure:
+    'Location needs a secure page (https). Search for your pickup, or choose it on the map.',
   outside: 'You’re outside the area RideFlow serves. Choose a pickup in Bengaluru.',
 };
 

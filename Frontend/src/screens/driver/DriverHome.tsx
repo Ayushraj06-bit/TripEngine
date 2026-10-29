@@ -38,7 +38,9 @@ function sharingWords(sharing: Sharing, connected: boolean): string | null {
     case 'failed':
       return sharing.reason === 'denied'
         ? 'Location is off for RideFlow. Riders can’t be matched to you until it’s on.'
-        : 'Your location isn’t available. Riders can’t be matched to you until it is.';
+        : sharing.reason === 'insecure'
+          ? 'Location needs a secure page (https), so it can’t be shared from here.'
+          : 'Your location isn’t available. Riders can’t be matched to you until it is.';
   }
 }
 
