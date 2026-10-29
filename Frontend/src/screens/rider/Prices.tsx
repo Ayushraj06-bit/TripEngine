@@ -1,7 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { describeError, type Recovery } from '@/api/errors';
-import { onThisClock } from '@/api/serverClock';
 import type { VehicleType } from '@/map/NearbyDrivers';
 import { useBookingDraft, type PaymentMethod } from '@/state/bookingDraft';
 import { Button } from '@/ui/Button';
@@ -15,7 +14,7 @@ import { FormAlert } from '../common';
 import { useNearbyDrivers, useQuotes, useWallet } from '../queries';
 import { placeBooking } from './booking';
 import { FareBreakdown } from './FareBreakdown';
-import { distanceText, minutesText, surgeText, type Quote } from './fare';
+import { distanceText, minutesText, surgeText, type PricedQuote } from './fare';
 
 const TIER: Record<VehicleType, { name: string; icon: IconName; seats: string }> = {
   BIKE: { name: 'Bike', icon: 'bike', seats: '1 rider' },
@@ -61,10 +60,10 @@ export function Prices({
     },
   });
 
-  const list: Quote[] = quotes.data ?? [];
+  const list: PricedQuote[] = quotes.data ?? [];
   const expired = expiredFor !== null && expiredFor === quotes.dataUpdatedAt;
   const chosen = list.find((q) => q.vehicleType === picked) ?? list[0];
-  const until = list.length ? Math.min(...list.map((q) => onThisClock(q.expiresAt ?? ''))) : 0;
+  const until = list.length ? Math.min(...list.map((q) => q.validUntil)) : 0;
   const surge = surgeText(list);
   const balance = wallet.data?.balancePaise;
   const fare = chosen?.totalPaise ?? 0;

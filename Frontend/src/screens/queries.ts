@@ -1,5 +1,6 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { onThisClock } from '@/api/serverClock';
 import { activeTrip } from '@/auth/landing';
 import type { LatLng } from '@/map/MapCanvas';
 import type { NearbyDriver, VehicleType } from '@/map/NearbyDrivers';
@@ -68,7 +69,10 @@ export function useQuotes(pickup: LatLng | null, drop: LatLng | null) {
         body: { pickup: pickup ?? { lat: 0, lng: 0 }, drop: drop ?? { lat: 0, lng: 0 } },
         signal,
       });
-      return [...(answer.quotes ?? [])].sort((a, b) => (a.totalPaise ?? 0) - (b.totalPaise ?? 0));
+      // Their expiry on this device's clock, fixed now, from this very response's Date.
+      return [...(answer.quotes ?? [])]
+        .sort((a, b) => (a.totalPaise ?? 0) - (b.totalPaise ?? 0))
+        .map((quote) => ({ ...quote, validUntil: onThisClock(quote.expiresAt ?? '') }));
     },
     enabled: pickup !== null && drop !== null,
     staleTime: Infinity,

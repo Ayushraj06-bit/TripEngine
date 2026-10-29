@@ -2,6 +2,9 @@ import type { Schemas } from '@/api/types';
 
 export type Quote = Schemas['QuoteView'];
 
+/** A quote as the screen holds it: when it lapses, on this device's clock. */
+export type PricedQuote = Quote & { validUntil: number };
+
 /** "18 min", "1 h 5 min": the quote's own estimate, rounded up to the minute. */
 export function minutesText(seconds: number): string {
   const minutes = Math.max(1, Math.ceil(seconds / 60));
