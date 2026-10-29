@@ -33,8 +33,12 @@ function attemptFor(request: BookingRequest): Attempt {
   return attempt;
 }
 
+/**
+ * Placed: the attempt is done with. The stops stay until a driver is on the way, so "Try again"
+ * after no driver was found books the same ride.
+ */
 function booked(tripId: string): string {
-  useBookingDraft.getState().clear();
+  useBookingDraft.getState().setAttempt(null);
   return tripId;
 }
 

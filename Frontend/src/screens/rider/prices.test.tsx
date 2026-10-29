@@ -167,7 +167,11 @@ describe('booking', () => {
       paymentMethod: 'CASH',
     });
     expect(keyOf(0)).toMatch(/^[0-9a-f-]{36}$/);
-    expect(useBookingDraft.getState().pickup).toBeNull();
+    // The attempt is done with; the stops wait until a driver is on the way.
+    expect(useBookingDraft.getState()).toMatchObject({
+      attempt: null,
+      pickup: { name: 'MG Road' },
+    });
   });
 
   it('resends the same booking after the connection drops, so it is placed once', async () => {
