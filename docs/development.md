@@ -253,6 +253,9 @@ Choosing a pickup and a drop searches OpenStreetMap's Nominatim ([ADR 0020](adr/
 It needs no key, only a connection. A search goes out when you press Search, at most one a second,
 so its fair-use policy holds even while you test.
 
+Booking in the app creates a real trip in your local database, and in the demo the simulator's
+drivers may accept it. The prices are the backend's own, surge included ([ADR 0021](adr/0021-prices-and-booking.md)).
+
 ## Profiles
 
 | Profile | Purpose |
