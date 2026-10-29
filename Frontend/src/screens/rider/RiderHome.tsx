@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { CentrePin } from '@/map/CentrePin';
@@ -11,19 +12,23 @@ import { Icon } from '@/ui/Icon';
 import { Row } from '@/ui/Row';
 import { Sheet, type SheetHeight } from '@/ui/Sheet';
 import { TopBar } from '@/ui/TopBar';
-import { useActiveTrip, useNearbyDrivers } from '../queries';
+import { ACTIVE_TRIP, useActiveTrip, useNearbyDrivers } from '../queries';
 import { SignOutButton } from '../SignOutButton';
 import { ChooseOnMap } from './ChooseOnMap';
+import { Prices } from './Prices';
 import { nearbyWords } from './stops';
 import { WhereTo } from './WhereTo';
 
-type Step = 'home' | 'where-to' | 'map';
+type Step = 'home' | 'where-to' | 'map' | 'prices';
 
 /** The step lives in the address, so Back and a reload both keep the rider where they were. */
 function stepFrom(params: URLSearchParams): { step: Step; kind: StopKind } {
   const step = params.get('step');
   const kind = params.get('field') === 'pickup' ? 'pickup' : 'drop';
-  return { step: step === 'where-to' || step === 'map' ? step : 'home', kind };
+  return {
+    step: step === 'where-to' || step === 'map' || step === 'prices' ? step : 'home',
+    kind,
+  };
 }
 
 const HEIGHT: Record<Step | 'summary', SheetHeight> = {
@@ -31,6 +36,7 @@ const HEIGHT: Record<Step | 'summary', SheetHeight> = {
   summary: 'half',
   'where-to': 'full',
   map: 'peek',
+  prices: 'half',
 };
 
 /**
@@ -39,6 +45,7 @@ const HEIGHT: Record<Step | 'summary', SheetHeight> = {
  */
 export function RiderHome() {
   const trip = useActiveTrip();
+  const queries = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -53,13 +60,16 @@ export function RiderHome() {
   const [heights, setHeights] = useState<Partial<Record<string, SheetHeight>>>({});
 
   if (trip.data) return <Navigate to={`/trip/${trip.data.id}`} replace />;
+  // Prices need both stops: a reload or a link that arrives without them starts at where to.
+  if (step === 'prices' && (!pickup || !drop))
+    return <Navigate to="/?step=where-to&field=drop" replace />;
 
   const ready = pickup !== null && drop !== null;
   const view = step === 'home' && ready ? 'summary' : step;
   const height = heights[view] ?? HEIGHT[view];
 
-  function open(next: Step, field: StopKind) {
-    void navigate(`/?step=${next}&field=${field}`);
+  function open(next: Step, field?: StopKind) {
+    void navigate(field ? `/?step=${next}&field=${field}` : `/?step=${next}`);
   }
 
   /** Back where the rider came from - or home, when this step was the first page opened. */
@@ -111,20 +121,23 @@ export function RiderHome() {
               ? 'Plan your ride'
               : step === 'map'
                 ? `Set your ${kind}`
-                : ready
-                  ? 'Your ride'
-                  : 'Where to?'
+                : step === 'prices'
+                  ? 'Choose a ride'
+                  : ready
+                    ? 'Your ride'
+                    : 'Where to?'
           }
           footer={
             view === 'summary' ? (
-              <div className="flex flex-col gap-2">
-                <Button size="large" block disabled aria-describedby="prices-later">
-                  See prices
-                </Button>
-                <p id="prices-later" className="text-center text-footnote text-ink-soft">
-                  Prices arrive in the next stage of this app.
-                </p>
-              </div>
+              <Button
+                size="large"
+                block
+                onClick={() => {
+                  open('prices');
+                }}
+              >
+                See prices
+              </Button>
             ) : undefined
           }
         >
@@ -141,6 +154,16 @@ export function RiderHome() {
             />
           ) : step === 'map' ? (
             <ChooseOnMap kind={kind} at={pinAt} onConfirm={chosenOnMap} />
+          ) : step === 'prices' ? (
+            <Prices
+              onChangeStops={() => {
+                open('where-to', 'drop');
+              }}
+              onBooked={(tripId) => {
+                void queries.invalidateQueries({ queryKey: ACTIVE_TRIP });
+                void navigate(`/trip/${tripId}`, { replace: true });
+              }}
+            />
           ) : ready ? (
             <div className="flex flex-col gap-1 pb-4">
               <Row

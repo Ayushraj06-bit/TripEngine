@@ -105,9 +105,7 @@ describe('the drop', () => {
     expect(within(sheet).getByText('MG Road')).toBeInTheDocument();
     expect(within(sheet).getByText('Indiranagar')).toBeInTheDocument();
     expect(await within(sheet).findByText('2 bikes and 1 car near your pickup.')).toBeVisible();
-    const seePrices = screen.getByRole('button', { name: 'See prices' });
-    expect(seePrices).toBeDisabled();
-    expect(seePrices).toHaveAccessibleDescription('Prices arrive in the next stage of this app.');
+    expect(screen.getByRole('button', { name: 'See prices' })).toBeEnabled();
   });
 
   it('survives a reload: the choice is in the tab’s session storage', async () => {
