@@ -26,6 +26,7 @@ export function resetApp(): void {
   seen.length = 0;
   resetPlacesForTests();
   Reflect.deleteProperty(navigator, 'geolocation');
+  watchers.clear();
 }
 
 /** As if `user` had signed in: the token in memory, the profile known. */
@@ -74,6 +75,17 @@ export async function screenAlert() {
   return within(await screen.findByRole('main')).findByRole('alert');
 }
 
+// Positions being watched, as a driver online is: moveDevice reports to each.
+const watchers = new Map<number, PositionCallback>();
+let nextWatch = 0;
+
+function position(at: LatLng, accuracy: number): GeolocationPosition {
+  return {
+    coords: { latitude: at.lat, longitude: at.lng, accuracy, heading: null, speed: null },
+    timestamp: Date.now(),
+  } as unknown as GeolocationPosition;
+}
+
 function geolocation(answer: (ok: PositionCallback, fail: PositionErrorCallback) => void) {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
@@ -81,17 +93,28 @@ function geolocation(answer: (ok: PositionCallback, fail: PositionErrorCallback)
       getCurrentPosition: (ok: PositionCallback, fail: PositionErrorCallback) => {
         answer(ok, fail);
       },
+      watchPosition: (ok: PositionCallback, fail: PositionErrorCallback) => {
+        nextWatch += 1;
+        watchers.set(nextWatch, ok);
+        answer(ok, fail);
+        return nextWatch;
+      },
+      clearWatch: (id: number) => {
+        watchers.delete(id);
+      },
     },
   });
+}
+
+/** The device moves to `at`: every watch hears of it. */
+export function moveDevice(at: LatLng, accuracy = 15): void {
+  for (const ok of watchers.values()) ok(position(at, accuracy));
 }
 
 /** The device says it is at `at`, to within `accuracy` metres. */
 export function deviceAt(at: LatLng, accuracy = 15): void {
   geolocation((ok) => {
-    ok({
-      coords: { latitude: at.lat, longitude: at.lng, accuracy },
-      timestamp: Date.now(),
-    } as GeolocationPosition);
+    ok(position(at, accuracy));
   });
 }
 

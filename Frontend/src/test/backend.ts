@@ -73,6 +73,7 @@ export function backendFor(user: SessionUser, password = 'correct-horse') {
     http.get('/api/v1/trips/active', () => new HttpResponse(null, { status: 204 })),
     http.post('/api/v1/auth/refresh', () => problem(401, 'REFRESH_TOKEN_INVALID')),
     http.get('/api/v1/drivers/nearby', () => HttpResponse.json([])),
+    http.get('/api/v1/offers/current', () => new HttpResponse(null, { status: 204 })),
     http.post('/api/v1/auth/logout', async ({ request }) => {
       await record(request);
       return new HttpResponse(null, { status: 204 });
@@ -222,5 +223,63 @@ export function tripIs(id: string, status: Schemas['TripView']['status']) {
     http.get('/api/v1/trips/:tripId', ({ params }) =>
       params['tripId'] === 'active' ? undefined : HttpResponse.json({ id, status }),
     ),
+  );
+}
+
+/** A trip as the backend sends it, with only what a test cares about filled in. */
+export function trip(
+  id: string,
+  status: Schemas['TripView']['status'],
+  extra: Partial<Schemas['TripView']> = {},
+) {
+  return { id, status, vehicleType: 'AUTO', ...extra } as Schemas['TripView'];
+}
+
+/** GET /trips/{id} answers with `view` (or each call's answer); cancelling records and answers. */
+export function tripAnswers(view: Schemas['TripView'] | (() => Schemas['TripView'])) {
+  server.use(
+    http.get('/api/v1/trips/:tripId', ({ params }) =>
+      params['tripId'] === 'active'
+        ? undefined
+        : HttpResponse.json(typeof view === 'function' ? view() : view),
+    ),
+  );
+}
+
+export function cancellingAnswers(answer: () => Response) {
+  server.use(
+    http.post('/api/v1/trips/:tripId/cancel', async ({ request }) => {
+      await record(request);
+      return answer();
+    }),
+  );
+}
+
+export function offerIs(offer: Schemas['OfferView'] | null) {
+  server.use(
+    http.get('/api/v1/offers/current', () =>
+      offer ? HttpResponse.json(offer) : new HttpResponse(null, { status: 204 }),
+    ),
+  );
+}
+
+/** An offer of an auto ride near MG Road, open for twelve seconds from now. */
+export function anOffer(extra: Partial<Schemas['OfferView']> = {}): Schemas['OfferView'] {
+  return {
+    offerId: 'offer-1',
+    pickup: { lat: 12.976, lng: 77.607 },
+    vehicleType: 'AUTO',
+    estimatedFarePaise: 14800,
+    expiresAt: new Date(Date.now() + 12_000).toISOString(),
+    ...extra,
+  };
+}
+
+export function offerAnswers(action: 'accept' | 'reject', answer: () => Response) {
+  server.use(
+    http.post(`/api/v1/offers/:offerId/${action}`, async ({ request }) => {
+      await record(request);
+      return answer();
+    }),
   );
 }
