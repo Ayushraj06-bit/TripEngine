@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { FareBreakdown } from '@/screens/rider/FareBreakdown';
 import { Button } from '@/ui/Button';
 import { Card, ChoiceCard } from '@/ui/Card';
 import { Countdown } from '@/ui/Countdown';
@@ -349,6 +350,26 @@ export function DesignSystem() {
           </ChoiceCard>
         </div>
         <Caption>Sample tiers. The selected one is outlined in signal.</Caption>
+      </Section>
+
+      <Section title="Fare breakdown">
+        <FareBreakdown
+          quote={{
+            vehicleType: 'AUTO',
+            totalPaise: 14800,
+            breakdown: {
+              basePaise: 3000,
+              distancePaise: 8820,
+              timePaise: 1800,
+              surgePaise: 1180,
+              roundingPaise: 0,
+            },
+          }}
+        />
+        <Caption>
+          Sample fare. Each line comes from the backend’s breakdown; lines that are zero are left
+          out.
+        </Caption>
       </Section>
 
       <Section title="Skeleton">

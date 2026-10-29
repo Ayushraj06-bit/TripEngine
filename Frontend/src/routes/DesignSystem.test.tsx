@@ -29,6 +29,7 @@ describe('the design system page', () => {
       'Bar and materials',
       'Row',
       'Card',
+      'Fare breakdown',
       'Skeleton',
       'Spinner',
       'Toast',
