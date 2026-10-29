@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { describeError, type Recovery } from '@/api/errors';
 import type { VehicleType } from '@/map/NearbyDrivers';
 import { useBookingDraft, type PaymentMethod } from '@/state/bookingDraft';
@@ -49,6 +49,9 @@ export function Prices({
   // Which set of prices ran out: a new set, fetched again, is not expired.
   const [expiredFor, setExpiredFor] = useState<number | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
+  // Pressed once, Confirm stays pressed until that booking fails: a second tap that lands after
+  // the first succeeded, before the trip opens, must not start another.
+  const placing = useRef(false);
 
   const book = useMutation({
     mutationFn: placeBooking,
@@ -69,13 +72,17 @@ export function Prices({
   const fare = chosen?.totalPaise ?? 0;
 
   function confirm() {
-    if (!chosen?.quoteId || !chosen.vehicleType) return;
+    if (placing.current || !chosen?.quoteId || !chosen.vehicleType) return;
+    placing.current = true;
     setFailure(null);
-    book.mutate({
-      quoteId: chosen.quoteId,
-      vehicleType: chosen.vehicleType,
-      paymentMethod: payment,
-    });
+    book.mutate(
+      { quoteId: chosen.quoteId, vehicleType: chosen.vehicleType, paymentMethod: payment },
+      {
+        onError: () => {
+          placing.current = false;
+        },
+      },
+    );
   }
 
   function newPrices() {
