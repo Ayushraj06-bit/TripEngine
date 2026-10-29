@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { stopLive, useSocketFactoryForTests } from '@/realtime/live';
+import { resetTripLiveForTests } from '@/realtime/useTripLive';
 import { liveServer } from './liveServer';
 import { resetMedia } from './media';
 import { server } from './server';
@@ -20,6 +21,7 @@ afterEach(() => {
   cleanup();
   stopLive();
   liveServer.reset();
+  resetTripLiveForTests();
   server.resetHandlers();
   resetMedia();
 });
