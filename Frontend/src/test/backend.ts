@@ -162,3 +162,65 @@ export function nearbyAre(byType: Partial<Record<'BIKE' | 'AUTO' | 'CAR', LatLng
     }),
   );
 }
+
+type VehicleType = 'BIKE' | 'AUTO' | 'CAR';
+
+/** A quote as the backend sends it: 4.2 km, 18 minutes, valid for five minutes from now. */
+export function quote(
+  vehicleType: VehicleType,
+  totalPaise: number,
+  extra: Partial<Schemas['QuoteView']> = {},
+): Schemas['QuoteView'] {
+  return {
+    quoteId: `quote-${vehicleType.toLowerCase()}`,
+    vehicleType,
+    totalPaise,
+    distanceMeters: 4200,
+    durationSeconds: 1080,
+    surgeMultiplier: 1,
+    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    breakdown: { basePaise: 3000, distancePaise: totalPaise - 4000, timePaise: 1000 },
+    ...extra,
+  };
+}
+
+/** Prices are `quotes`, or each call's answer from `answer`. */
+export function quotesAre(answer: Schemas['QuoteView'][] | (() => Response)) {
+  server.use(
+    http.post('/api/v1/fares/quotes', async ({ request }) => {
+      await record(request);
+      return typeof answer === 'function' ? answer() : HttpResponse.json({ quotes: answer });
+    }),
+  );
+}
+
+export function walletHas(balancePaise: number) {
+  server.use(
+    http.get('/api/v1/wallet', () =>
+      HttpResponse.json({ account: 'RIDER_WALLET', balancePaise, movements: [] }),
+    ),
+  );
+}
+
+/** Bookings answered by `answer`, each one recorded with its Idempotency-Key. */
+export function bookingAnswers(answer: () => Response) {
+  server.use(
+    http.post('/api/v1/trips', async ({ request }) => {
+      await record(request);
+      return answer();
+    }),
+  );
+}
+
+export function booked(id: string): Response {
+  return HttpResponse.json({ id, status: 'REQUESTED', paymentMethod: 'CASH' }, { status: 202 });
+}
+
+/** GET /trips/{id} answers with this trip; /trips/active is left as it was. */
+export function tripIs(id: string, status: Schemas['TripView']['status']) {
+  server.use(
+    http.get('/api/v1/trips/:tripId', ({ params }) =>
+      params['tripId'] === 'active' ? undefined : HttpResponse.json({ id, status }),
+    ),
+  );
+}

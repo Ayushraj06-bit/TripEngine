@@ -6,6 +6,7 @@ import { routes } from '@/app/router';
 import { sendToSignIn } from '@/app/sessionEnded';
 import { installAuth, resetSessionForTests } from '@/auth/auth';
 import type { LatLng } from '@/map/MapCanvas';
+import { resetServerClockForTests } from '@/api/serverClock';
 import { resetPlacesForTests } from '@/places/nominatim';
 import { useBookingDraft } from '@/state/bookingDraft';
 import { useSession, type SessionUser } from '@/state/session';
@@ -17,6 +18,8 @@ export function resetApp(): void {
   resetSessionForTests();
   useSession.setState({ status: 'signed-out', accessToken: null, user: null, handoff: false });
   useBookingDraft.getState().clear();
+  useBookingDraft.getState().setPayment('CASH');
+  resetServerClockForTests();
   useToasts.setState({ toasts: [] });
   sessionStorage.clear();
   localStorage.clear();
@@ -67,8 +70,8 @@ export async function signInWith(
 }
 
 /** The screen's own alert. The toaster's live regions stay mounted, outside <main>, all along. */
-export function screenAlert() {
-  return within(screen.getByRole('main')).findByRole('alert');
+export async function screenAlert() {
+  return within(await screen.findByRole('main')).findByRole('alert');
 }
 
 function geolocation(answer: (ok: PositionCallback, fail: PositionErrorCallback) => void) {
