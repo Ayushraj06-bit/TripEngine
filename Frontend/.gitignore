@@ -2,3 +2,5 @@ node_modules
 dist
 coverage
 *.local
+# What `tsc -b` leaves behind between runs.
+*.tsbuildinfo
