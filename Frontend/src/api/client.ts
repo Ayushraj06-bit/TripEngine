@@ -34,8 +34,11 @@ export function configureAuth(next: AuthHooks): void {
 
 let renewing: Promise<string | null> | null = null;
 
-/** One renewal at a time, shared by everyone waiting on it. */
-function renewOnce(): Promise<string | null> {
+/**
+ * One renewal at a time, shared by everyone waiting on it - REST calls and the live connection
+ * alike. Answers with the new access token, or null when the session cannot be renewed.
+ */
+export function renewSession(): Promise<string | null> {
   renewing ??= hooks
     .refresh()
     .catch(() => null)
@@ -123,7 +126,7 @@ export async function request<M extends Method, P extends PathFor<M>>(
   if (response.status === 401 && auth) {
     // Someone else may already have renewed the session since this request set off.
     const current = useSession.getState().accessToken;
-    const token = current && current !== used ? current : await renewOnce();
+    const token = current && current !== used ? current : await renewSession();
     if (!token) {
       hooks.onSessionExpired();
       throw await problemFrom(response);

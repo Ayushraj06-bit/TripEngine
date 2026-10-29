@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { stopLive, useSocketFactoryForTests } from '@/realtime/live';
+import { liveServer } from './liveServer';
 import { resetMedia } from './media';
 import { server } from './server';
 
@@ -10,10 +12,14 @@ configure({ asyncUtilTimeout: 5000 });
 beforeAll(() => {
   // A request no handler expects is a test bug, not a silent pass.
   server.listen({ onUnhandledFrame: 'error' });
+  // The live connection talks to a server the test plays, never the network.
+  useSocketFactoryForTests(liveServer.factory);
 });
 
 afterEach(() => {
   cleanup();
+  stopLive();
+  liveServer.reset();
   server.resetHandlers();
   resetMedia();
 });
