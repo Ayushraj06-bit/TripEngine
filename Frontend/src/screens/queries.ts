@@ -6,6 +6,7 @@ import type { NearbyDriver, VehicleType } from '@/map/NearbyDrivers';
 
 export const DRIVER_PROFILE = ['driver', 'me'] as const;
 export const ACTIVE_TRIP = ['trip', 'active'] as const;
+export const WALLET = ['wallet'] as const;
 
 const VEHICLE_TYPES: readonly VehicleType[] = ['BIKE', 'AUTO', 'CAR'];
 
@@ -47,5 +48,32 @@ export function useNearbyDrivers(at: LatLng | null): NearbyDriver[] | null {
     })),
     combine: (results) =>
       results.every((r) => r.isSuccess) ? results.flatMap((r) => r.data) : null,
+  });
+}
+
+/** The rider's wallet, as the ledger has it now. */
+export function useWallet() {
+  return useQuery({ queryKey: WALLET, queryFn: () => api.get('/api/v1/wallet') });
+}
+
+/**
+ * Prices for every ride type between two points. Asked afresh each time they are shown, never
+ * kept: the screen counts down to their expiry and asks again itself.
+ */
+export function useQuotes(pickup: LatLng | null, drop: LatLng | null) {
+  return useQuery({
+    queryKey: ['quotes', pickup?.lat, pickup?.lng, drop?.lat, drop?.lng],
+    queryFn: async ({ signal }) => {
+      const answer = await api.post('/api/v1/fares/quotes', {
+        body: { pickup: pickup ?? { lat: 0, lng: 0 }, drop: drop ?? { lat: 0, lng: 0 } },
+        signal,
+      });
+      return [...(answer.quotes ?? [])].sort((a, b) => (a.totalPaise ?? 0) - (b.totalPaise ?? 0));
+    },
+    enabled: pickup !== null && drop !== null,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }
