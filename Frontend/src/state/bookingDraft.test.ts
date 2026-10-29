@@ -28,4 +28,17 @@ describe('the booking draft', () => {
     expect(stored.state?.drop).toEqual(MG_ROAD);
     expect(localStorage.length).toBe(0);
   });
+
+  it('forgets the ride after booking, but not how the rider likes to pay', () => {
+    const draft = useBookingDraft.getState();
+    draft.setStop('pickup', MG_ROAD);
+    draft.setPayment('WALLET');
+    draft.setAttempt({ key: 'k-1', request: '{}' });
+    draft.clear();
+    expect(useBookingDraft.getState()).toMatchObject({
+      pickup: null,
+      attempt: null,
+      payment: 'WALLET',
+    });
+  });
 });

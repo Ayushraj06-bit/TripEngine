@@ -13,6 +13,17 @@ export interface Stop {
 
 export type StopKind = 'pickup' | 'drop';
 
+export type PaymentMethod = 'CASH' | 'WALLET';
+
+/**
+ * One booking attempt: the Idempotency-Key it is sent with, and the request it was made for. A
+ * retry of the same request reuses the key, so the backend books once however often it is sent.
+ */
+export interface Attempt {
+  key: string;
+  request: string;
+}
+
 interface BookingDraft {
   /** What the rider typed for pickup and drop, before a place is chosen. */
   pickupQuery: string;
@@ -21,14 +32,21 @@ interface BookingDraft {
   drop: Stop | null;
   setPickupQuery: (query: string) => void;
   setDropQuery: (query: string) => void;
+  /** How the rider will pay: cash unless they choose the wallet. */
+  payment: PaymentMethod;
+  /** The booking being placed, until it is placed or refused. */
+  attempt: Attempt | null;
   setStop: (kind: StopKind, stop: Stop | null) => void;
+  setPayment: (payment: PaymentMethod) => void;
+  setAttempt: (attempt: Attempt | null) => void;
+  /** Ready for the next ride: everything forgotten but how the rider likes to pay. */
   clear: () => void;
 }
 
 /**
  * The booking the rider has started, kept across a detour to sign in and across a reload of the
- * tab - sessionStorage, which ends with the tab. It holds what they typed and the places they
- * chose, never anything about the session itself.
+ * tab - sessionStorage, which ends with the tab. It holds what they typed, the places they chose,
+ * how they will pay and the booking being placed - never anything about the session itself.
  */
 export const useBookingDraft = create<BookingDraft>()(
   persist(
@@ -37,6 +55,8 @@ export const useBookingDraft = create<BookingDraft>()(
       dropQuery: '',
       pickup: null,
       drop: null,
+      payment: 'CASH',
+      attempt: null,
       setPickupQuery: (pickupQuery) => {
         set({ pickupQuery });
       },
@@ -49,18 +69,26 @@ export const useBookingDraft = create<BookingDraft>()(
           set(stop ? { pickup: stop, pickupQuery: stop.name } : { pickup: null });
         else set(stop ? { drop: stop, dropQuery: stop.name } : { drop: null });
       },
+      setPayment: (payment) => {
+        set({ payment });
+      },
+      setAttempt: (attempt) => {
+        set({ attempt });
+      },
       clear: () => {
-        set({ pickupQuery: '', dropQuery: '', pickup: null, drop: null });
+        set({ pickupQuery: '', dropQuery: '', pickup: null, drop: null, attempt: null });
       },
     }),
     {
       name: 'rideflow-booking-draft',
       storage: createJSONStorage(() => sessionStorage),
-      partialize: ({ pickupQuery, dropQuery, pickup, drop }) => ({
+      partialize: ({ pickupQuery, dropQuery, pickup, drop, payment, attempt }) => ({
         pickupQuery,
         dropQuery,
         pickup,
         drop,
+        payment,
+        attempt,
       }),
     },
   ),
