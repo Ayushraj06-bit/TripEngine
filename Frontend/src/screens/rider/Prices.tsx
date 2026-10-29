@@ -189,17 +189,6 @@ export function Prices({
             { value: 'WALLET', label: 'Wallet' },
           ]}
         />
-        {payment === 'WALLET' && (
-          <p aria-live="polite" className="text-footnote text-ink-soft">
-            {balance === undefined
-              ? wallet.isError
-                ? 'Your wallet balance isn’t available right now.'
-                : 'Checking your wallet…'
-              : balance >= fare
-                ? `Your wallet has ${formatRupees(balance)}.`
-                : `Your wallet has ${formatRupees(balance)}. It can go below zero for this ride, and you’ll top it up before the next one.`}
-          </p>
-        )}
       </div>
 
       {failure && (
@@ -213,8 +202,20 @@ export function Prices({
         </div>
       )}
 
-      {/* Pinned to the bottom of the sheet as its content scrolls beneath. */}
+      {/* Pinned to the bottom of the sheet as its content scrolls beneath, with what the wallet
+          means for this ride right above the button it qualifies - never scrolled out of sight. */}
       <div className="sticky bottom-0 -mx-4 bg-paper px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {payment === 'WALLET' && (
+          <p aria-live="polite" className="pb-2 text-footnote text-ink-soft">
+            {balance === undefined
+              ? wallet.isError
+                ? 'Your wallet balance isn’t available right now.'
+                : 'Checking your wallet…'
+              : balance >= fare
+                ? `Your wallet has ${formatRupees(balance)}.`
+                : `Your wallet has ${formatRupees(balance)}. It can go below zero for this ride, and you’ll top it up before the next one.`}
+          </p>
+        )}
         {expired ? (
           <Button size="large" block onClick={newPrices}>
             Get new prices
