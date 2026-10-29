@@ -135,12 +135,28 @@ The secrets the two instances share are generated on first start and never commi
 ([ADR 0018](docs/adr/0018-packaging-and-delivery.md)). Images are published to the GitHub Container
 Registry from `main`.
 
+## The web app
+
+The rider and driver app lives in [`Frontend/`](Frontend/): React and strict TypeScript, typed end to
+end against the backend's OpenAPI document, built phone first to Apple's design principles
+([ADR 0019](docs/adr/0019-web-client.md)). With the demo running:
+
+```bash
+cd Frontend && npm ci && npm run dev    # http://localhost:5173
+```
+
+A rider signs in, chooses a pickup and a drop by search or on the map, sees the backend's own
+prices, books once however often they tap, and watches a driver accept, live. A driver onboards,
+waits for approval, goes online, shares their position and takes offers. REST stays the source of
+truth; the live connection only hurries it along ([ADRs 0020 to 0022](docs/adr/)).
+
 ## Test it
 
 ```bash
 ./mvnw verify            # unit and integration tests on real PostgreSQL, Redis and Kafka; coverage gate
 ./mvnw -Pe2e verify      # the whole stack in containers, the backend as a black box
 ./mvnw -Pchaos verify    # Redis paused, Kafka stopped, the backend killed mid-matching
+cd Frontend && npm test  # the web app: Vitest, Testing Library, MSW, and a fake /ws
 ```
 
 CI runs build, unit tests, integration tests, the coverage gate and the image builds on every push,
@@ -149,6 +165,7 @@ and the end-to-end, chaos and demo runs every night.
 ## Read more
 
 - [PROJECT_SPEC.md](PROJECT_SPEC.md): scope, architecture, domain rules, standards
-- [Architecture decisions](docs/adr/): eighteen ADRs, from the modular monolith to packaging
+- [Architecture decisions](docs/adr/): twenty-two ADRs, from the modular monolith to the web app's
+  live updates
 - [Event catalog](docs/events.md) · [Runbook](docs/runbook.md) · [Security review](docs/security.md)
 - [Performance](docs/performance.md) · [Deployment](docs/deploy.md) · [Development](docs/development.md)
