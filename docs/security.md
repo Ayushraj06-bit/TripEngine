@@ -173,3 +173,27 @@ too. It stays, and an alert on error rate is the guard.
 
 The backend makes one outbound HTTP call: the mock gateway's webhook, to a configured URL. No
 request can name a URL for the server to fetch.
+
+## The web app
+
+Added after this review, Stages 1 to 4 of [`Frontend/`](../Frontend/). What it keeps, and what it
+sends:
+
+- **Tokens:** the access token lives in memory only, and the refresh token in the `HttpOnly`
+  cookie above. A test checks that no token is ever written to `localStorage`,
+  `sessionStorage` or a readable cookie.
+- **What the browser keeps:** session storage only, ending with the tab. It holds the ride being
+  planned: what the rider typed, the places they chose, how they pay, and the booking attempt's
+  Idempotency-Key. Nothing goes to local storage.
+- **What reaches third parties:** OpenStreetMap's tile servers see which part of the map is
+  shown. Nominatim sees what a rider searches for, and the position of a pin whose address is
+  looked up. The device's own position is never sent to either ([ADR 0020](adr/0020-places-and-location.md)).
+- **The driver's position** goes to RideFlow's `/ws` only, and only while they are online.
+- **Redirects:** the page to return to after signing in must be one of the app's own, in the
+  user's own part of it; anything else is ignored.
+- **Injection:** React escapes everything it renders. The only raw markup is the map markers', and
+  it is built from constants, never from data.
+
+**Deployment duty.** The web app has no Content-Security-Policy of its own yet. Whoever serves it
+must add one that allows `connect-src` for the API, `/ws` and `https://nominatim.openstreetmap.org`,
+and `img-src` for the OpenStreetMap tiles.
