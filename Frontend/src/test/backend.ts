@@ -283,3 +283,13 @@ export function offerAnswers(action: 'accept' | 'reject', answer: () => Response
     }),
   );
 }
+
+/** A driver's step on a trip - arrive, start, complete - recorded and answered by `answer`. */
+export function tripAction(action: 'arrive' | 'start' | 'complete', answer: () => Response) {
+  server.use(
+    http.post(`/api/v1/trips/:tripId/${action}`, async ({ request }) => {
+      await record(request);
+      return answer();
+    }),
+  );
+}
