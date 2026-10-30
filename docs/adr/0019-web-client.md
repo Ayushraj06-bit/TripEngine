@@ -98,3 +98,6 @@ materials, defined once in `Frontend/src/styles/theme.css`.
   and one Idempotency-Key per booking attempt.
 - [ADR 0022](0022-live-updates-in-the-web-app.md): live updates. A small STOMP client, REST as the
   source of truth, and pushes ordered by `seq`.
+- [ADR 0023](0023-the-trip-in-the-web-app.md): the trip itself. The backend's timers held to it by a
+  test, the driver's position shared for the whole drive, and every step that cannot be undone
+  asked first.
