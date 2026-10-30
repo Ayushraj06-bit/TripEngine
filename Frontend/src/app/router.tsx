@@ -59,29 +59,37 @@ export const routes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
           {
-            index: true,
+            // Around every driver screen: the driver's position, shared while online or on a trip.
             lazy: async () => ({
-              Component: (await import('@/screens/driver/DriverHome')).DriverHome,
+              Component: (await import('@/screens/driver/DriverPresence')).DriverPresence,
             }),
-          },
-          {
-            path: 'vehicle',
-            lazy: async () => ({
-              Component: (await import('@/screens/driver/AddVehicle')).AddVehicle,
-            }),
-          },
-          {
-            path: 'approval',
-            lazy: async () => ({
-              Component: (await import('@/screens/driver/Approval')).Approval,
-            }),
-          },
-          {
-            path: 'trip/:tripId',
-            lazy: async () => {
-              const { TripStatus } = await import('@/screens/TripStatus');
-              return { Component: () => <TripStatus as="driver" /> };
-            },
+            children: [
+              {
+                index: true,
+                lazy: async () => ({
+                  Component: (await import('@/screens/driver/DriverHome')).DriverHome,
+                }),
+              },
+              {
+                path: 'vehicle',
+                lazy: async () => ({
+                  Component: (await import('@/screens/driver/AddVehicle')).AddVehicle,
+                }),
+              },
+              {
+                path: 'approval',
+                lazy: async () => ({
+                  Component: (await import('@/screens/driver/Approval')).Approval,
+                }),
+              },
+              {
+                path: 'trip/:tripId',
+                lazy: async () => {
+                  const { TripStatus } = await import('@/screens/TripStatus');
+                  return { Component: () => <TripStatus as="driver" /> };
+                },
+              },
+            ],
           },
         ],
       },

@@ -10,7 +10,8 @@ import { SignOutButton } from '../SignOutButton';
 import { OfferCard } from './OfferCard';
 import { OnlineToggle } from './OnlineToggle';
 import { useOffer } from './useOffer';
-import { ROUGHEST_METRES, useShareLocation, type Sharing } from './useShareLocation';
+import { useSharing } from './DriverPresence';
+import { ROUGHEST_METRES, type Sharing } from './useShareLocation';
 
 const STATUS = {
   OFFLINE: { label: 'You’re offline', dot: 'bg-mute' },
@@ -55,7 +56,7 @@ export function DriverHome() {
   const driver = profile.data;
   const online =
     driver?.approvalStatus === 'APPROVED' && driver.status === 'AVAILABLE' && !trip.data;
-  const sharing = useShareLocation(online);
+  const sharing = useSharing();
   const offer = useOffer(online);
   // A renewal of the session's token is a blink, not an outage.
   const connected = useLive((state) => state.status === 'open' || state.status === 'renewing');
