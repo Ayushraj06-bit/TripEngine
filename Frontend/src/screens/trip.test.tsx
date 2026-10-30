@@ -105,6 +105,68 @@ describe('waiting for a driver', () => {
   });
 });
 
+describe('at the pickup and after', () => {
+  it('counts down the free waiting once the driver has arrived', async () => {
+    tripAnswers(
+      trip('trip-1', 'DRIVER_ARRIVED', {
+        otp: '4821',
+        assignedAt: new Date(Date.now() - 300_000).toISOString(),
+        arrivedAt: new Date().toISOString(),
+      }),
+    );
+    renderApp('/trip/trip-1');
+    expect(
+      await screen.findByRole('timer', { name: /Free waiting for (2:59|3:00)/ }),
+    ).toBeVisible();
+    expect(screen.getByText(/after that, waiting is charged by the minute/)).toBeVisible();
+  });
+
+  it('says what the ride cost, and how it was paid', async () => {
+    tripAnswers(trip('trip-1', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' }));
+    renderApp('/trip/trip-1');
+    expect(await screen.findByRole('region', { name: 'Fare' })).toHaveTextContent(
+      '₹312Paid in cash to your driver.',
+    );
+    // Nothing to follow on a map once it is over.
+    expect(screen.queryByText(/on the map/)).not.toBeInTheDocument();
+  });
+
+  it('says so when the wallet went below zero to pay', async () => {
+    tripAnswers(
+      trip('trip-1', 'COMPLETED', {
+        finalFarePaise: 31200,
+        paymentMethod: 'WALLET',
+        paymentStatus: 'PENDING_SETTLEMENT',
+      }),
+    );
+    renderApp('/trip/trip-1');
+    expect(await screen.findByRole('region', { name: 'Fare' })).toHaveTextContent(
+      'Charged to your wallet, which is now below zero. Top up before your next ride.',
+    );
+  });
+
+  it('says why it is finding a driver again, when the driver backed out', async () => {
+    tripAnswers(
+      trip('trip-1', 'DRIVER_ASSIGNED', { otp: '4821', assignedAt: new Date().toISOString() }),
+    );
+    renderApp('/trip/trip-1');
+    await screen.findByRole('heading', { name: 'Your driver is on the way' });
+    await live();
+    act(() => {
+      liveServer.push(TRIP_UPDATES, {
+        type: 'TripReturnedToMatching',
+        tripId: 'trip-1',
+        seq: 3,
+        payload: trip('trip-1', 'REQUESTED'),
+      });
+    });
+    expect(await screen.findByRole('heading', { name: 'Finding your driver' })).toBeVisible();
+    expect(
+      screen.getByText('Your driver couldn’t make it. RideFlow is finding you another.'),
+    ).toBeVisible();
+  });
+});
+
 describe('cancelling', () => {
   it('is free, and immediate, while a driver is still being found', async () => {
     tripAnswers(trip('trip-1', 'REQUESTED'));

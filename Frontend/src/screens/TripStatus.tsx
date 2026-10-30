@@ -8,35 +8,36 @@ import type { Schemas } from '@/api/types';
 import { Splash } from '@/auth/guards';
 import { useTripLive } from '@/realtime/useTripLive';
 import { useBookingDraft } from '@/state/bookingDraft';
+import { TRIP_RULES } from '@/trip/rules';
 import { Button } from '@/ui/Button';
 import { Countdown } from '@/ui/Countdown';
 import { formatRupees } from '@/ui/Money';
-import { DarkScreen, FormAlert } from './common';
+import { toast } from '@/ui/toasts';
+import { ConfirmStep, DarkScreen, FormAlert } from './common';
 import { SignOutButton } from './SignOutButton';
 
 type Trip = Schemas['TripView'];
 type Status = NonNullable<Trip['status']>;
 
-const WORDS: Record<Status, { rider: string; driver: string }> = {
-  REQUESTED: { rider: 'Finding your driver', driver: 'Waiting for the trip to start' },
-  DRIVER_ASSIGNED: { rider: 'Your driver is on the way', driver: 'Head to the pickup' },
-  DRIVER_ARRIVED: { rider: 'Your driver has arrived', driver: 'You’re at the pickup' },
-  IN_PROGRESS: { rider: 'On your way', driver: 'On the way to the drop' },
-  COMPLETED: { rider: 'Trip completed', driver: 'Trip completed' },
-  CANCELLED: { rider: 'Trip cancelled', driver: 'Trip cancelled' },
-  NO_DRIVER_FOUND: { rider: 'No driver was found', driver: 'Trip ended' },
+const TITLE: Record<Status, string> = {
+  REQUESTED: 'Finding your driver',
+  DRIVER_ASSIGNED: 'Your driver is on the way',
+  DRIVER_ARRIVED: 'Your driver has arrived',
+  IN_PROGRESS: 'On your way',
+  COMPLETED: 'Trip completed',
+  CANCELLED: 'Trip cancelled',
+  NO_DRIVER_FOUND: 'No driver was found',
 };
 
-const RIDER_LEAD: Partial<Record<Status, string>> = {
+const LEAD: Partial<Record<Status, string>> = {
   REQUESTED: 'Asking the nearest drivers, one at a time. This page updates on its own.',
   DRIVER_ASSIGNED: 'Tell your driver this code when they arrive, so they know it’s you.',
   DRIVER_ARRIVED: 'Tell your driver this code to start the trip.',
   NO_DRIVER_FOUND:
     'None of the drivers nearby could take this ride. Your pickup and drop are kept.',
+  // Only while the trip is moving: a finished trip has nothing to follow.
+  IN_PROGRESS: 'Following the trip live on the map arrives in a later stage of this app.',
 };
-
-/** The backend's rider-cancel-grace-seconds: free to cancel this long after a driver is assigned. */
-const GRACE_MS = 120_000;
 
 /** The rider may cancel until the trip starts. */
 const CANCELLABLE: readonly Status[] = ['REQUESTED', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED'];
@@ -57,7 +58,9 @@ const UNDER_WAY: readonly Status[] = [
  * the server's, shown once it has answered.
  */
 function CancelRide({ trip, onCancelled }: { trip: Trip; onCancelled: (trip: Trip) => void }) {
-  const graceEnds = trip.assignedAt ? onThisClock(trip.assignedAt) + GRACE_MS : null;
+  const graceEnds = trip.assignedAt
+    ? onThisClock(trip.assignedAt) + TRIP_RULES.riderCancelGraceSeconds * 1000
+    : null;
   const [graceOver, setGraceOver] = useState(false);
   const [asking, setAsking] = useState(false);
   const free = trip.status === 'REQUESTED' || (trip.status === 'DRIVER_ASSIGNED' && !graceOver);
@@ -87,32 +90,19 @@ function CancelRide({ trip, onCancelled }: { trip: Trip; onCancelled: (trip: Tri
         </p>
       )}
       {asking ? (
-        <div role="alertdialog" aria-label="Cancel this ride?" className="flex flex-col gap-3">
-          <p className="text-body">
-            Cancel this ride? A driver is already on the way, so a cancellation fee may apply.
-          </p>
-          <Button
-            surface="ink"
-            size="large"
-            block
-            loading={cancel.isPending}
-            onClick={() => {
-              cancel.mutate();
-            }}
-          >
-            Cancel ride
-          </Button>
-          <Button
-            surface="ink"
-            variant="secondary"
-            block
-            onClick={() => {
-              setAsking(false);
-            }}
-          >
-            Keep my ride
-          </Button>
-        </div>
+        <ConfirmStep
+          question="Cancel this ride?"
+          detail="A driver is already on the way, so a cancellation fee may apply."
+          confirm="Cancel ride"
+          keep="Keep my ride"
+          busy={cancel.isPending}
+          onConfirm={() => {
+            cancel.mutate();
+          }}
+          onKeep={() => {
+            setAsking(false);
+          }}
+        />
       ) : (
         <Button
           surface="ink"
@@ -131,11 +121,52 @@ function CancelRide({ trip, onCancelled }: { trip: Trip; onCancelled: (trip: Tri
   );
 }
 
+/** Waiting at the pickup: free for a few minutes, then charged by the minute - said as it happens. */
+function FreeWaiting({ arrivedAt }: { arrivedAt: string }) {
+  const [over, setOver] = useState(false);
+  return (
+    <p className="text-subhead text-paper/70">
+      {over ? (
+        'Waiting is now charged by the minute.'
+      ) : (
+        <>
+          Free waiting for{' '}
+          <Countdown
+            until={onThisClock(arrivedAt) + TRIP_RULES.freeWaitMinutes * 60_000}
+            label="Free waiting for"
+            onElapsed={() => {
+              setOver(true);
+            }}
+          />
+          ; after that, waiting is charged by the minute.
+        </>
+      )}
+    </p>
+  );
+}
+
+/** What the ride cost, and how it was paid. */
+function Paid({ trip }: { trip: Trip }) {
+  const fare = formatRupees(trip.finalFarePaise ?? 0);
+  return (
+    <section aria-label="Fare" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
+      <p className="text-large font-semibold tabular-nums">{fare}</p>
+      <p className="text-body">
+        {trip.paymentMethod !== 'WALLET'
+          ? 'Paid in cash to your driver.'
+          : trip.paymentStatus === 'PENDING_SETTLEMENT'
+            ? 'Charged to your wallet, which is now below zero. Top up before your next ride.'
+            : 'Paid from your wallet.'}
+      </p>
+    </section>
+  );
+}
+
 /**
- * A trip, where it stands now, kept current by the live connection and read again over REST
- * whenever that comes back. Following it on a map arrives in Stage 6.
+ * The rider's trip, where it stands now, kept current by the live connection and read again over
+ * REST whenever that comes back. Following it on a map arrives in Stage 6.
  */
-export function TripStatus({ as }: { as: 'rider' | 'driver' }) {
+export function TripStatus() {
   const { tripId = '' } = useParams();
   const queries = useQueryClient();
   const queryKey = ['trip', tripId] as const;
@@ -143,21 +174,22 @@ export function TripStatus({ as }: { as: 'rider' | 'driver' }) {
     queryKey,
     queryFn: () => api.get('/api/v1/trips/{tripId}', { path: { tripId } }),
   });
-  useTripLive(tripId, queryKey);
+  useTripLive(tripId, queryKey, (type) => {
+    // A new "Finding your driver" alone would not say why.
+    if (type === 'TripReturnedToMatching') {
+      toast('Your driver couldn’t make it. RideFlow is finding you another.');
+    }
+  });
   const status = trip.data?.status;
 
   useEffect(() => {
-    if (as === 'rider' && status && UNDER_WAY.includes(status)) {
-      useBookingDraft.getState().clear();
-    }
-  }, [as, status]);
-
-  const home = as === 'driver' ? '/driver' : '/';
+    if (status && UNDER_WAY.includes(status)) useBookingDraft.getState().clear();
+  }, [status]);
 
   if (trip.isPending) return <Splash />;
   if (trip.isError) {
     const described = describeError(trip.error);
-    if (described.code === 'NOT_FOUND') return <Navigate to={home} replace />;
+    if (described.code === 'NOT_FOUND') return <Navigate to="/" replace />;
     return (
       <DarkScreen title="Your trip" actions={<SignOutButton />}>
         <FormAlert message={described.message} />
@@ -176,39 +208,36 @@ export function TripStatus({ as }: { as: 'rider' | 'driver' }) {
 
   const view = trip.data;
   const fee = view.cancellationFeePaise ?? 0;
-  const lead =
-    as === 'rider'
-      ? ((status && RIDER_LEAD[status]) ??
-        'Following the trip live on the map arrives in a later stage of this app.')
-      : 'Marking arrival and starting the trip arrive in the next stage of this app.';
 
   return (
     <DarkScreen
-      title={status ? WORDS[status][as] : 'Your trip'}
-      lead={lead}
+      title={status ? TITLE[status] : 'Your trip'}
+      lead={status ? LEAD[status] : undefined}
       actions={<SignOutButton />}
     >
-      {as === 'rider' &&
-        view.otp &&
-        (status === 'DRIVER_ASSIGNED' || status === 'DRIVER_ARRIVED') && (
-          <section aria-label="Your code" className="rounded-card bg-paper/6 p-4">
-            <p className="text-footnote text-paper/70">Your code</p>
-            <p className="text-large font-semibold tracking-[0.3em] tabular-nums">{view.otp}</p>
-          </section>
-        )}
+      {view.otp && (status === 'DRIVER_ASSIGNED' || status === 'DRIVER_ARRIVED') && (
+        <section aria-label="Your code" className="rounded-card bg-paper/6 p-4">
+          <p className="text-footnote text-paper/70">Your code</p>
+          <p className="text-large font-semibold tracking-[0.3em] tabular-nums">{view.otp}</p>
+        </section>
+      )}
+
+      {status === 'DRIVER_ARRIVED' && view.arrivedAt && <FreeWaiting arrivedAt={view.arrivedAt} />}
+
+      {status === 'COMPLETED' && <Paid trip={view} />}
 
       {status === 'CANCELLED' && (
         <p className="text-body">
           {view.cancelledBy === 'RIDER'
             ? 'You cancelled this ride.'
             : view.cancelledBy === 'DRIVER'
-              ? 'Your driver cancelled this ride.'
+              ? 'Your driver cancelled after waiting at the pickup.'
               : 'RideFlow cancelled this ride.'}
-          {as === 'rider' && fee > 0 && ` A cancellation fee of ${formatRupees(fee)} was charged.`}
+          {fee > 0 && ` A cancellation fee of ${formatRupees(fee)} was charged.`}
         </p>
       )}
 
-      {as === 'rider' && status && CANCELLABLE.includes(status) && (
+      {status && CANCELLABLE.includes(status) && (
         <CancelRide
           trip={view}
           onCancelled={(cancelled) => {
@@ -217,7 +246,7 @@ export function TripStatus({ as }: { as: 'rider' | 'driver' }) {
         />
       )}
 
-      {as === 'rider' && status === 'NO_DRIVER_FOUND' && (
+      {status === 'NO_DRIVER_FOUND' && (
         <Link
           to="/?step=prices"
           className="flex min-h-12.5 items-center justify-center rounded-card bg-signal text-body font-semibold text-ink"
@@ -229,7 +258,7 @@ export function TripStatus({ as }: { as: 'rider' | 'driver' }) {
       {/* Only once it is over: home sends anyone with a trip under way straight back here. */}
       {status && ENDED.includes(status) && (
         <Link
-          to={home}
+          to="/"
           className="flex min-h-11 items-center self-start rounded-full bg-paper/12 px-5 text-body font-semibold"
         >
           Home

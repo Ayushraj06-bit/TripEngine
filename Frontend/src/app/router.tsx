@@ -46,10 +46,9 @@ export const routes: RouteObject[] = [
           },
           {
             path: 'trip/:tripId',
-            lazy: async () => {
-              const { TripStatus } = await import('@/screens/TripStatus');
-              return { Component: () => <TripStatus as="rider" /> };
-            },
+            lazy: async () => ({
+              Component: (await import('@/screens/TripStatus')).TripStatus,
+            }),
           },
         ],
       },
