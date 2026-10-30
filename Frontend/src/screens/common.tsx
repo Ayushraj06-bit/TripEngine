@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { Surface } from '@/ui/Button';
+import { Button, type Surface } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/Icon';
 import { Input, type InputProps } from '@/ui/Input';
@@ -78,5 +78,41 @@ export function PasswordInput(props: Omit<InputProps, 'type' | 'trailing'>) {
         </button>
       }
     />
+  );
+}
+
+/**
+ * A second step before something that cannot be undone: the question, what follows from it, and
+ * both ways out - the safe one as easy to reach as the other.
+ */
+export function ConfirmStep({
+  question,
+  detail,
+  confirm,
+  keep,
+  busy = false,
+  onConfirm,
+  onKeep,
+}: {
+  question: string;
+  detail: string;
+  confirm: string;
+  keep: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onKeep: () => void;
+}) {
+  return (
+    <div role="alertdialog" aria-label={question} className="flex flex-col gap-3">
+      <p className="text-body">
+        {question} {detail}
+      </p>
+      <Button surface="ink" size="large" block loading={busy} onClick={onConfirm}>
+        {confirm}
+      </Button>
+      <Button surface="ink" variant="secondary" block disabled={busy} onClick={onKeep}>
+        {keep}
+      </Button>
+    </div>
   );
 }
