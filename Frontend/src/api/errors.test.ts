@@ -160,6 +160,13 @@ describe('a locked account', () => {
       'This account is locked after several failed sign-ins. Try again later.',
     );
   });
+
+  it('names the time a driver may cancel for a no-show', () => {
+    const early = new ApiError(422, 'NO_SHOW_TOO_EARLY', undefined, {
+      canCancelAt: '2026-10-27T08:15:00Z',
+    });
+    expect(describeError(early).message).toBe('You can cancel for a no-show from 1:45 pm.');
+  });
 });
 
 describe('waitText', () => {

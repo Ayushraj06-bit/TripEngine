@@ -36,6 +36,11 @@ export function clockTimeIn(seconds: number, now: number = Date.now()): string {
   });
 }
 
+/** A moment the server named, as people in India read the time: "2:32 pm". */
+export function clockTimeAt(instant: string): string {
+  return new Date(instant).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+
 function after(error: ApiError, otherwise: string): string {
   return error.retryAfterSeconds === undefined
     ? otherwise
@@ -208,7 +213,13 @@ export const ERROR_COPY: Readonly<Record<string, Copy>> = {
     recovery: 'none',
   },
   NO_SHOW_TOO_EARLY: {
-    message: 'You can cancel for a no-show once the free waiting time is over.',
+    // Not "once the free waiting time is over": free waiting and the no-show wait are two rules.
+    message: (e) => {
+      const from = e.properties['canCancelAt'];
+      return typeof from === 'string'
+        ? `You can cancel for a no-show from ${clockTimeAt(from)}.`
+        : 'You can cancel for a no-show after waiting a little longer at the pickup.';
+    },
     recovery: 'wait',
   },
   OTP_INVALID: {
