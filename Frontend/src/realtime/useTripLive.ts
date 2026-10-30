@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { listen, onReconnect } from './live';
 
 export const TRIP_UPDATES = '/user/queue/trip-updates';
@@ -24,13 +24,22 @@ export function isNewer(tripId: string, seq: number): boolean {
  * the server has it, not a change), and the trip is read again over REST when the connection
  * comes back, in case something was pushed while it was down.
  */
-export function useTripLive(tripId: string, queryKey: readonly unknown[]): void {
+export function useTripLive(
+  tripId: string,
+  queryKey: readonly unknown[],
+  /** Told what happened - "TripReturnedToMatching" - for anything a new state alone cannot say. */
+  onEvent?: (type: string) => void,
+): void {
   const queries = useQueryClient();
+  const happened = useEffectEvent((type: string) => {
+    onEvent?.(type);
+  });
   useEffect(() => {
     const stop = listen(TRIP_UPDATES, (message) => {
       if (message.tripId !== tripId || typeof message.seq !== 'number') return;
       if (!isNewer(tripId, message.seq)) return;
       queries.setQueryData(queryKey, message.payload);
+      happened(message.type);
     });
     const stopReconnect = onReconnect(() => {
       void queries.invalidateQueries({ queryKey });
