@@ -1,8 +1,10 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderApp, resetApp, signedInAs } from '@/test/app';
+import { renderApp, resetApp, screenAlert, signedInAs } from '@/test/app';
 import { backendFor, movement, RIDER, seen, topupAnswers, walletIs } from '@/test/backend';
+import { server } from '@/test/server';
 
 beforeEach(() => {
   resetApp();
@@ -88,6 +90,31 @@ describe('adding money', () => {
     await user.type(screen.getByLabelText('Amount in rupees'), '750');
     await user.click(screen.getByRole('button', { name: 'Add ₹750' }));
     expect(await screen.findByText('₹750 added to your wallet.')).toBeVisible();
+  });
+
+  it('tries again under the same key when an answer was lost, so it is paid once', async () => {
+    walletIs({ balancePaise: 0, movements: [] });
+    topupAnswers('SUCCEEDED');
+    let lost: string | null = null;
+    server.use(
+      http.post(
+        '/api/v1/wallet/topups',
+        ({ request }) => {
+          lost = request.headers.get('Idempotency-Key');
+          return HttpResponse.error();
+        },
+        { once: true },
+      ),
+    );
+    const user = userEvent.setup();
+    renderApp('/wallet');
+    await user.click(await screen.findByRole('button', { name: 'Add ₹200' }));
+    expect(await screenAlert()).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Add ₹200' }));
+    expect(await screen.findByText('₹200 added to your wallet.')).toBeVisible();
+    expect(lost).not.toBeNull();
+    expect(topups()[0]?.headers.get('Idempotency-Key')).toBe(lost);
   });
 
   it('says so when the payment did not go through', async () => {

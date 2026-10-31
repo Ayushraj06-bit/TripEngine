@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, type SubmitEvent } from 'react';
+import { useRef, useState, type SubmitEvent } from 'react';
 import { describeError } from '@/api/errors';
 import { Button } from '@/ui/Button';
 import { Field } from '@/ui/Field';
@@ -35,12 +35,20 @@ export function TopUp() {
   const [other, setOther] = useState('');
   const [problem, setProblem] = useState<string>();
   const [outcome, setOutcome] = useState('');
+  // The top-up under way. Tried again for the same amount after an error - an answer lost, the
+  // gateway briefly down - it keeps its key, so the backend finds it and the rider pays once.
+  const attempt = useRef<{ key: string; paise: number } | null>(null);
   const paise =
     choice === 'other' ? (/^\d+$/.test(other) ? Number(other) * 100 : null) : Number(choice) * 100;
 
   const add = useMutation({
-    mutationFn: (amount: number) => topUp(amount, newKey()),
+    mutationFn: (amount: number) => {
+      if (attempt.current?.paise !== amount) attempt.current = { key: newKey(), paise: amount };
+      return topUp(amount, attempt.current.key);
+    },
     onSuccess: (status, amount) => {
+      // Settled or not, the backend has it: the next top-up is a new one.
+      attempt.current = null;
       setOutcome(told(status, amount));
       void queries.invalidateQueries({ queryKey: WALLET });
     },
