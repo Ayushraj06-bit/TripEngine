@@ -1,3 +1,4 @@
+import { formatRupees } from '@/ui/Money';
 import { ApiError } from './problem';
 
 /**
@@ -156,7 +157,13 @@ export const ERROR_COPY: Readonly<Record<string, Copy>> = {
 
   // Wallet
   TOPUP_AMOUNT_OUT_OF_RANGE: {
-    message: 'That amount is outside the top-up limits. Choose a different amount.',
+    message: (e) => {
+      const least = e.number('minPaise');
+      const most = e.number('maxPaise');
+      return least === undefined || most === undefined
+        ? 'That amount is outside the top-up limits. Choose a different amount.'
+        : `Add between ${formatRupees(least)} and ${formatRupees(most)} at a time.`;
+    },
     recovery: 'edit',
   },
   IDEMPOTENCY_KEY_REUSED: {

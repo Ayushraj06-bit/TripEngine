@@ -101,6 +101,14 @@ describe('describeError', () => {
     expect(
       describeError(new ApiError(422, 'OTP_INVALID', undefined, { attemptsRemaining: 1 })).message,
     ).toBe('That code doesn’t match. 1 try left.');
+    expect(
+      describeError(
+        new ApiError(422, 'TOPUP_AMOUNT_OUT_OF_RANGE', undefined, {
+          minPaise: 1000,
+          maxPaise: 1000000,
+        }),
+      ).message,
+    ).toBe('Add between ₹10 and ₹10,000 at a time.');
   });
 
   it('still reads well without them', () => {
