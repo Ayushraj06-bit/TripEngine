@@ -150,7 +150,7 @@ prices, books once however often they tap, follows their driver on the map to th
 the ride, and tops up their wallet. A driver onboards, waits for approval, goes online, takes
 offers, drives the trip on the map - arrival, the rider's code, the drop - rates the rider, and sees
 what they earned. Both keep a list of their trips. REST stays the source of
-truth; the live connection only hurries it along ([ADRs 0020 to 0026](docs/adr/)).
+truth; the live connection only hurries it along ([ADRs 0020 to 0027](docs/adr/)).
 
 ## Test it
 
@@ -167,7 +167,7 @@ and the end-to-end, chaos and demo runs every night.
 ## Read more
 
 - [PROJECT_SPEC.md](PROJECT_SPEC.md): scope, architecture, domain rules, standards
-- [Architecture decisions](docs/adr/): twenty-six ADRs, from the modular monolith to the web app's
-  ratings and trips
+- [Architecture decisions](docs/adr/): twenty-seven ADRs, from the modular monolith to the finished
+  web app
 - [Event catalog](docs/events.md) · [Runbook](docs/runbook.md) · [Security review](docs/security.md)
 - [Performance](docs/performance.md) · [Deployment](docs/deploy.md) · [Development](docs/development.md)

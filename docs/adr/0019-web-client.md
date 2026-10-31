@@ -107,3 +107,6 @@ materials, defined once in `Frontend/src/styles/theme.css`.
   asked under its own Idempotency-Key, and "Add money" wherever a wallet below zero is mentioned.
 - [ADR 0026](0026-ratings-and-trips-in-the-web-app.md): ratings and past trips. Rated once, the
   backend's refusal trusted as the answer, and a finished trip forgotten as the one under way.
+- [ADR 0027](0027-the-web-app-finished.md): the web app, finished. What it covers, how it was
+  checked - every commit, a run against the demo per stage, and an accessibility audit - and what
+  it leaves out.
