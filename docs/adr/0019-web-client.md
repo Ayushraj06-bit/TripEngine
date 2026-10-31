@@ -105,3 +105,5 @@ materials, defined once in `Frontend/src/styles/theme.css`.
   and never guessed, said to be stale when they stop, and directions left to the phone's maps app.
 - [ADR 0025](0025-the-wallet-in-the-web-app.md): the wallet. The server's balance, a top-up's outcome
   asked under its own Idempotency-Key, and "Add money" wherever a wallet below zero is mentioned.
+- [ADR 0026](0026-ratings-and-trips-in-the-web-app.md): ratings and past trips. Rated once, the
+  backend's refusal trusted as the answer, and a finished trip forgotten as the one under way.
