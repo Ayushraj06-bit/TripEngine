@@ -77,12 +77,24 @@ describe('a driver online', () => {
     });
     expect(sent()).toHaveLength(2);
 
+    // A move too soon after the last is sent once the two seconds are up - not ten seconds on.
+    act(() => {
+      vi.advanceTimersByTime(500);
+      moveDevice(at(MG_ROAD));
+    });
+    expect(sent()).toHaveLength(2);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(sent()).toHaveLength(3);
+    expect(sent()[2]).toMatchObject({ ...at(MG_ROAD), seq: 2 });
+
     // Still for ten seconds - checked once a second, so within eleven.
     act(() => {
       vi.advanceTimersByTime(11_000);
     });
-    expect(sent()).toHaveLength(3);
-    expect(sent()[2]).toMatchObject({ ...at(INDIRANAGAR), seq: 2 });
+    expect(sent()).toHaveLength(4);
+    expect(sent()[3]).toMatchObject({ ...at(MG_ROAD), seq: 3 });
   });
 
   it('does not claim to share while the connection is down', async () => {

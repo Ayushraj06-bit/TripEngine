@@ -5,7 +5,10 @@ import { onReconnect, publish } from '@/realtime/live';
 
 export const LOCATION_DESTINATION = '/app/driver/location';
 
-/** As often as the driver moves, but no more than this: the backend ignores anything faster. */
+/**
+ * As often as the driver moves, but no more than this: the backend ignores anything faster. A move
+ * inside it is sent as soon as it allows - the last one before stopping, at a pickup say, included.
+ */
 const AT_MOST_MS = 2000;
 /**
  * And at least this often while still - give or take the second the check runs on: the backend
@@ -42,6 +45,8 @@ export function useShareLocation(active: boolean): Sharing {
   useEffect(() => {
     if (!active || !supported) return;
     let last: Fix | null = null;
+    // Whether `last` is newer than what was sent.
+    let held = false;
     let sentAt = 0;
     // Rises within one connection; the backend expects it to start again after a reconnect.
     let seq = 0;
@@ -56,7 +61,9 @@ export function useShareLocation(active: boolean): Sharing {
         seq: seq++,
         clientTime: new Date().toISOString(),
       });
-      if (sent) sentAt = Date.now();
+      if (!sent) return;
+      sentAt = Date.now();
+      held = false;
     }
 
     const watch = navigator.geolocation.watchPosition(
@@ -73,6 +80,7 @@ export function useShareLocation(active: boolean): Sharing {
           return;
         }
         last = fix;
+        held = true;
         setSharing({ state: 'sharing', at: fix.at, accuracyMetres: accuracy });
         if (Date.now() - sentAt >= AT_MOST_MS) send(fix);
       },
@@ -83,7 +91,8 @@ export function useShareLocation(active: boolean): Sharing {
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20_000 },
     );
     const keepAlive = setInterval(() => {
-      if (last && Date.now() - sentAt >= AT_LEAST_MS) send(last);
+      const since = Date.now() - sentAt;
+      if (last && (since >= AT_LEAST_MS || (held && since >= AT_MOST_MS))) send(last);
     }, 1000);
     const stopReconnect = onReconnect(() => {
       seq = 0;
