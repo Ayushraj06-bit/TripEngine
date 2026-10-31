@@ -242,6 +242,22 @@ describe('to the drop', () => {
     );
   });
 
+  it('then asks how the rider was', async () => {
+    tripAnswers(onTrip('COMPLETED', { finalFarePaise: 31200, completedAt: ago(0) }));
+    tripAction('rating', () => HttpResponse.json({ stars: 5 }, { status: 201 }));
+    const user = userEvent.setup();
+    renderApp('/driver/trip/trip-9');
+    const form = await screen.findByRole('form', { name: 'Rate this trip' });
+    expect(within(form).getByRole('group', { name: 'How was the rider?' })).toBeVisible();
+    await user.click(within(form).getByRole('radio', { name: '5 stars' }));
+    await user.click(within(form).getByRole('button', { name: 'Send rating' }));
+    expect(await screen.findByText('Thanks. Your rating has been sent.')).toBeVisible();
+    expect(seen.find((r) => r.path === '/api/v1/trips/trip-9/rating')?.body).toEqual({
+      stars: 5,
+      comment: '',
+    });
+  });
+
   it('shows the rider cancelling while the driver drives to them', async () => {
     tripAnswers(onTrip('DRIVER_ASSIGNED'));
     renderApp('/driver/trip/trip-9');

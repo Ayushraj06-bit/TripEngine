@@ -22,6 +22,7 @@ import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
 import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from '../common';
 import { DRIVER_PROFILE } from '../queries';
+import { RateTrip } from '../RateTrip';
 import { distanceText } from '../rider/fare';
 import { SignOutButton } from '../SignOutButton';
 import { useSharing } from './DriverPresence';
@@ -260,6 +261,7 @@ export function DriverTrip() {
             </p>
           </section>
         )}
+        {status === 'COMPLETED' && <RateTrip trip={view} question="How was the rider?" />}
 
         {status === 'CANCELLED' && (
           <p className="text-body">
