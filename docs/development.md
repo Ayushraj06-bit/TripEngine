@@ -224,8 +224,8 @@ More detail and troubleshooting: [`docs/runbook.md`](runbook.md).
 ## The web app
 
 The rider and driver app lives in [`Frontend/`](../Frontend/) ([ADR 0019](adr/0019-web-client.md)). Its
-dev server sends `/api` and `/ws` to the backend at `http://localhost:8080` - the one-command
-demo's load balancer, or a backend run on its own; set `BACKEND_URL` for another.
+dev server sends `/api`, `/ws` and `/mock-gateway` to the backend at `http://localhost:8080` - the
+one-command demo's load balancer, or a backend run on its own; set `BACKEND_URL` for another.
 
 ```bash
 cd Frontend
@@ -268,6 +268,15 @@ and three things trip people up:
 - **To see your own driver take your own ride**, the simulator's drivers must not be nearer.
   Stop the simulator (`docker stop rideflow-simulator-1`), wait half a minute for its drivers to go
   stale, put your driver and your rider at the same spot, and `docker start` it again afterwards.
+- **To watch the car move on the rider's map** ([ADR 0024](adr/0024-the-live-map.md)), move the
+  driver's browser with its developer tools' location sensor, at a believable pace: the backend
+  refuses a position that implies more than 150 km/h, and flags a driver who keeps sending them.
+
+Topping up the wallet ([ADR 0025](adr/0025-the-wallet-in-the-web-app.md)) pays the demo's test
+gateway, which the `sim` profile turns on. Its "payment page" is an endpoint on the backend; the
+dev server forwards `/mock-gateway` for it, and any other proxy you put in front must do the same.
+Ratings and the trips list ([ADR 0026](adr/0026-ratings-and-trips-in-the-web-app.md)) need nothing
+more: complete a trip, and both sides are asked.
 
 ## Profiles
 
