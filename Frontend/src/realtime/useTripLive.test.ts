@@ -18,4 +18,11 @@ describe('which pushed trip update to apply', () => {
     expect(isNewer('trip-2', 1)).toBe(true);
     expect(isNewer('trip-1', 4)).toBe(false);
   });
+
+  it('counting a trip’s updates and its driver’s positions apart', () => {
+    expect(isNewer('trip-1', 9)).toBe(true);
+    // A position numbered lower than the last trip update is still news about the position.
+    expect(isNewer('location:trip-1', 3)).toBe(true);
+    expect(isNewer('location:trip-1', 2)).toBe(false);
+  });
 });

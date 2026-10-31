@@ -4,18 +4,22 @@ import { listen, onReconnect } from './live';
 
 export const TRIP_UPDATES = '/user/queue/trip-updates';
 
-// The highest seq applied, per trip: delivery is not ordered, so anything at or below it is a
-// duplicate or a state already overtaken.
+// The highest seq applied, per stream - a trip's updates, or its driver's positions, counted apart
+// as the backend says: compared across destinations, a mere position would hide a trip update.
+// Delivery is not ordered, so anything at or below it is a duplicate or already overtaken.
 const applied = new Map<string, number>();
 
 export function resetTripLiveForTests(): void {
   applied.clear();
 }
 
-/** Whether a trip update numbered `seq` is newer than everything applied so far; if so, it is now. */
-export function isNewer(tripId: string, seq: number): boolean {
-  if ((applied.get(tripId) ?? -1) >= seq) return false;
-  applied.set(tripId, seq);
+/**
+ * Whether a message numbered `seq` is newer than everything applied so far on its stream - a
+ * trip's id for its updates, `location:` and the id for its driver's positions; if so, it is now.
+ */
+export function isNewer(stream: string, seq: number): boolean {
+  if ((applied.get(stream) ?? -1) >= seq) return false;
+  applied.set(stream, seq);
   return true;
 }
 
