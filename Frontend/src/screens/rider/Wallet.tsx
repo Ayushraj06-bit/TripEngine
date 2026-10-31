@@ -5,6 +5,7 @@ import { formatRupees } from '@/ui/Money';
 import { BarLink, DarkScreen, FormAlert } from '../common';
 import { Movements, useWalletPages } from '../Movements';
 import { SignOutButton } from '../SignOutButton';
+import { TopUp } from './TopUp';
 
 /** The rider's wallet: what is in it, and what went in and out. */
 export function Wallet() {
@@ -50,6 +51,7 @@ export function Wallet() {
           </p>
         )}
       </section>
+      <TopUp />
       <Movements pages={pages} />
     </DarkScreen>
   );

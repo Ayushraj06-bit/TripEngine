@@ -238,6 +238,39 @@ export function walletIs(
   );
 }
 
+/**
+ * Top-ups answered in turn with `statuses` - the last one from then on - each recorded with its
+ * Idempotency-Key; PENDING carries a link to the demo's test gateway, which takes the payment.
+ */
+export function topupAnswers(...statuses: NonNullable<Schemas['TopupView']['status']>[]) {
+  let asked = 0;
+  server.use(
+    http.post('/api/v1/wallet/topups', async ({ request }) => {
+      await record(request);
+      const { amountPaise } = (await request.json()) as { amountPaise: number };
+      const status = statuses[Math.min(asked, statuses.length - 1)];
+      asked += 1;
+      return HttpResponse.json(
+        {
+          topupId: 'topup-1',
+          status,
+          amountPaise,
+          paymentUrl:
+            status === 'PENDING'
+              ? 'http://localhost:8080/mock-gateway/payments/ref%3A1/pay'
+              : undefined,
+          createdAt: new Date().toISOString(),
+        },
+        { status: 201 },
+      );
+    }),
+    http.post('/mock-gateway/payments/:gatewayRef/pay', async ({ request }) => {
+      await record(request);
+      return HttpResponse.json({}, { status: 202 });
+    }),
+  );
+}
+
 /** Bookings answered by `answer`, each one recorded with its Idempotency-Key. */
 export function bookingAnswers(answer: () => Response) {
   server.use(
