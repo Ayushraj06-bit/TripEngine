@@ -308,6 +308,7 @@ describe('at the pickup and after', () => {
     expect(await screen.findByRole('region', { name: 'Fare' })).toHaveTextContent(
       'Charged to your wallet, which is now below zero. Top up before your next ride.',
     );
+    expect(screen.getByRole('link', { name: 'Add money' })).toHaveAttribute('href', '/wallet');
   });
 
   it('says why it is finding a driver again, when the driver backed out', async () => {

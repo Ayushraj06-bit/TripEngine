@@ -179,6 +179,14 @@ function Paid({ trip }: { trip: Trip }) {
             ? 'Charged to your wallet, which is now below zero. Top up before your next ride.'
             : 'Paid from your wallet.'}
       </p>
+      {trip.paymentStatus === 'PENDING_SETTLEMENT' && (
+        <Link
+          to="/wallet"
+          className="mt-2 flex min-h-11 items-center self-start rounded-full bg-paper/12 px-5 text-body font-semibold"
+        >
+          Add money
+        </Link>
+      )}
     </section>
   );
 }
