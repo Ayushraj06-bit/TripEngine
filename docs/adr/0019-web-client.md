@@ -103,3 +103,5 @@ materials, defined once in `Frontend/src/styles/theme.css`.
   asked first.
 - [ADR 0024](0024-the-live-map.md): the live map. The backend's positions in order, glided between
   and never guessed, said to be stale when they stop, and directions left to the phone's maps app.
+- [ADR 0025](0025-the-wallet-in-the-web-app.md): the wallet. The server's balance, a top-up's outcome
+  asked under its own Idempotency-Key, and "Add money" wherever a wallet below zero is mentioned.
