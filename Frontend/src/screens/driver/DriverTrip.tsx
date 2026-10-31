@@ -21,7 +21,7 @@ import { Input } from '@/ui/Input';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
 import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from '../common';
-import { DRIVER_PROFILE } from '../queries';
+import { DRIVER_PROFILE, useForgetEndedTrip } from '../queries';
 import { RateTrip } from '../RateTrip';
 import { distanceText } from '../rider/fare';
 import { SignOutButton } from '../SignOutButton';
@@ -161,6 +161,7 @@ export function DriverTrip() {
     queryFn: () => api.get('/api/v1/trips/{tripId}', { path: { tripId } }),
   });
   useTripLive(tripId, queryKey);
+  useForgetEndedTrip(trip.data);
   const [asking, setAsking] = useState<'leave' | 'no-show' | 'complete' | null>(null);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [freeWaitOver, setFreeWaitOver] = useState(false);

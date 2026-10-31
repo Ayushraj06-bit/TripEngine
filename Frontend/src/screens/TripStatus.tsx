@@ -19,6 +19,7 @@ import { Countdown } from '@/ui/Countdown';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
 import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from './common';
+import { useForgetEndedTrip } from './queries';
 import { RateTrip } from './RateTrip';
 import { SignOutButton } from './SignOutButton';
 
@@ -210,6 +211,7 @@ export function TripStatus() {
     }
   });
   const driver = useDriverLocation(tripId);
+  useForgetEndedTrip(trip.data);
   const status = trip.data?.status;
 
   useEffect(() => {

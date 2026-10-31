@@ -1,11 +1,12 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Schemas } from '@/api/types';
 import { TRIP_UPDATES } from '@/realtime/useTripLive';
 import { deviceAt, renderApp, resetApp, screenAlert, signedInAs } from '@/test/app';
 import {
+  activeTripIs,
   at,
   backendFor,
   cancellingAnswers,
@@ -21,6 +22,7 @@ import {
   VEHICLE,
 } from '@/test/backend';
 import { liveServer } from '@/test/liveServer';
+import { server } from '@/test/server';
 import { LOCATION_DESTINATION } from './useShareLocation';
 
 const STOPS = {
@@ -240,6 +242,22 @@ describe('to the drop', () => {
     expect(screen.getByRole('region', { name: 'Fare' })).toHaveTextContent(
       'Collect ₹312 in cash from the rider.',
     );
+  });
+
+  it('goes back to driving once the trip is over, not back to the trip', async () => {
+    activeTripIs('trip-9', 'IN_PROGRESS');
+    tripAnswers(onTrip('IN_PROGRESS'));
+    tripAction('complete', () => HttpResponse.json(onTrip('COMPLETED', { finalFarePaise: 31200 })));
+    const user = userEvent.setup();
+    renderApp('/driver');
+    await user.click(await screen.findByRole('button', { name: 'Complete trip' }));
+    // Over, and no one's trip under way any more.
+    server.use(http.get('/api/v1/trips/active', () => new HttpResponse(null, { status: 204 })));
+    const asking = screen.getByRole('alertdialog', { name: 'Complete the trip?' });
+    await user.click(within(asking).getByRole('button', { name: 'Complete trip' }));
+
+    await user.click(await screen.findByRole('link', { name: 'Back to driving' }));
+    expect(await screen.findByRole('heading', { name: 'Driving' })).toBeVisible();
   });
 
   it('then asks how the rider was', async () => {

@@ -1,5 +1,7 @@
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { api } from '@/api/client';
+import type { Schemas } from '@/api/types';
 import { onThisClock } from '@/api/serverClock';
 import { activeTrip } from '@/auth/landing';
 import type { LatLng } from '@/map/MapCanvas';
@@ -23,6 +25,29 @@ export function useDriverProfile(options: { refetchInterval?: number } = {}) {
 /** The trip under way for the signed-in user, or null. */
 export function useActiveTrip() {
   return useQuery({ queryKey: ACTIVE_TRIP, queryFn: activeTrip });
+}
+
+const ENDED: readonly (Schemas['TripView']['status'] | undefined)[] = [
+  'COMPLETED',
+  'CANCELLED',
+  'NO_DRIVER_FOUND',
+];
+
+/**
+ * A trip on screen that has ended is no one's trip under way any more. Home opens the trip under
+ * way, from what it remembers while it asks again - so this one is forgotten the moment it ends,
+ * or "Home" would open it once more.
+ */
+export function useForgetEndedTrip(trip: Schemas['TripView'] | undefined) {
+  const queries = useQueryClient();
+  const ended = ENDED.includes(trip?.status);
+  const id = trip?.id;
+  useEffect(() => {
+    if (!ended) return;
+    queries.setQueryData<Awaited<ReturnType<typeof activeTrip>>>(ACTIVE_TRIP, (active) =>
+      active?.id === id ? null : active,
+    );
+  }, [ended, id, queries]);
 }
 
 /**

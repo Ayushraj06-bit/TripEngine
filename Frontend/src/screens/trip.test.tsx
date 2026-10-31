@@ -8,6 +8,7 @@ import { TRIP_UPDATES } from '@/realtime/useTripLive';
 import { useBookingDraft } from '@/state/bookingDraft';
 import { renderApp, resetApp, signedInAs } from '@/test/app';
 import {
+  activeTripIs,
   at,
   backendFor,
   cancellingAnswers,
@@ -287,6 +288,21 @@ describe('at the pickup and after', () => {
       await screen.findByRole('timer', { name: /Free waiting for (2:59|3:00)/ }),
     ).toBeVisible();
     expect(screen.getByText(/after that, waiting is charged by the minute/)).toBeVisible();
+  });
+
+  it('goes home once the trip is over, not back to the trip', async () => {
+    activeTripIs('trip-1', 'IN_PROGRESS');
+    tripAnswers(trip('trip-1', 'IN_PROGRESS'));
+    renderApp('/');
+    expect(await screen.findByRole('heading', { name: 'On your way' })).toBeVisible();
+    await live();
+
+    // Over, and no one's trip under way any more.
+    server.use(http.get('/api/v1/trips/active', () => new HttpResponse(null, { status: 204 })));
+    pushed(7, trip('trip-1', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' }));
+    await userEvent.click(await screen.findByRole('link', { name: 'Home' }));
+    expect(await screen.findByRole('link', { name: 'Your trips' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Trip completed' })).not.toBeInTheDocument();
   });
 
   it('says what the ride cost, and how it was paid', async () => {
