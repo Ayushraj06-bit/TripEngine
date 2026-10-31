@@ -271,6 +271,20 @@ export function topupAnswers(...statuses: NonNullable<Schemas['TopupView']['stat
   );
 }
 
+/** GET /trips a page at a time: the first without a cursor, each next by the one before's. */
+export function tripsAre(...pages: Schemas['TripView'][][]) {
+  server.use(
+    http.get('/api/v1/trips', ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor');
+      const index = cursor === null ? 0 : Number(cursor);
+      return HttpResponse.json({
+        trips: pages[index] ?? [],
+        nextCursor: index + 1 < pages.length ? String(index + 1) : undefined,
+      });
+    }),
+  );
+}
+
 /** Bookings answered by `answer`, each one recorded with its Idempotency-Key. */
 export function bookingAnswers(answer: () => Response) {
   server.use(

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { CentrePin } from '@/map/CentrePin';
 import { CITY_CENTRE, MapCanvas, type LatLng } from '@/map/MapCanvas';
 import { MapPin } from '@/map/MapPin';
@@ -215,9 +215,18 @@ export function RiderHome() {
             </div>
           ) : (
             <div className="flex flex-col gap-3 pb-4">
-              <p className="text-subhead text-ink-soft">
-                {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
-              </p>
+              {/* On the greeting's line: the sheet's lowest height has room for nothing more. */}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-subhead text-ink-soft">
+                  {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
+                </p>
+                <Link
+                  to="/trips"
+                  className="-mr-3 flex min-h-11 items-center rounded-full px-3 text-subhead font-semibold text-ink"
+                >
+                  Your trips
+                </Link>
+              </div>
               <button
                 type="button"
                 onClick={() => {
