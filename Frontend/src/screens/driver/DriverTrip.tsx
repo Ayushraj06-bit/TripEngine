@@ -9,7 +9,7 @@ import type { Schemas } from '@/api/types';
 import { Splash } from '@/auth/guards';
 import { DriverMarker } from '@/map/DriverMarker';
 import { KeepInView } from '@/map/KeepInView';
-import { CITY_CENTRE, MapCanvas, positionOf } from '@/map/MapCanvas';
+import { CITY_CENTRE, MapCanvas, positionOf, type LatLng } from '@/map/MapCanvas';
 import { MapPin } from '@/map/MapPin';
 import { metresBetween } from '@/places/serviceArea';
 import { useTripLive } from '@/realtime/useTripLive';
@@ -37,6 +37,17 @@ const TITLE: Partial<Record<NonNullable<Trip['status']>, string>> = {
 };
 
 const RIDE: Record<string, string> = { BIKE: 'Bike', AUTO: 'Auto', CAR: 'Car' };
+
+/**
+ * Turn-by-turn is the phone's maps app's job: Apple Maps on Apple devices, Google Maps elsewhere -
+ * each opens in its app where there is one.
+ */
+function directionsTo(to: LatLng): string {
+  const at = `${String(to.lat)},${String(to.lng)}`;
+  return /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+    ? `https://maps.apple.com/?daddr=${at}&dirflg=d`
+    : `https://www.google.com/maps/dir/?api=1&destination=${at}&travelmode=driving`;
+}
 
 /** The ride at a glance: what kind, how it is paid, and roughly what it pays. */
 function RideFacts({ trip }: { trip: Trip }) {
@@ -284,6 +295,22 @@ export function DriverTrip() {
         </MapCanvas>
       }
     >
+      {target && status !== 'DRIVER_ARRIVED' && (
+        <a
+          href={directionsTo(target)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-11 items-center self-start rounded-full bg-wash px-5 text-body font-semibold"
+        >
+          {/* The space stays outside the hidden words: each element's share of a name is trimmed. */}
+          Open in Maps{' '}
+          <span className="sr-only">
+            {status === 'IN_PROGRESS'
+              ? 'for directions to the drop'
+              : 'for directions to the pickup'}
+          </span>
+        </a>
+      )}
       <RideFacts trip={view} />
       {failure && <FormAlert surface="paper" message={describeError(failure).message} />}
 

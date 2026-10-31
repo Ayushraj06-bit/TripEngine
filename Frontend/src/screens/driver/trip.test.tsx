@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Schemas } from '@/api/types';
 import { TRIP_UPDATES } from '@/realtime/useTripLive';
 import { deviceAt, renderApp, resetApp, screenAlert, signedInAs } from '@/test/app';
@@ -53,6 +53,51 @@ describe('on the way to the pickup', () => {
     await waitFor(() => {
       expect(liveServer.sentTo(LOCATION_DESTINATION).length).toBeGreaterThan(0);
     });
+  });
+
+  it('shows the driver on the map, with directions to the pickup, then the drop', async () => {
+    const pickup = at(MG_ROAD);
+    const drop = at(INDIRANAGAR);
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/driver/trip/trip-9');
+    const directions = await screen.findByRole('link', {
+      name: 'Open in Maps for directions to the pickup',
+    });
+    expect(directions).toHaveAttribute(
+      'href',
+      `https://www.google.com/maps/dir/?api=1&destination=${String(pickup.lat)},${String(pickup.lng)}&travelmode=driving`,
+    );
+    expect(directions).toHaveAttribute('target', '_blank');
+    expect(screen.getByRole('region', { name: 'Map of your trip' })).toBeInTheDocument();
+    expect(await screen.findByTitle('You')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(liveServer.subscribed(TRIP_UPDATES)).toBe(true);
+    });
+    act(() => {
+      liveServer.push(TRIP_UPDATES, {
+        type: 'TripStarted',
+        tripId: 'trip-9',
+        seq: 5,
+        payload: onTrip('IN_PROGRESS'),
+      });
+    });
+    expect(
+      await screen.findByRole('link', { name: 'Open in Maps for directions to the drop' }),
+    ).toHaveAttribute('href', expect.stringContaining(`${String(drop.lat)},${String(drop.lng)}`));
+  });
+
+  it('opens Apple Maps on an Apple device', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15',
+    );
+    const pickup = at(MG_ROAD);
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/driver/trip/trip-9');
+    expect(await screen.findByRole('link', { name: /^Open in Maps/ })).toHaveAttribute(
+      'href',
+      `https://maps.apple.com/?daddr=${String(pickup.lat)},${String(pickup.lng)}&dirflg=d`,
+    );
   });
 
   it('says how far the pickup is, and marks arrival', async () => {
