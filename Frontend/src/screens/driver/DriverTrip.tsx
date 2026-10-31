@@ -7,7 +7,10 @@ import { ApiError } from '@/api/problem';
 import { onThisClock } from '@/api/serverClock';
 import type { Schemas } from '@/api/types';
 import { Splash } from '@/auth/guards';
-import type { LatLng } from '@/map/MapCanvas';
+import { DriverMarker } from '@/map/DriverMarker';
+import { KeepInView } from '@/map/KeepInView';
+import { CITY_CENTRE, MapCanvas, positionOf } from '@/map/MapCanvas';
+import { MapPin } from '@/map/MapPin';
 import { metresBetween } from '@/places/serviceArea';
 import { useTripLive } from '@/realtime/useTripLive';
 import { TRIP_RULES } from '@/trip/rules';
@@ -17,7 +20,7 @@ import { Field } from '@/ui/Field';
 import { Input } from '@/ui/Input';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
-import { ConfirmStep, DarkScreen, FormAlert } from '../common';
+import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from '../common';
 import { DRIVER_PROFILE } from '../queries';
 import { distanceText } from '../rider/fare';
 import { SignOutButton } from '../SignOutButton';
@@ -35,20 +38,16 @@ const TITLE: Partial<Record<NonNullable<Trip['status']>, string>> = {
 
 const RIDE: Record<string, string> = { BIKE: 'Bike', AUTO: 'Auto', CAR: 'Car' };
 
-function point(p: Trip['pickup']): LatLng | null {
-  return p?.lat === undefined || p.lng === undefined ? null : { lat: p.lat, lng: p.lng };
-}
-
 /** The ride at a glance: what kind, how it is paid, and roughly what it pays. */
 function RideFacts({ trip }: { trip: Trip }) {
   return (
-    <section aria-label="This ride" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
+    <section aria-label="This ride" className="flex flex-col gap-1 rounded-card bg-wash p-4">
       <p className="text-body font-semibold">
         {RIDE[trip.vehicleType ?? ''] ?? 'Ride'} ·{' '}
         {trip.paymentMethod === 'WALLET' ? 'Wallet' : 'Cash'}
       </p>
       {trip.quotedFarePaise !== undefined && (
-        <p className="text-subhead text-paper/70">
+        <p className="text-subhead text-ink-soft">
           Quoted at {formatRupees(trip.quotedFarePaise)}; the final fare comes from the route
           driven.
         </p>
@@ -91,12 +90,10 @@ function StartWithCode({ tripId, onStarted }: { tripId: string; onStarted: (trip
         label="Rider’s code"
         hint="Ask the rider to read out the 4 digits on their screen."
         error={problem}
-        surface="ink"
       >
         {(control) => (
           <Input
             {...control}
-            surface="ink"
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={9}
@@ -110,7 +107,6 @@ function StartWithCode({ tripId, onStarted }: { tripId: string; onStarted: (trip
       </Field>
       <Button
         type="submit"
-        surface="ink"
         size="large"
         block
         loading={start.isPending}
@@ -216,7 +212,9 @@ export function DriverTrip() {
   }
 
   const here = sharing.state === 'sharing' || sharing.state === 'rough' ? sharing.at : null;
-  const target = point(status === 'IN_PROGRESS' ? view.drop : view.pickup);
+  const pickup = positionOf(view.pickup);
+  const drop = positionOf(view.drop);
+  const target = status === 'IN_PROGRESS' ? drop : pickup;
   const away = here && target ? metresBetween(here, target) : null;
   const failure = arrive.error ?? complete.error ?? cancel.error;
   const arrivedAt = view.arrivedAt ? onThisClock(view.arrivedAt) : null;
@@ -236,10 +234,58 @@ export function DriverTrip() {
             : `Drop ${distanceText(away)} away.`
           : undefined;
 
+  if (status === 'COMPLETED' || status === 'CANCELLED') {
+    return (
+      <DarkScreen title={TITLE[status] ?? 'Your trip'} actions={<SignOutButton />}>
+        {status === 'COMPLETED' && (
+          <section aria-label="Fare" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
+            <p className="text-large font-semibold tabular-nums">
+              {formatRupees(view.finalFarePaise ?? 0)}
+            </p>
+            <p className="text-body">
+              {view.paymentMethod === 'WALLET'
+                ? 'Paid from the rider’s wallet. Nothing to collect.'
+                : `Collect ${formatRupees(view.finalFarePaise ?? 0)} in cash from the rider.`}
+            </p>
+          </section>
+        )}
+
+        {status === 'CANCELLED' && (
+          <p className="text-body">
+            {view.cancelledBy === 'RIDER'
+              ? 'The rider cancelled this trip.'
+              : view.cancelledBy === 'DRIVER'
+                ? 'You cancelled this trip for a no-show. The rider is charged the cancellation fee.'
+                : 'RideFlow cancelled this trip.'}
+          </p>
+        )}
+
+        <Link
+          to="/driver"
+          className="flex min-h-12.5 items-center justify-center rounded-card bg-signal text-body font-semibold text-ink"
+        >
+          Back to driving
+        </Link>
+      </DarkScreen>
+    );
+  }
+
   return (
-    <DarkScreen title={TITLE[status] ?? 'Your trip'} lead={lead} actions={<SignOutButton />}>
-      {status !== 'COMPLETED' && status !== 'CANCELLED' && <RideFacts trip={view} />}
-      {failure && <FormAlert message={describeError(failure).message} />}
+    <MapScreen
+      title={TITLE[status] ?? 'Your trip'}
+      lead={lead}
+      actions={<SignOutButton surface="paper" />}
+      map={
+        <MapCanvas label="Map of your trip" center={here ?? target ?? CITY_CENTRE}>
+          {pickup && status !== 'IN_PROGRESS' && <MapPin kind="pickup" at={pickup} />}
+          {drop && <MapPin kind="drop" at={drop} />}
+          {here && <DriverMarker at={here} label="You" />}
+          <KeepInView stops={target ? [target] : []} mover={here} />
+        </MapCanvas>
+      }
+    >
+      <RideFacts trip={view} />
+      {failure && <FormAlert surface="paper" message={describeError(failure).message} />}
 
       {status === 'DRIVER_ASSIGNED' &&
         (asking === 'leave' ? (
@@ -259,7 +305,6 @@ export function DriverTrip() {
         ) : (
           <>
             <Button
-              surface="ink"
               size="large"
               block
               loading={arrive.isPending}
@@ -270,7 +315,6 @@ export function DriverTrip() {
               I’ve arrived
             </Button>
             <Button
-              surface="ink"
               variant="secondary"
               block
               onClick={() => {
@@ -285,7 +329,7 @@ export function DriverTrip() {
       {status === 'DRIVER_ARRIVED' && (
         <>
           {arrivedAt !== null && !freeWaitOver && (
-            <p className="text-subhead text-paper/70">
+            <p className="text-subhead text-ink-soft">
               Free waiting ends in{' '}
               <Countdown
                 until={arrivedAt + TRIP_RULES.freeWaitMinutes * 60_000}
@@ -314,7 +358,6 @@ export function DriverTrip() {
             />
           ) : noShowOpen ? (
             <Button
-              surface="ink"
               variant="secondary"
               block
               onClick={() => {
@@ -325,7 +368,7 @@ export function DriverTrip() {
             </Button>
           ) : (
             arrivedAt !== null && (
-              <p className="text-subhead text-paper/70">
+              <p className="text-subhead text-ink-soft">
                 If the rider doesn’t come, you can cancel for a no-show in{' '}
                 <Countdown
                   until={arrivedAt + TRIP_RULES.noShowAfterMinutes * 60_000}
@@ -357,7 +400,6 @@ export function DriverTrip() {
           />
         ) : (
           <Button
-            surface="ink"
             size="large"
             block
             onClick={() => {
@@ -367,38 +409,6 @@ export function DriverTrip() {
             Complete trip
           </Button>
         ))}
-
-      {status === 'COMPLETED' && (
-        <section aria-label="Fare" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
-          <p className="text-large font-semibold tabular-nums">
-            {formatRupees(view.finalFarePaise ?? 0)}
-          </p>
-          <p className="text-body">
-            {view.paymentMethod === 'WALLET'
-              ? 'Paid from the rider’s wallet. Nothing to collect.'
-              : `Collect ${formatRupees(view.finalFarePaise ?? 0)} in cash from the rider.`}
-          </p>
-        </section>
-      )}
-
-      {status === 'CANCELLED' && (
-        <p className="text-body">
-          {view.cancelledBy === 'RIDER'
-            ? 'The rider cancelled this trip.'
-            : view.cancelledBy === 'DRIVER'
-              ? 'You cancelled this trip for a no-show. The rider is charged the cancellation fee.'
-              : 'RideFlow cancelled this trip.'}
-        </p>
-      )}
-
-      {(status === 'COMPLETED' || status === 'CANCELLED') && (
-        <Link
-          to="/driver"
-          className="flex min-h-12.5 items-center justify-center rounded-card bg-signal text-body font-semibold text-ink"
-        >
-          Back to driving
-        </Link>
-      )}
-    </DarkScreen>
+    </MapScreen>
   );
 }

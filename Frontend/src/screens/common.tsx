@@ -3,6 +3,7 @@ import { Button, type Surface } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/Icon';
 import { Input, type InputProps } from '@/ui/Input';
+import { Sheet, type SheetHeight } from '@/ui/Sheet';
 import { TopBar } from '@/ui/TopBar';
 
 /**
@@ -33,6 +34,44 @@ export function DarkScreen({
         {children}
       </main>
     </div>
+  );
+}
+
+/**
+ * A trip under way: the map, and over it the sheet with the screen's title and what to do - the
+ * rider's home layout, so where the car is stays one glance away.
+ */
+export function MapScreen({
+  title,
+  lead,
+  actions,
+  map,
+  children,
+}: {
+  title: string;
+  lead?: ReactNode;
+  actions?: ReactNode;
+  map: ReactNode;
+  children: ReactNode;
+}) {
+  const [height, setHeight] = useState<SheetHeight>('half');
+  return (
+    <>
+      <title>{`${title} · RideFlow`}</title>
+      <TopBar surface="paper" actions={actions} />
+      <main>
+        {map}
+        <Sheet height={height} onHeightChange={setHeight} label="Your trip">
+          <div className="flex flex-col gap-4 pb-4">
+            <header className="flex flex-col gap-1">
+              <h1 className="text-title font-semibold">{title}</h1>
+              {lead && <p className="text-subhead text-ink-soft">{lead}</p>}
+            </header>
+            {children}
+          </div>
+        </Sheet>
+      </main>
+    </>
   );
 }
 
@@ -107,10 +146,10 @@ export function ConfirmStep({
       <p className="text-body">
         {question} {detail}
       </p>
-      <Button surface="ink" size="large" block loading={busy} onClick={onConfirm}>
+      <Button size="large" block loading={busy} onClick={onConfirm}>
         {confirm}
       </Button>
-      <Button surface="ink" variant="secondary" block disabled={busy} onClick={onKeep}>
+      <Button variant="secondary" block disabled={busy} onClick={onKeep}>
         {keep}
       </Button>
     </div>

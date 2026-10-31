@@ -11,6 +11,11 @@ export interface LatLng {
   lng: number;
 }
 
+/** A backend point - its schema leaves both fields optional - as a position, or null. */
+export function positionOf(p: { lat?: number; lng?: number } | undefined): LatLng | null {
+  return p?.lat === undefined || p.lng === undefined ? null : { lat: p.lat, lng: p.lng };
+}
+
 /** MG Road, Bengaluru: where the map opens when it knows nothing better. */
 export const CITY_CENTRE: LatLng = { lat: 12.9756, lng: 77.6069 };
 

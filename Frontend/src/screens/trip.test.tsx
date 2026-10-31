@@ -1,7 +1,9 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LatLng } from '@/map/MapCanvas';
+import { DRIVER_LOCATION } from '@/realtime/useDriverLocation';
 import { TRIP_UPDATES } from '@/realtime/useTripLive';
 import { useBookingDraft } from '@/state/bookingDraft';
 import { renderApp, resetApp, signedInAs } from '@/test/app';
@@ -17,6 +19,7 @@ import {
   tripAnswers,
 } from '@/test/backend';
 import { liveServer } from '@/test/liveServer';
+import { setMedia } from '@/test/media';
 import { server } from '@/test/server';
 
 beforeEach(() => {
@@ -26,6 +29,10 @@ beforeEach(() => {
   const draft = useBookingDraft.getState();
   draft.setStop('pickup', { name: 'MG Road', detail: '', at: at(MG_ROAD) });
   draft.setStop('drop', { name: 'Indiranagar', detail: '', at: at(INDIRANAGAR) });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 async function live() {
@@ -105,6 +112,164 @@ describe('waiting for a driver', () => {
   });
 });
 
+describe('following the driver', () => {
+  const STOPS = { pickup: at(MG_ROAD), drop: at(INDIRANAGAR) };
+  const minuteAgo = () => new Date(Date.now() - 60_000).toISOString();
+
+  function onTrip(status: 'DRIVER_ASSIGNED' | 'IN_PROGRESS', assignedAt = minuteAgo()) {
+    return trip('trip-1', status, { ...STOPS, otp: '4821', assignedAt });
+  }
+
+  async function following() {
+    await waitFor(() => {
+      expect(liveServer.subscribed(DRIVER_LOCATION)).toBe(true);
+    });
+  }
+
+  async function driverAt(
+    seq: number,
+    where: LatLng,
+    etaSeconds: number | null = 230,
+    phase = 'TO_PICKUP',
+  ) {
+    act(() => {
+      liveServer.push(DRIVER_LOCATION, {
+        type: 'DRIVER_LOCATION',
+        tripId: 'trip-1',
+        seq,
+        payload: { ...where, phase, etaSeconds },
+      });
+    });
+    // Delivered on the next microtask.
+    await act(() => Promise.resolve());
+  }
+
+  /** Where a marker is drawn; jsdom has no 3D transforms, so Leaflet places it by left and top. */
+  const spot = (title: string) => {
+    const style = screen.getByTitle(title).style;
+    return `${style.left},${style.top}`;
+  };
+
+  it('shows the driver on the map, and about how long until they arrive', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    expect(await screen.findByRole('region', { name: 'Map of your trip' })).toBeInTheDocument();
+    await following();
+
+    await driverAt(3, at(INDIRANAGAR));
+    expect(await screen.findByText('Arriving in about 4 min.')).toBeVisible();
+    expect(screen.getByTitle('Your driver')).toBeInTheDocument();
+  });
+
+  it('keeps to the newest position, whatever order they arrive in', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR));
+    await screen.findByText('Arriving in about 4 min.');
+
+    await driverAt(2, at(INDIRANAGAR), 600);
+    await driverAt(3, at(INDIRANAGAR), 600);
+    await act(() => Promise.resolve());
+    expect(screen.getByText('Arriving in about 4 min.')).toBeVisible();
+  });
+
+  it('says how long to the drop once the trip is under way', async () => {
+    tripAnswers(onTrip('IN_PROGRESS'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(5, at(MG_ROAD), 690, 'TO_DROP');
+    expect(await screen.findByText('About 12 min to the drop.')).toBeVisible();
+  });
+
+  it('shows the driver without a time when the backend has no estimate', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR), null);
+    expect(await screen.findByTitle('Your driver')).toBeInTheDocument();
+    expect(screen.queryByText(/Arriving/)).not.toBeInTheDocument();
+  });
+
+  it('says when the driver’s position has gone quiet, and dims it where it was', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    setMedia('(prefers-reduced-motion: reduce)');
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR));
+    await driverAt(4, at(MG_ROAD));
+    await screen.findByText('Arriving in about 4 min.');
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(
+      screen.getByText(/^Your driver’s position hasn’t updated since \d{1,2}:\d{2} [ap]m\.$/),
+    ).toBeVisible();
+    expect(screen.getByTitle('Your driver')).toHaveStyle({ opacity: '0.45' });
+    expect(spot('Your driver')).toBe(spot('Pickup'));
+
+    // The next position is news again.
+    await driverAt(5, at(MG_ROAD));
+    expect(await screen.findByText('Arriving in about 4 min.')).toBeVisible();
+  });
+
+  it('glides the car to each new position', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR));
+    await screen.findByTitle('Your driver');
+
+    // To the pickup itself, so the pickup's pin marks where the glide ends.
+    await driverAt(4, at(MG_ROAD));
+    expect(spot('Your driver')).not.toBe(spot('Pickup'));
+    await waitFor(() => {
+      expect(spot('Your driver')).toBe(spot('Pickup'));
+    });
+  });
+
+  it('moves the car at once for anyone who asks for less motion', async () => {
+    setMedia('(prefers-reduced-motion: reduce)');
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR));
+    await screen.findByTitle('Your driver');
+
+    await driverAt(4, at(MG_ROAD));
+    expect(spot('Your driver')).toBe(spot('Pickup'));
+  });
+
+  it('does not show a driver who backed out as the new one', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(3, at(INDIRANAGAR));
+    await screen.findByTitle('Your driver');
+
+    pushed(4, trip('trip-1', 'REQUESTED', STOPS));
+    await screen.findByRole('heading', { name: 'Finding your driver' });
+    pushed(5, onTrip('DRIVER_ASSIGNED', new Date(Date.now() + 1000).toISOString()));
+    await screen.findByRole('heading', { name: 'Your driver is on the way' });
+    expect(screen.queryByTitle('Your driver')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Arriving/)).not.toBeInTheDocument();
+  });
+
+  it('leaves the map for the fare when the trip completes', async () => {
+    tripAnswers(onTrip('IN_PROGRESS'));
+    renderApp('/trip/trip-1');
+    await following();
+    await driverAt(5, at(INDIRANAGAR), 30, 'TO_DROP');
+    await screen.findByText('About 1 min to the drop.');
+
+    pushed(6, trip('trip-1', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' }));
+    expect(await screen.findByRole('heading', { name: 'Trip completed' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Map of your trip' })).not.toBeInTheDocument();
+  });
+});
+
 describe('at the pickup and after', () => {
   it('counts down the free waiting once the driver has arrived', async () => {
     tripAnswers(
@@ -128,7 +293,7 @@ describe('at the pickup and after', () => {
       '₹312Paid in cash to your driver.',
     );
     // Nothing to follow on a map once it is over.
-    expect(screen.queryByText(/on the map/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Map of your trip' })).not.toBeInTheDocument();
   });
 
   it('says so when the wallet went below zero to pay', async () => {
