@@ -131,10 +131,16 @@ export function DriverHome() {
       )}
       <p className="text-subhead text-paper/70">{ratingWords(profile.data)}</p>
       <div className="flex gap-6">
-        <Link to="/driver/trips" className="text-subhead text-paper underline">
+        <Link
+          to="/driver/trips"
+          className="flex min-h-11 items-center text-subhead text-paper underline"
+        >
           Your trips
         </Link>
-        <Link to="/driver/vehicle" className="text-subhead text-paper underline">
+        <Link
+          to="/driver/vehicle"
+          className="flex min-h-11 items-center text-subhead text-paper underline"
+        >
           Your vehicle
         </Link>
       </div>
