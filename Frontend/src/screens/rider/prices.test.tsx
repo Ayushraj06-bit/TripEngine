@@ -230,6 +230,7 @@ describe('booking', () => {
     expect(await screenAlert()).toHaveTextContent(
       'An earlier ride is still unpaid. Top up your wallet to book again.',
     );
+    expect(screen.getByRole('link', { name: 'Add money' })).toHaveAttribute('href', '/wallet');
   });
 
   it('opens the ride already under way, rather than booking another', async () => {

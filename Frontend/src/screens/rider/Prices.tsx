@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { describeError, type Recovery } from '@/api/errors';
 import type { VehicleType } from '@/map/NearbyDrivers';
 import { useBookingDraft, type PaymentMethod } from '@/state/bookingDraft';
@@ -205,6 +206,14 @@ export function Prices({
             <Button variant="secondary" onClick={onChangeStops}>
               Change pickup or drop
             </Button>
+          )}
+          {failure.recovery === 'top-up' && (
+            <Link
+              to="/wallet"
+              className="flex min-h-11 items-center justify-center rounded-card bg-wash text-body font-semibold text-ink"
+            >
+              Add money
+            </Link>
           )}
         </div>
       )}
