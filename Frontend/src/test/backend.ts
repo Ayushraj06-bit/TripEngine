@@ -203,6 +203,41 @@ export function walletHas(balancePaise: number) {
   );
 }
 
+let movementIds = 0;
+
+/** A line in the wallet's activity. */
+export function movement(
+  type: NonNullable<Schemas['Movement']['type']>,
+  direction: 'CREDIT' | 'DEBIT',
+  amountPaise: number,
+): Schemas['Movement'] {
+  movementIds += 1;
+  return {
+    entryId: `entry-${String(movementIds)}`,
+    type,
+    direction,
+    amountPaise,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** GET /wallet a page at a time: the first without a cursor, each next by the one before's. */
+export function walletIs(
+  ...pages: { balancePaise: number; movements: Schemas['Movement'][]; account?: string }[]
+) {
+  server.use(
+    http.get('/api/v1/wallet', ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor');
+      const index = cursor === null ? 0 : Number(cursor);
+      return HttpResponse.json({
+        account: 'RIDER_WALLET',
+        ...pages[index],
+        nextCursor: index + 1 < pages.length ? String(index + 1) : undefined,
+      });
+    }),
+  );
+}
+
 /** Bookings answered by `answer`, each one recorded with its Idempotency-Key. */
 export function bookingAnswers(answer: () => Response) {
   server.use(

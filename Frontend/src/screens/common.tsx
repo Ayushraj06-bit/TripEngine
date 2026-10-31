@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { Button, type Surface } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/Icon';
@@ -72,6 +73,29 @@ export function MapScreen({
         </Sheet>
       </main>
     </>
+  );
+}
+
+/** A link in the top bar, drawn as the bar's buttons are. */
+export function BarLink({
+  to,
+  surface = 'ink',
+  children,
+}: {
+  to: string;
+  surface?: Surface;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      to={to}
+      className={cx(
+        'flex min-h-11 items-center rounded-full px-4 text-subhead font-semibold',
+        surface === 'ink' ? 'bg-paper/12 text-paper' : 'material text-ink',
+      )}
+    >
+      {children}
+    </Link>
   );
 }
 
