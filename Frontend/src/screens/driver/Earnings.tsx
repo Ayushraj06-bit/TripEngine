@@ -52,7 +52,9 @@ export function Earnings() {
         <p className="text-body">
           {balance < 0
             ? 'You owe RideFlow this in commission on cash rides.'
-            : 'RideFlow owes you this from rides paid by wallet, after its commission.'}
+            : balance > 0
+              ? 'RideFlow owes you this from rides paid by wallet, after its commission.'
+              : 'Fares paid by wallet come in here, after RideFlow’s commission. Its commission on cash rides goes out.'}
         </p>
       </section>
       <Movements pages={pages} />

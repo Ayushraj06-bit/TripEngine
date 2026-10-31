@@ -36,6 +36,14 @@ describe('the driver’s earnings', () => {
     expect(screen.getByRole('listitem')).toHaveTextContent(/^Ride.*\+₹240$/);
   });
 
+  it('say what comes in and goes out, before anything has', async () => {
+    walletIs({ account: 'DRIVER_EARNINGS', balancePaise: 0, movements: [] });
+    renderApp('/driver/earnings');
+    expect(await screen.findByRole('region', { name: 'Balance' })).toHaveTextContent(
+      'Fares paid by wallet come in here, after RideFlow’s commission. Its commission on cash rides goes out.',
+    );
+  });
+
   it('say what the driver owes in commission on cash rides', async () => {
     walletIs({
       account: 'DRIVER_EARNINGS',
