@@ -19,6 +19,14 @@ afterEach(() => {
 const topups = () => seen.filter((r) => r.path === '/api/v1/wallet/topups');
 
 describe('the wallet', () => {
+  it('is a tap away from the map', async () => {
+    walletIs({ balancePaise: 12000, movements: [] });
+    renderApp('/');
+    await userEvent.click(await screen.findByRole('link', { name: 'Wallet' }));
+    expect(await screen.findByRole('heading', { name: 'Wallet' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Balance' })).toHaveTextContent('₹120');
+  });
+
   it('shows the balance, and what went in and out, newest first', async () => {
     walletIs({
       balancePaise: 31600,

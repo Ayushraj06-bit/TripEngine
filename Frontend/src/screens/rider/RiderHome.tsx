@@ -13,6 +13,7 @@ import { Row } from '@/ui/Row';
 import { Sheet, type SheetHeight } from '@/ui/Sheet';
 import { TopBar } from '@/ui/TopBar';
 import { ACTIVE_TRIP, useActiveTrip, useNearbyDrivers } from '../queries';
+import { BarLink } from '../common';
 import { SignOutButton } from '../SignOutButton';
 import { ChooseOnMap } from './ChooseOnMap';
 import { Prices } from './Prices';
@@ -94,7 +95,17 @@ export function RiderHome() {
   return (
     <>
       <title>RideFlow</title>
-      <TopBar surface="paper" actions={<SignOutButton surface="paper" />} />
+      <TopBar
+        surface="paper"
+        actions={
+          <>
+            <BarLink to="/wallet" surface="paper">
+              Wallet
+            </BarLink>
+            <SignOutButton surface="paper" />
+          </>
+        }
+      />
       <main>
         <MapCanvas
           label={
