@@ -129,3 +129,7 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
 export function RiderTrips() {
   return <TripHistory home="/" tripPath={(id) => `/trip/${id}`} />;
 }
+
+export function DriverTrips() {
+  return <TripHistory home="/driver" tripPath={(id) => `/driver/trip/${id}`} />;
+}

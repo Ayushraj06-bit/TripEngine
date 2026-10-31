@@ -130,9 +130,14 @@ export function DriverHome() {
         </p>
       )}
       <p className="text-subhead text-paper/70">{ratingWords(profile.data)}</p>
-      <Link to="/driver/vehicle" className="self-start text-subhead text-paper underline">
-        Your vehicle
-      </Link>
+      <div className="flex gap-6">
+        <Link to="/driver/trips" className="text-subhead text-paper underline">
+          Your trips
+        </Link>
+        <Link to="/driver/vehicle" className="text-subhead text-paper underline">
+          Your vehicle
+        </Link>
+      </div>
     </DarkScreen>
   );
 }

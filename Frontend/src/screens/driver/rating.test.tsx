@@ -1,7 +1,18 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { deviceAt, renderApp, resetApp, signedInAs } from '@/test/app';
-import { at, backendFor, DRIVER, driverProfileIs, MG_ROAD, VEHICLE } from '@/test/backend';
+import {
+  at,
+  backendFor,
+  DRIVER,
+  driverProfileIs,
+  MG_ROAD,
+  trip,
+  tripAnswers,
+  tripsAre,
+  VEHICLE,
+} from '@/test/backend';
 import { ratingWords } from './DriverHome';
 
 const APPROVED = { approvalStatus: 'APPROVED', status: 'OFFLINE', vehicle: VEHICLE } as const;
@@ -25,5 +36,21 @@ describe('the driver’s rating', () => {
       'Rated 5.0 by riders, from 1 rating.',
     );
     expect(ratingWords({ ...APPROVED, ratingCount: 0 })).toBe('No ratings from riders yet.');
+  });
+});
+
+describe('the driver’s trips', () => {
+  it('are a tap away from the driving screen, and open the trip', async () => {
+    driverProfileIs(APPROVED);
+    const done = trip('trip-9', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' });
+    tripsAre([done]);
+    tripAnswers(done);
+    renderApp('/driver');
+    await userEvent.click(await screen.findByRole('link', { name: 'Your trips' }));
+    const row = await screen.findByRole('link', { name: /^Completed · Auto.*₹312$/ });
+    expect(row).toHaveAttribute('href', '/driver/trip/trip-9');
+    await userEvent.click(row);
+    expect(await screen.findByText('Collect ₹312 in cash from the rider.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Back to driving' })).toBeVisible();
   });
 });

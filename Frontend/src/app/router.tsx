@@ -96,6 +96,12 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                path: 'trips',
+                lazy: async () => ({
+                  Component: (await import('@/screens/TripHistory')).DriverTrips,
+                }),
+              },
+              {
                 path: 'earnings',
                 lazy: async () => ({
                   Component: (await import('@/screens/driver/Earnings')).Earnings,
