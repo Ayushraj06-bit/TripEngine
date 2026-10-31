@@ -4,7 +4,7 @@ import { Splash } from '@/auth/guards';
 import { useLive } from '@/realtime/live';
 import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
-import { DarkScreen, FormAlert } from '../common';
+import { BarLink, DarkScreen, FormAlert } from '../common';
 import { useActiveTrip, useDriverProfile } from '../queries';
 import { SignOutButton } from '../SignOutButton';
 import { OfferCard } from './OfferCard';
@@ -89,7 +89,15 @@ export function DriverHome() {
   const from = sharing.state === 'sharing' || sharing.state === 'rough' ? sharing.at : null;
 
   return (
-    <DarkScreen title="Driving" actions={<SignOutButton />}>
+    <DarkScreen
+      title="Driving"
+      actions={
+        <>
+          <BarLink to="/driver/earnings">Earnings</BarLink>
+          <SignOutButton />
+        </>
+      }
+    >
       {online && offer.data && (
         <OfferCard key={offer.data.offerId} offer={offer.data} from={from} />
       )}

@@ -91,6 +91,12 @@ export const routes: RouteObject[] = [
                   Component: (await import('@/screens/driver/DriverTrip')).DriverTrip,
                 }),
               },
+              {
+                path: 'earnings',
+                lazy: async () => ({
+                  Component: (await import('@/screens/driver/Earnings')).Earnings,
+                }),
+              },
             ],
           },
         ],
