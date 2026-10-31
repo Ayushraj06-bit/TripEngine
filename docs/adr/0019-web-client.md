@@ -101,3 +101,5 @@ materials, defined once in `Frontend/src/styles/theme.css`.
 - [ADR 0023](0023-the-trip-in-the-web-app.md): the trip itself. The backend's timers held to it by a
   test, the driver's position shared for the whole drive, and every step that cannot be undone
   asked first.
+- [ADR 0024](0024-the-live-map.md): the live map. The backend's positions in order, glided between
+  and never guessed, said to be stale when they stop, and directions left to the phone's maps app.
