@@ -18,6 +18,8 @@ export default defineConfig({
     proxy: {
       '/api': { target: backend, changeOrigin: true },
       '/v3/api-docs': { target: backend, changeOrigin: true },
+      // The demo's test payment gateway: its "payment page" is the backend's own endpoint.
+      '/mock-gateway': { target: backend, changeOrigin: true },
       '/ws': {
         target: backend.replace(/^http/, 'ws'),
         ws: true,
