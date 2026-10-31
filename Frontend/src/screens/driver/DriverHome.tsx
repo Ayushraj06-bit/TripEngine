@@ -1,5 +1,6 @@
 import { Link, Navigate } from 'react-router';
 import { describeError } from '@/api/errors';
+import type { Schemas } from '@/api/types';
 import { Splash } from '@/auth/guards';
 import { useLive } from '@/realtime/live';
 import { Button } from '@/ui/Button';
@@ -12,6 +13,20 @@ import { OnlineToggle } from './OnlineToggle';
 import { useOffer } from './useOffer';
 import { useSharing } from './DriverPresence';
 import { ROUGHEST_METRES, type Sharing } from './useShareLocation';
+
+const ONE_DECIMAL = new Intl.NumberFormat('en-IN', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/** What riders made of the driver, as the backend has added it up. */
+export function ratingWords(profile: Schemas['DriverProfile']): string {
+  const count = profile.ratingCount ?? 0;
+  if (count === 0 || profile.averageRating === undefined) return 'No ratings from riders yet.';
+  return `Rated ${ONE_DECIMAL.format(profile.averageRating)} by riders, from ${
+    count === 1 ? '1 rating' : `${String(count)} ratings`
+  }.`;
+}
 
 const STATUS = {
   OFFLINE: { label: 'You’re offline', dot: 'bg-mute' },
@@ -114,6 +129,7 @@ export function DriverHome() {
           Ride offers appear here as they come. Each one waits a few seconds for your answer.
         </p>
       )}
+      <p className="text-subhead text-paper/70">{ratingWords(profile.data)}</p>
       <Link to="/driver/vehicle" className="self-start text-subhead text-paper underline">
         Your vehicle
       </Link>
