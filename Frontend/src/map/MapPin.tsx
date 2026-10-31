@@ -16,7 +16,7 @@ const HTML: Record<PinKind, string> = {
 
 const SIZE: Record<PinKind, number> = { pickup: 20, drop: 16, driver: 24 };
 
-const ICONS: Record<PinKind, ReturnType<typeof divIcon>> = {
+export const PIN_ICONS: Record<PinKind, ReturnType<typeof divIcon>> = {
   pickup: icon('pickup'),
   drop: icon('drop'),
   driver: icon('driver'),
@@ -38,7 +38,7 @@ export function MapPin({ kind, at, label }: { kind: PinKind; at: LatLng; label?:
   return (
     <Marker
       position={[at.lat, at.lng]}
-      icon={ICONS[kind]}
+      icon={PIN_ICONS[kind]}
       title={label ?? LABEL[kind]}
       alt={label ?? LABEL[kind]}
       keyboard={false}
