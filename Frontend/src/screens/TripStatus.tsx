@@ -19,6 +19,7 @@ import { Countdown } from '@/ui/Countdown';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
 import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from './common';
+import { RateTrip } from './RateTrip';
 import { SignOutButton } from './SignOutButton';
 
 type Trip = Schemas['TripView'];
@@ -310,6 +311,7 @@ export function TripStatus() {
       actions={<SignOutButton />}
     >
       {status === 'COMPLETED' && <Paid trip={view} />}
+      {status === 'COMPLETED' && <RateTrip trip={view} question="How was your ride?" />}
 
       {status === 'CANCELLED' && (
         <p className="text-body">

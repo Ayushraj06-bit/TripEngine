@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,10 +13,13 @@ import {
   cancellingAnswers,
   INDIRANAGAR,
   MG_ROAD,
+  problem,
   RIDER,
   seen,
   trip,
+  tripAction,
   tripAnswers,
+  walletIs,
 } from '@/test/backend';
 import { liveServer } from '@/test/liveServer';
 import { setMedia } from '@/test/media';
@@ -330,6 +333,77 @@ describe('at the pickup and after', () => {
     expect(
       screen.getByText('Your driver couldn’t make it. RideFlow is finding you another.'),
     ).toBeVisible();
+  });
+});
+
+describe('rating the trip', () => {
+  const done = (extra: object = {}) =>
+    trip('trip-1', 'COMPLETED', {
+      finalFarePaise: 31200,
+      paymentMethod: 'CASH',
+      completedAt: new Date().toISOString(),
+      ...extra,
+    });
+
+  it('sends the stars and a few words', async () => {
+    tripAnswers(done());
+    tripAction('rating', () => HttpResponse.json({ stars: 4 }, { status: 201 }));
+    const user = userEvent.setup();
+    renderApp('/trip/trip-1');
+    const form = await screen.findByRole('form', { name: 'Rate this trip' });
+    await user.click(within(form).getByRole('radio', { name: '4 stars' }));
+    await user.type(within(form).getByLabelText('A few words (optional)'), ' Smooth ride ');
+    expect(within(form).getByText('13 of 500 characters')).toBeVisible();
+    await user.click(within(form).getByRole('button', { name: 'Send rating' }));
+
+    expect(await screen.findByText('Thanks. Your rating has been sent.')).toBeVisible();
+    expect(seen.find((r) => r.path === '/api/v1/trips/trip-1/rating')?.body).toEqual({
+      stars: 4,
+      comment: 'Smooth ride',
+    });
+  });
+
+  it('asks for stars before sending', async () => {
+    tripAnswers(done());
+    const user = userEvent.setup();
+    renderApp('/trip/trip-1');
+    await user.click(await screen.findByRole('button', { name: 'Send rating' }));
+    expect(screen.getByText('Choose from 1 to 5 stars.')).toBeVisible();
+    expect(seen.some((r) => r.path.endsWith('/rating'))).toBe(false);
+  });
+
+  it('says so when the trip was rated already, and does not ask again', async () => {
+    tripAnswers(done());
+    tripAction('rating', () => problem(409, 'ALREADY_RATED'));
+    const user = userEvent.setup();
+    const { router } = renderApp('/trip/trip-1');
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('button', { name: 'Send rating' }));
+    expect(await screen.findByText('You’ve rated this trip.')).toBeVisible();
+
+    walletIs({ balancePaise: 0, movements: [] });
+    await act(() => router.navigate('/wallet'));
+    await act(() => router.navigate('/trip/trip-1'));
+    expect(await screen.findByText('You’ve rated this trip.')).toBeVisible();
+    expect(screen.queryByRole('form', { name: 'Rate this trip' })).not.toBeInTheDocument();
+  });
+
+  it('can be left for later', async () => {
+    tripAnswers(done());
+    const user = userEvent.setup();
+    renderApp('/trip/trip-1');
+    await user.click(await screen.findByRole('button', { name: 'Not now' }));
+    expect(screen.queryByRole('form', { name: 'Rate this trip' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Rate this trip' }));
+    expect(screen.getByRole('form', { name: 'Rate this trip' })).toBeVisible();
+  });
+
+  it('is not offered once the window has closed', async () => {
+    tripAnswers(done({ completedAt: new Date(Date.now() - 8 * 86_400_000).toISOString() }));
+    renderApp('/trip/trip-1');
+    expect(await screen.findByRole('region', { name: 'Fare' })).toBeVisible();
+    expect(screen.queryByRole('form', { name: 'Rate this trip' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rate this trip' })).not.toBeInTheDocument();
   });
 });
 

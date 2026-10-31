@@ -3,6 +3,7 @@ import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { stopLive, useSocketFactoryForTests } from '@/realtime/live';
 import { resetTripLiveForTests } from '@/realtime/useTripLive';
+import { forgetRatingsForTests } from '@/screens/RateTrip';
 import { liveServer } from './liveServer';
 import { resetMedia } from './media';
 import { server } from './server';
@@ -22,6 +23,7 @@ afterEach(() => {
   stopLive();
   liveServer.reset();
   resetTripLiveForTests();
+  forgetRatingsForTests();
   server.resetHandlers();
   resetMedia();
 });
