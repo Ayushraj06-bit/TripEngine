@@ -299,6 +299,13 @@ describe('at the pickup and after', () => {
     expect(screen.queryByRole('region', { name: 'Map of your trip' })).not.toBeInTheDocument();
   });
 
+  it('leaves the ride being planned alone when an old trip is opened', async () => {
+    tripAnswers(trip('trip-1', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' }));
+    renderApp('/trip/trip-1');
+    await screen.findByRole('region', { name: 'Fare' });
+    expect(useBookingDraft.getState().drop?.name).toBe('Indiranagar');
+  });
+
   it('says so when the wallet went below zero to pay', async () => {
     tripAnswers(
       trip('trip-1', 'COMPLETED', {

@@ -46,13 +46,11 @@ const CANCELLABLE: readonly Status[] = ['REQUESTED', 'DRIVER_ASSIGNED', 'DRIVER_
 
 const ENDED: readonly Status[] = ['COMPLETED', 'CANCELLED', 'NO_DRIVER_FOUND'];
 
-/** Once a driver is on the way, the ride is real: the draft that led to it is done with. */
-const UNDER_WAY: readonly Status[] = [
-  'DRIVER_ASSIGNED',
-  'DRIVER_ARRIVED',
-  'IN_PROGRESS',
-  'COMPLETED',
-];
+/**
+ * Once a driver is on the way, the ride is real: the draft that led to it is done with. Not a
+ * completed trip - an old one opened from the rider's trips must leave the ride being planned.
+ */
+const UNDER_WAY: readonly Status[] = ['DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
 
 /**
  * What the rider is told about the car while it moves: about how long to the pickup, or to the
