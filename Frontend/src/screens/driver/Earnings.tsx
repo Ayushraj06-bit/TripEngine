@@ -1,8 +1,7 @@
 import { describeError } from '@/api/errors';
-import { Splash } from '@/auth/guards';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
-import { BarLink, DarkScreen, FormAlert } from '../common';
+import { BarLink, DarkScreen, FormAlert, ListSkeleton } from '../common';
 import { Movements, useWalletPages } from '../Movements';
 import { SignOutButton } from '../SignOutButton';
 
@@ -12,14 +11,19 @@ import { SignOutButton } from '../SignOutButton';
  */
 export function Earnings() {
   const pages = useWalletPages();
-  if (pages.isPending) return <Splash />;
-
   const actions = (
     <>
       <BarLink to="/driver">Done</BarLink>
       <SignOutButton />
     </>
   );
+  if (pages.isPending) {
+    return (
+      <DarkScreen title="Earnings" actions={actions}>
+        <ListSkeleton label="Getting your earnings" balance />
+      </DarkScreen>
+    );
+  }
   if (pages.isError) {
     return (
       <DarkScreen title="Earnings" actions={actions}>

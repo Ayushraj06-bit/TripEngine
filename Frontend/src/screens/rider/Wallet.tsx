@@ -1,8 +1,7 @@
 import { describeError } from '@/api/errors';
-import { Splash } from '@/auth/guards';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
-import { BarLink, DarkScreen, FormAlert } from '../common';
+import { BarLink, DarkScreen, FormAlert, ListSkeleton } from '../common';
 import { Movements, useWalletPages } from '../Movements';
 import { SignOutButton } from '../SignOutButton';
 import { TopUp } from './TopUp';
@@ -10,14 +9,19 @@ import { TopUp } from './TopUp';
 /** The rider's wallet: what is in it, and what went in and out. */
 export function Wallet() {
   const pages = useWalletPages();
-  if (pages.isPending) return <Splash />;
-
   const actions = (
     <>
       <BarLink to="/">Done</BarLink>
       <SignOutButton />
     </>
   );
+  if (pages.isPending) {
+    return (
+      <DarkScreen title="Wallet" actions={actions}>
+        <ListSkeleton label="Getting your wallet" balance />
+      </DarkScreen>
+    );
+  }
   if (pages.isError) {
     return (
       <DarkScreen title="Wallet" actions={actions}>

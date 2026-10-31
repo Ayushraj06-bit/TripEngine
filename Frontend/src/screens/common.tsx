@@ -5,6 +5,7 @@ import { cx } from '@/ui/cx';
 import { Icon } from '@/ui/Icon';
 import { Input, type InputProps } from '@/ui/Input';
 import { Sheet, type SheetHeight } from '@/ui/Sheet';
+import { Skeleton } from '@/ui/Skeleton';
 import { TopBar } from '@/ui/TopBar';
 
 /**
@@ -73,6 +74,23 @@ export function MapScreen({
         </Sheet>
       </main>
     </>
+  );
+}
+
+/**
+ * A list screen while its first page comes: its title is already there, and its shape below it -
+ * still, and said to be loading - rather than a blank screen.
+ */
+export function ListSkeleton({ label, balance = false }: { label: string; balance?: boolean }) {
+  return (
+    <div aria-busy="true" aria-label={label} className="flex flex-col gap-6">
+      {balance && <Skeleton surface="ink" className="h-28 rounded-card" />}
+      <div className="flex flex-col gap-3">
+        <Skeleton surface="ink" className="h-14" />
+        <Skeleton surface="ink" className="h-14" />
+        <Skeleton surface="ink" className="h-14" />
+      </div>
+    </div>
   );
 }
 

@@ -3,10 +3,9 @@ import { Link } from 'react-router';
 import { api } from '@/api/client';
 import { describeError } from '@/api/errors';
 import type { Schemas } from '@/api/types';
-import { Splash } from '@/auth/guards';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
-import { BarLink, DarkScreen, FormAlert } from './common';
+import { BarLink, DarkScreen, FormAlert, ListSkeleton } from './common';
 import { SignOutButton } from './SignOutButton';
 
 type Trip = Schemas['TripView'];
@@ -50,14 +49,19 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
     initialPageParam: '',
     getNextPageParam: (page) => page.nextCursor,
   });
-  if (pages.isPending) return <Splash />;
-
   const actions = (
     <>
       <BarLink to={home}>Done</BarLink>
       <SignOutButton />
     </>
   );
+  if (pages.isPending) {
+    return (
+      <DarkScreen title="Your trips" actions={actions}>
+        <ListSkeleton label="Getting your trips" />
+      </DarkScreen>
+    );
+  }
   if (pages.isError) {
     return (
       <DarkScreen title="Your trips" actions={actions}>

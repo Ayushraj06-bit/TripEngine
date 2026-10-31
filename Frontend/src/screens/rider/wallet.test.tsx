@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderApp, resetApp, screenAlert, signedInAs } from '@/test/app';
 import { backendFor, movement, RIDER, seen, topupAnswers, walletIs } from '@/test/backend';
@@ -24,7 +24,7 @@ describe('the wallet', () => {
     renderApp('/');
     await userEvent.click(await screen.findByRole('link', { name: 'Wallet' }));
     expect(await screen.findByRole('heading', { name: 'Wallet' })).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Balance' })).toHaveTextContent('₹120');
+    expect(await screen.findByRole('region', { name: 'Balance' })).toHaveTextContent('₹120');
   });
 
   it('shows the balance, and what went in and out, newest first', async () => {
@@ -58,6 +58,17 @@ describe('the wallet', () => {
     const balance = await screen.findByRole('region', { name: 'Balance' });
     expect(balance).toHaveTextContent('−₹50');
     expect(balance).toHaveTextContent('Add ₹50 or more to book again.');
+  });
+
+  it('shows its title and its shape while the balance comes, not a blank screen', async () => {
+    server.use(
+      http.get('/api/v1/wallet', async () => {
+        await delay('infinite');
+      }),
+    );
+    renderApp('/wallet');
+    expect(await screen.findByRole('heading', { name: 'Wallet' })).toBeVisible();
+    expect(screen.getByLabelText('Getting your wallet')).toHaveAttribute('aria-busy', 'true');
   });
 
   it('says so when there is nothing yet', async () => {
