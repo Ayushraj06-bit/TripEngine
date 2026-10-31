@@ -23,6 +23,7 @@ describe('the trip rules the app counts down to', () => {
       freeWaitMinutes: backend('free-wait-minutes'),
       noShowAfterMinutes: backend('no-show-after-minutes'),
       arrivalGeofenceMeters: backend('arrival-geofence-meters'),
+      ratingWindowDays: backend('window-days'),
     });
   });
 });
