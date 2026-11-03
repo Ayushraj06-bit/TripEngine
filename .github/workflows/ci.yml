@@ -143,7 +143,7 @@ jobs:
 
       - name: Backend tags
         id: backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/rideflow-backend
           tags: |
@@ -154,7 +154,7 @@ jobs:
 
       - name: Simulator tags
         id: simulator
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/rideflow-simulator
           tags: |
