@@ -35,7 +35,7 @@
     <bucket4j.version>8.14.0</bucket4j.version>
     <jqwik.version>1.10.1</jqwik.version>
     <!-- Phase 10: counts the SQL a request runs, for the N+1 tests. Test scope only. -->
-    <datasource-proxy.version>1.11.0</datasource-proxy.version>
+    <datasource-proxy.version>1.11.1</datasource-proxy.version>
 
     <!--
       Phase 10 security review (docs/security.md): newer than Spring Boot 4.1.1 pins, for known
