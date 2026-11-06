@@ -4,3 +4,5 @@ coverage
 *.local
 # What `tsc -b` leaves behind between runs.
 *.tsbuildinfo
+# The journeys' screens, logs and results (e2e/run.sh)
+e2e/out/
