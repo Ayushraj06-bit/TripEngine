@@ -328,11 +328,13 @@ export function tripAnswers(view: Schemas['TripView'] | (() => Schemas['TripView
   );
 }
 
+/** Cancelling: recorded, and refused without a reason, as the backend's @NotBlank does. */
 export function cancellingAnswers(answer: () => Response) {
   server.use(
     http.post('/api/v1/trips/:tripId/cancel', async ({ request }) => {
       await record(request);
-      return answer();
+      const { reason } = (await request.json()) as { reason?: string };
+      return reason?.trim() ? answer() : problem(400, 'VALIDATION_FAILED');
     }),
   );
 }

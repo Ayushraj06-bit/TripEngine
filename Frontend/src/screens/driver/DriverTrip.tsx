@@ -180,9 +180,10 @@ export function DriverTrip() {
     mutationFn: () => api.post('/api/v1/trips/{tripId}/complete', { path: { tripId } }),
     onSuccess: moved,
   });
+  // The backend asks why, and refuses a blank answer: each way of cancelling says which it was.
   const cancel = useMutation({
-    mutationFn: () =>
-      api.post('/api/v1/trips/{tripId}/cancel', { path: { tripId }, body: { reason: '' } }),
+    mutationFn: (reason: string) =>
+      api.post('/api/v1/trips/{tripId}/cancel', { path: { tripId }, body: { reason } }),
     onSuccess: (view) => {
       if (view.status === 'REQUESTED') {
         // Left before arriving: the trip goes back to matching, without this driver.
@@ -326,7 +327,7 @@ export function DriverTrip() {
             keep="Keep trip"
             busy={cancel.isPending}
             onConfirm={() => {
-              cancel.mutate();
+              cancel.mutate('The driver left the trip before arriving.');
             }}
             onKeep={() => {
               setAsking(null);
@@ -380,7 +381,7 @@ export function DriverTrip() {
               keep="Keep waiting"
               busy={cancel.isPending}
               onConfirm={() => {
-                cancel.mutate();
+                cancel.mutate('The rider did not come to the pickup.');
               }}
               onKeep={() => {
                 setAsking(null);

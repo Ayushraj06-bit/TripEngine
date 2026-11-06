@@ -89,7 +89,8 @@ function CancelRide({ trip, onCancelled }: { trip: Trip; onCancelled: (trip: Tri
     mutationFn: () =>
       api.post('/api/v1/trips/{tripId}/cancel', {
         path: { tripId: trip.id ?? '' },
-        body: { reason: '' },
+        // The backend asks why, and refuses a blank answer; the app says what it knows.
+        body: { reason: 'The rider cancelled in the app.' },
       }),
     onSuccess: onCancelled,
   });

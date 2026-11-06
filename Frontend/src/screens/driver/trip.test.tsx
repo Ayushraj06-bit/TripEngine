@@ -143,6 +143,9 @@ describe('on the way to the pickup', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/driver');
     });
+    expect(seen.find((r) => r.path.endsWith('/cancel'))?.body).toEqual({
+      reason: 'The driver left the trip before arriving.',
+    });
   });
 });
 
@@ -224,6 +227,9 @@ describe('at the pickup', () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole('link', { name: 'Back to driving' })).toBeVisible();
+    expect(seen.find((r) => r.path.endsWith('/cancel'))?.body).toEqual({
+      reason: 'The rider did not come to the pickup.',
+    });
   });
 });
 

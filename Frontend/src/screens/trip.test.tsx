@@ -441,7 +441,7 @@ describe('cancelling', () => {
     expect(await screen.findByRole('heading', { name: 'Trip cancelled' })).toBeVisible();
     expect(screen.getByText('You cancelled this ride.')).toBeVisible();
     expect(seen.find((r) => r.path === '/api/v1/trips/trip-1/cancel')?.body).toEqual({
-      reason: '',
+      reason: 'The rider cancelled in the app.',
     });
   });
 
