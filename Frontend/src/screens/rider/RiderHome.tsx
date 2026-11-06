@@ -235,7 +235,9 @@ export function RiderHome() {
                 className="flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-input bg-wash px-3 text-left text-body"
               >
                 <Icon name="search" />
-                <span className={dropQuery ? 'truncate text-ink' : 'text-mute'}>
+                {/* The button's own label, not a placeholder: secondary text, readable on wash - the
+                    muted grey is for what is disabled. */}
+                <span className={dropQuery ? 'truncate text-ink' : 'text-ink-soft'}>
                   {dropQuery || 'Where to?'}
                 </span>
               </button>
