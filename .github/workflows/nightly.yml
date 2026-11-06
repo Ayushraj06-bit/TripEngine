@@ -1,7 +1,8 @@
 name: Nightly
 
-# The slow suites, against main every night or on demand: the end-to-end and chaos tests. The
-# one-command demo runs on every push, in CI's image job, before an image is published.
+# The slow suites, against main every night or on demand: the end-to-end and chaos tests, and the
+# web app's journeys in a real browser. The one-command demo runs on every push, in CI's image job,
+# before an image is published.
 on:
   schedule:
     - cron: "37 1 * * *"
@@ -44,6 +45,95 @@ jobs:
           path: "**/target/failsafe-reports/"
           if-no-files-found: ignore
           retention-days: 7
+
+  # The web app in a real browser against the one-command demo, on the images built here: a whole
+  # trip on two phones, the live map, booking and the wallet, each screen audited with axe
+  # (Frontend/e2e, ADR 0027). OpenStreetMap is answered locally: the run depends on nothing outside.
+  web:
+    name: web app journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      COMPOSE: docker compose -f infra/docker-compose.yml -f infra/docker-compose.scale.yml
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tagged with the names the one-command demo runs; CI's image job warms the same caches.
+      - name: Build backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          load: true
+          tags: rideflow-backend:local
+          cache-from: type=gha,scope=backend
+
+      - name: Build simulator
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          build-args: |
+            MODULE=simulator
+            PORT=8081
+          load: true
+          tags: rideflow-simulator:local
+          cache-from: type=gha,scope=simulator
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Build the web app
+        working-directory: Frontend
+        run: npm ci && npm run build
+
+      - name: Start the one-command demo
+        run: |
+          $COMPOSE up -d --no-build
+          timeout 900 sh -c 'until [ "$(docker inspect -f "{{.State.Status}}" rideflow-demo-info-1 2>/dev/null)" = exited ]; do sleep 5; done'
+          test "$(docker inspect -f '{{.State.ExitCode}}' rideflow-demo-info-1)" = 0
+
+      - name: Journeys
+        env:
+          E2E_OFFLINE_MAPS: "1"
+        run: Frontend/e2e/run.sh
+
+      - name: Results
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          lines = pathlib.Path("Frontend/e2e/out/summary.json")
+          print("| Journey | Check | |")
+          print("|---|---|---|")
+          for line in (lines.read_text(encoding="utf-8").splitlines() if lines.exists() else []):
+              run = json.loads(line)
+              for passed, what in run["results"]:
+                  print(f"| {run['journey']} | {what} | {'ok' if passed else '**failed**'} |")
+          EOF
+
+      - name: Upload screens and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-journeys
+          path: Frontend/e2e/out/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Demo logs
+        if: failure()
+        run: $COMPOSE logs --tail 200
+
+      - name: Stop the demo
+        if: always()
+        run: $COMPOSE down -v
 
   # infra/k8s/backend.yaml on a real, if throwaway, cluster: kind, with the stores inside it
   # (infra/k8s-kind) and the image built here.
