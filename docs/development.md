@@ -278,6 +278,21 @@ dev server forwards `/mock-gateway` for it, and any other proxy you put in front
 Ratings and the trips list ([ADR 0026](adr/0026-ratings-and-trips-in-the-web-app.md)) need nothing
 more: complete a trip, and both sides are asked.
 
+The web app's journeys drive it in a real browser against the running demo: booking, a whole trip
+on two phones, the live map and the wallet, with every screen they show audited by axe
+([ADR 0027](adr/0027-the-web-app-finished.md)). They run every night in CI, and by hand with the
+demo up and the app built:
+
+```bash
+cd Frontend && npm run build
+e2e/run.sh                  # every journey; e2e/run.sh trip wallet for some
+```
+
+They run in Docker, in Playwright's browser image, so nothing is installed. The simulator is paused
+while they run, so each journey's own driver takes its rider's trip, and started again afterwards.
+Screens, logs and each check's result land in `Frontend/e2e/out/`. Set `E2E_OFFLINE_MAPS=1`, as CI
+does, to answer OpenStreetMap's place search from `e2e/common.py` and load no map tiles.
+
 ## Profiles
 
 | Profile | Purpose |

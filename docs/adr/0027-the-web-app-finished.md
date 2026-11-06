@@ -26,8 +26,10 @@ person can do with it, how it was checked before being called done, and what it 
   before it is made.
 - **Each stage ended with a run against the one-command demo**, over its real REST API and
   WebSocket, on two phones side by side. Screenshots and checks were reviewed before the stage was
-  called done. Several bugs no unit test had reached were found this way: positions reaching the
-  backend late, a map fitted for the wrong size, and "Home" reopening a finished trip.
+  called done. Those runs became four journeys in `Frontend/e2e` - booking, a whole trip, the live
+  map and the wallet - which CI runs every night. Several bugs no unit test had reached were found
+  this way: positions reaching the backend late, a map fitted for the wrong size, and "Home"
+  reopening a finished trip.
 - **An accessibility audit ran axe** (WCAG 2.1 A and AA, plus best practice) on 28 screens. That
   covered every step of a whole trip on both phones and the account screens, at 390 and 1280 px,
   with reduced motion on. It found no violations.
@@ -46,9 +48,13 @@ person can do with it, how it was checked before being called done, and what it 
 
 ## Consequences
 
-- **The end-to-end runs against the demo are not part of CI.** They need the whole demo running
-  and the simulator paused. CI keeps the unit tests, the API contract check and the build. The
-  backend's own end-to-end suite covers the server side every night.
+- **The journeys run every night, not on every push.** They need the whole demo running and the
+  simulator paused, and take about a quarter of an hour; every push already checks that the demo
+  starts, the unit tests, the API contract and the build. In CI, OpenStreetMap's place search is
+  answered locally and no map tiles load, so the run depends on nothing outside the demo and asks
+  nothing of OpenStreetMap's servers; the app's own handling of the search stays with the unit
+  tests. Every screen a journey shows is audited with axe, so an accessibility regression fails
+  the night's run.
 - **A change to the backend's rules shows up in the web app's tests.** The timers, the rating
   window and the service area are held to `application.yml`, and the API types to the OpenAPI
   document.
