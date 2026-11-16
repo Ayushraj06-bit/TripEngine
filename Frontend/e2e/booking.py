@@ -1,6 +1,8 @@
 """Where to and booking: the device's location, search, the map, the service area, prices, and a
 double tap that books once (ADRs 0020, 0021)."""
 
+import re
+
 from playwright.sync_api import expect, sync_playwright
 
 from common import MG_ROAD, Journey, sign_up_rider
@@ -75,8 +77,10 @@ with sync_playwright() as playwright, journey.running():
     expect(rides).to_be_visible(timeout=15_000)
     journey.check(rides.get_by_role("radio").count() == 3, "three ride types are priced")
     timer = rider.get_by_role("timer").get_attribute("aria-label") or ""
+    # To the second either way, as the unit tests allow: the server's clock is read from the Date
+    # header, which is cut to the second and stamped before the answer travels.
     journey.check(
-        "Prices valid for 4:" in timer or "Prices valid for 5:00" in timer,
+        re.search(r"Prices valid for (4:5\d|5:0[01])", timer) is not None,
         f"the prices count down from five minutes ({timer})",
     )
     rider.get_by_text("How this fare is made").click()
