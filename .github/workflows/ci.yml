@@ -228,7 +228,7 @@ jobs:
           timeout 300 sh -c "until curl -fsS --get http://localhost:9090/api/v1/query --data-urlencode query='$query' | grep -q '\"value\":\[[^,]*,\"[1-9]'; do sleep 10; done"
 
       # Only on a manual run: the README's GIF, from the demo just checked.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: github.event_name == 'workflow_dispatch'
         with:
           python-version: "3.12"
