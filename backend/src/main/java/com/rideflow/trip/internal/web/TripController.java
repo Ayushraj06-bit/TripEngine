@@ -65,7 +65,7 @@ class TripController {
               schema = @Schema(implementation = TripView.class)))
   ResponseEntity<String> book(
       @AuthenticationPrincipal Jwt principal,
-      @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
+      @RequestHeader("Idempotency-Key") @NotBlank @Size(min = 1, max = 255) String idempotencyKey,
       @Valid @RequestBody BookingRequest request) {
     String trip =
         bookings.book(
@@ -147,7 +147,7 @@ class TripController {
       @NotNull VehicleType vehicleType,
       @NotNull PaymentMethod paymentMethod) {}
 
-  record CancelRequest(@NotBlank @Size(max = 500) String reason) {}
+  record CancelRequest(@NotBlank @Size(min = 1, max = 500) String reason) {}
 
   record StartRequest(@NotNull @Pattern(regexp = "\\d{4}") String otp) {}
 }

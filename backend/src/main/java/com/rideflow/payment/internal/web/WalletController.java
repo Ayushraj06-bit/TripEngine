@@ -56,7 +56,7 @@ class WalletController {
   @ResponseStatus(HttpStatus.CREATED)
   TopupService.TopupView topUp(
       @AuthenticationPrincipal Jwt principal,
-      @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
+      @RequestHeader("Idempotency-Key") @NotBlank @Size(min = 1, max = 255) String idempotencyKey,
       @Valid @RequestBody TopupRequest request) {
     return topups.start(
         UUID.fromString(principal.getSubject()), idempotencyKey, request.amountPaise());

@@ -125,7 +125,7 @@ class AuthController {
 
   record RegisterRequest(
       @NotBlank String phone,
-      @NotBlank @Size(max = 100) String name,
+      @NotBlank @Size(min = 1, max = 100) String name,
       // BCrypt truncates beyond 72 bytes, so accepting more would silently ignore it.
       @NotBlank @Size(min = 8, max = 72) String password) {}
 

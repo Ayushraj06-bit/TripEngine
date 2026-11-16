@@ -96,7 +96,7 @@
         "properties": {
           "reason": {
             "maxLength": 500,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -622,7 +622,7 @@
         "properties": {
           "name": {
             "maxLength": 100,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           },
           "password": {
@@ -646,7 +646,7 @@
         "properties": {
           "reason": {
             "maxLength": 500,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -955,17 +955,17 @@
         "properties": {
           "colour": {
             "maxLength": 30,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           },
           "model": {
             "maxLength": 60,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           },
           "plateNumber": {
             "maxLength": 20,
-            "minLength": 0,
+            "minLength": 1,
             "type": "string"
           },
           "type": {
@@ -1867,7 +1867,7 @@
             "required": true,
             "schema": {
               "maxLength": 255,
-              "minLength": 0,
+              "minLength": 1,
               "type": "string"
             }
           }
@@ -2208,7 +2208,7 @@
             "required": true,
             "schema": {
               "maxLength": 255,
-              "minLength": 0,
+              "minLength": 1,
               "type": "string"
             }
           }

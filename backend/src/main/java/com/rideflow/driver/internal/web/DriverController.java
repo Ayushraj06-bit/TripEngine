@@ -69,7 +69,7 @@ class DriverController {
 
   record VehicleRequest(
       @NotNull VehicleType type,
-      @NotBlank @Size(max = 20) String plateNumber,
-      @NotBlank @Size(max = 60) String model,
-      @NotBlank @Size(max = 30) String colour) {}
+      @NotBlank @Size(min = 1, max = 20) String plateNumber,
+      @NotBlank @Size(min = 1, max = 60) String model,
+      @NotBlank @Size(min = 1, max = 30) String colour) {}
 }

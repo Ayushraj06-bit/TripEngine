@@ -64,5 +64,5 @@ class AdminDriverController {
     drivers.reject(driverId, request.reason());
   }
 
-  record RejectRequest(@NotBlank @Size(max = 500) String reason) {}
+  record RejectRequest(@NotBlank @Size(min = 1, max = 500) String reason) {}
 }
