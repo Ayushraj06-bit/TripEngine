@@ -186,6 +186,29 @@ describe('following the driver', () => {
     expect(await screen.findByText('About 12 min to the drop.')).toBeVisible();
   });
 
+  it('ignores a position for another trip, or one it cannot read', async () => {
+    tripAnswers(onTrip('DRIVER_ASSIGNED'));
+    renderApp('/trip/trip-1');
+    await following();
+    const send = async (message: object) => {
+      act(() => {
+        liveServer.push(DRIVER_LOCATION, { type: 'DRIVER_LOCATION', ...message });
+      });
+      await act(() => Promise.resolve());
+    };
+    const where = { ...at(INDIRANAGAR), phase: 'TO_PICKUP', etaSeconds: 230 };
+    await send({ tripId: 'trip-2', seq: 3, payload: where });
+    await send({ tripId: 'trip-1', seq: 4, payload: { ...where, phase: 'SOMEWHERE' } });
+    await send({ tripId: 'trip-1', seq: 5, payload: { lat: '12.97', lng: 77.6 } });
+    await send({ tripId: 'trip-1', payload: where });
+    expect(screen.queryByTitle('Your driver')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Arriving/)).not.toBeInTheDocument();
+
+    // And none of them used up a number: the next good one is shown.
+    await driverAt(4, at(INDIRANAGAR));
+    expect(await screen.findByTitle('Your driver')).toBeInTheDocument();
+  });
+
   it('shows the driver without a time when the backend has no estimate', async () => {
     tripAnswers(onTrip('DRIVER_ASSIGNED'));
     renderApp('/trip/trip-1');
