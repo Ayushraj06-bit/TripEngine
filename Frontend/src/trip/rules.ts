@@ -1,6 +1,7 @@
 /**
- * The backend's trip rules (`rideflow.trip` in application.yml, and `rideflow.rating`'s window)
- * that the app counts down to, copied here because no response states them. rules.test.ts reads application.yml and fails
+ * The backend's rules the app counts down to or plans around (`rideflow.trip` in application.yml,
+ * `rideflow.rating`'s window, `rideflow.payment`'s smallest top-up), copied here because no
+ * response states them. rules.test.ts reads application.yml and fails
  * when the two differ.
  */
 export const TRIP_RULES = {
@@ -14,4 +15,6 @@ export const TRIP_RULES = {
   arrivalGeofenceMeters: 150,
   /** Either side may rate the other for this long after the trip is completed. */
   ratingWindowDays: 7,
+  /** The smallest top-up the backend takes. */
+  minTopupPaise: 1000,
 } as const;

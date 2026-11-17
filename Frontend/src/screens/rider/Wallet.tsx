@@ -1,4 +1,5 @@
 import { describeError } from '@/api/errors';
+import { TRIP_RULES } from '@/trip/rules';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
 import { BarLink, DarkScreen, FormAlert, ListSkeleton } from '../common';
@@ -50,8 +51,9 @@ export function Wallet() {
         {balance < 0 && (
           // The backend refuses every booking, cash ones too, until the wallet is back to zero.
           <p className="text-body">
-            An earlier ride took your wallet below zero. Add {formatRupees(-balance)} or more to
-            book again.
+            {/* Never less than the backend's smallest top-up, which it would refuse. */}
+            An earlier ride took your wallet below zero. Add{' '}
+            {formatRupees(Math.max(-balance, TRIP_RULES.minTopupPaise))} or more to book again.
           </p>
         )}
       </section>

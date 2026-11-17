@@ -60,6 +60,14 @@ describe('the wallet', () => {
     expect(balance).toHaveTextContent('Add ₹50 or more to book again.');
   });
 
+  it('never asks for less than the smallest top-up the backend takes', async () => {
+    walletIs({ balancePaise: -500, movements: [movement('CANCELLATION_FEE', 'DEBIT', 500)] });
+    renderApp('/wallet');
+    expect(await screen.findByRole('region', { name: 'Balance' })).toHaveTextContent(
+      'Add ₹10 or more to book again.',
+    );
+  });
+
   it('shows its title and its shape while the balance comes, not a blank screen', async () => {
     server.use(
       http.get('/api/v1/wallet', async () => {
