@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nearbyWords, position, tooClose } from './stops';
+import { nearbyWords, position, routeWords, tooClose } from './stops';
 
 const HERE = { lat: 12.9756, lng: 77.6069 };
 
@@ -30,5 +30,14 @@ describe('tooClose', () => {
 describe('position', () => {
   it('reads like a map app', () => {
     expect(position({ lat: 12.97161, lng: 77.59457 })).toBe('12.9716° N, 77.5946° E');
+  });
+});
+
+describe('where a trip went', () => {
+  it('in the names the rider chose, as far as there are any', () => {
+    expect(routeWords('MG Road', 'Indiranagar')).toBe('MG Road → Indiranagar');
+    expect(routeWords(undefined, 'Indiranagar')).toBe('To Indiranagar');
+    expect(routeWords('MG Road', undefined)).toBe('From MG Road');
+    expect(routeWords()).toBeNull();
   });
 });

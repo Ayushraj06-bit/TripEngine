@@ -31,6 +31,8 @@ const STOPS = {
   vehicleType: 'CAR',
   paymentMethod: 'CASH',
   quotedFarePaise: 30900,
+  pickupName: 'MG Road',
+  dropName: 'Indiranagar',
 } as const;
 
 function onTrip(status: Schemas['TripView']['status'], extra: Partial<Schemas['TripView']> = {}) {
@@ -109,6 +111,9 @@ describe('on the way to the pickup', () => {
     renderApp('/driver/trip/trip-9');
     expect(await screen.findByText('Pickup 490 m away.')).toBeVisible();
     expect(screen.getByRole('region', { name: 'This ride' })).toHaveTextContent('Car · Cash');
+    expect(screen.getByRole('region', { name: 'This ride' })).toHaveTextContent(
+      'MG Road → Indiranagar',
+    );
 
     await userEvent.click(screen.getByRole('button', { name: 'I’ve arrived' }));
     expect(await screen.findByRole('heading', { name: 'You’re at the pickup' })).toBeVisible();

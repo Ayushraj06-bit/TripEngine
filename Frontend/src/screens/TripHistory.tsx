@@ -6,6 +6,7 @@ import type { Schemas } from '@/api/types';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
 import { BarLink, DarkScreen, FormAlert, ListSkeleton } from './common';
+import { routeWords } from './rider/stops';
 import { SignOutButton } from './SignOutButton';
 
 type Trip = Schemas['TripView'];
@@ -92,6 +93,11 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
                       {trip.status ? STATUS[trip.status] : 'Trip'} ·{' '}
                       {RIDE[trip.vehicleType ?? ''] ?? 'Ride'}
                     </span>
+                    {routeWords(trip.pickupName, trip.dropName) && (
+                      <span className="text-subhead">
+                        {routeWords(trip.pickupName, trip.dropName)}
+                      </span>
+                    )}
                     {trip.requestedAt && (
                       <span className="text-footnote text-paper/70">
                         {dayAndTimeAt(trip.requestedAt)}

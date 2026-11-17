@@ -25,7 +25,12 @@ const at = (iso: string) => ({ requestedAt: iso });
 describe('the rider’s trips', () => {
   it('are a tap away from the map, newest first, with what each came to', async () => {
     tripsAre([
-      trip('trip-2', 'COMPLETED', { ...at('2026-10-30T09:00:00Z'), finalFarePaise: 31200 }),
+      trip('trip-2', 'COMPLETED', {
+        ...at('2026-10-30T09:00:00Z'),
+        finalFarePaise: 31200,
+        pickupName: 'MG Road',
+        dropName: 'Indiranagar',
+      }),
       trip('trip-1', 'CANCELLED', { ...at('2026-10-29T09:00:00Z'), cancellationFeePaise: 5000 }),
       trip('trip-0', 'NO_DRIVER_FOUND', at('2026-10-28T09:00:00Z')),
     ]);
@@ -34,7 +39,7 @@ describe('the rider’s trips', () => {
 
     const rows = within(await screen.findByRole('list')).getAllByRole('link');
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^Completed · Auto.*₹312$/),
+      expect.stringMatching(/^Completed · AutoMG Road → Indiranagar.*₹312$/),
       expect.stringMatching(/^Cancelled · Auto.*₹50$/),
       expect.stringMatching(/^No driver found · Auto.*[^₹\d]$/),
     ]);

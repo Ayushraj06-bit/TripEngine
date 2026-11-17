@@ -24,6 +24,7 @@ import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from '../common';
 import { DRIVER_PROFILE, useForgetEndedTrip } from '../queries';
 import { RateTrip } from '../RateTrip';
 import { distanceText } from '../rider/fare';
+import { routeWords } from '../rider/stops';
 import { SignOutButton } from '../SignOutButton';
 import { useSharing } from './DriverPresence';
 
@@ -58,6 +59,9 @@ function RideFacts({ trip }: { trip: Trip }) {
         {RIDE[trip.vehicleType ?? ''] ?? 'Ride'} ·{' '}
         {trip.paymentMethod === 'WALLET' ? 'Wallet' : 'Cash'}
       </p>
+      {routeWords(trip.pickupName, trip.dropName) && (
+        <p className="text-subhead">{routeWords(trip.pickupName, trip.dropName)}</p>
+      )}
       {trip.quotedFarePaise !== undefined && (
         <p className="text-subhead text-ink-soft">
           Quoted at {formatRupees(trip.quotedFarePaise)}; the final fare comes from the route

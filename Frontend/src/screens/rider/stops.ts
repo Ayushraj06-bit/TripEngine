@@ -41,3 +41,14 @@ export function nearbyWords(drivers: readonly NearbyDriver[]): string {
     .map(([type, n]) => `${String(n)} ${NOUNS[type][n === 1 ? 0 : 1]}`);
   return `${new Intl.ListFormat('en-IN', { type: 'conjunction' }).format(counts)} near your pickup.`;
 }
+
+/**
+ * Where a trip went, in the names the rider chose - "MG Road → Indiranagar", "To Indiranagar" -
+ * or null when it has none: a trip booked before names were kept, or from a stand-in.
+ */
+export function routeWords(pickupName?: string, dropName?: string): string | null {
+  if (pickupName && dropName) return `${pickupName} → ${dropName}`;
+  if (dropName) return `To ${dropName}`;
+  if (pickupName) return `From ${pickupName}`;
+  return null;
+}
