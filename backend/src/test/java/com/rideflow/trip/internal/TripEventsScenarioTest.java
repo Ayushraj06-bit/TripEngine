@@ -62,7 +62,13 @@ class TripEventsScenarioTest extends TripIntegrationTestBase {
     scenario
         .stimulate(
             () ->
-                bookings.book(rider.id(), newKey(), quoteId, VehicleType.CAR, PaymentMethod.WALLET))
+                bookings.book(
+                    rider.id(),
+                    newKey(),
+                    quoteId,
+                    VehicleType.CAR,
+                    PaymentMethod.WALLET,
+                    PlaceNames.NONE))
         .andWaitForEventOfType(TripRequested.class)
         .matchingMappedValue(TripRequested::riderId, rider.id())
         .toArriveAndVerify(event -> booked.set(event.tripId()));

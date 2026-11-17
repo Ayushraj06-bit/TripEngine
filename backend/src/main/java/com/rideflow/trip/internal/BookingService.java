@@ -87,9 +87,10 @@ public class BookingService {
       String idempotencyKey,
       UUID quoteId,
       VehicleType vehicleType,
-      PaymentMethod paymentMethod) {
+      PaymentMethod paymentMethod,
+      PlaceNames names) {
 
-    String requestHash = requestHash(quoteId, vehicleType, paymentMethod);
+    String requestHash = requestHash(quoteId, vehicleType, paymentMethod, names);
     switch (keys.claim(riderId, idempotencyKey, requestHash)) {
       case IdempotencyStore.Claim.Claimed claimed -> {
         // This request does the work.
@@ -136,7 +137,7 @@ public class BookingService {
       String booked =
           transactions.execute(
               status -> {
-                TripView trip = trips.request(riderId, quote, paymentMethod);
+                TripView trip = trips.request(riderId, quote, paymentMethod, names);
                 String body = json.writeValueAsString(trip);
                 keys.storeResponse(riderId, idempotencyKey, HttpStatus.ACCEPTED.value(), body);
                 return body;
@@ -177,14 +178,17 @@ public class BookingService {
    * Identifies "the same request" for idempotency: the endpoint and the parsed body, so field order
    * or whitespace in the JSON cannot make one request look like two.
    */
-  static String requestHash(UUID quoteId, VehicleType vehicleType, PaymentMethod paymentMethod) {
+  static String requestHash(
+      UUID quoteId, VehicleType vehicleType, PaymentMethod paymentMethod, PlaceNames names) {
     String canonical =
         String.join(
             "\n",
             "POST /api/v1/trips",
             String.valueOf(quoteId),
             String.valueOf(vehicleType),
-            String.valueOf(paymentMethod));
+            String.valueOf(paymentMethod),
+            String.valueOf(names.pickup()),
+            String.valueOf(names.drop()));
     try {
       return HexFormat.of()
           .formatHex(

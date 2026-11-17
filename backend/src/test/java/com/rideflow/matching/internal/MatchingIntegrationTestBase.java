@@ -17,6 +17,7 @@ import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.PaymentMethod;
 import com.rideflow.trip.TripStatus;
 import com.rideflow.trip.internal.BookingService;
+import com.rideflow.trip.internal.PlaceNames;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -174,7 +175,8 @@ abstract class MatchingIntegrationTestBase {
             UUID.randomUUID().toString(),
             quote.quoteId(),
             VehicleType.CAR,
-            PaymentMethod.WALLET);
+            PaymentMethod.WALLET,
+            PlaceNames.NONE);
     return UUID.fromString(com.jayway.jsonpath.JsonPath.read(trip, "$.id"));
   }
 

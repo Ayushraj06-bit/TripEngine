@@ -202,9 +202,10 @@ public class TripService implements TripAssignment, DriverTrips {
    * stores the idempotent response, so both commit or neither does.
    */
   @Transactional(propagation = Propagation.MANDATORY)
-  public TripView request(UUID riderId, ConsumedQuote quote, PaymentMethod paymentMethod) {
+  public TripView request(
+      UUID riderId, ConsumedQuote quote, PaymentMethod paymentMethod, PlaceNames names) {
     Instant now = clock.instant();
-    Trip trip = Trip.request(ids.newId(), riderId, quote, paymentMethod, now);
+    Trip trip = Trip.request(ids.newId(), riderId, quote, paymentMethod, names, now);
     trips.save(trip);
     record(
         trip,

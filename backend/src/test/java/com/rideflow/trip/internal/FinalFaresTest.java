@@ -104,7 +104,13 @@ class FinalFaresTest {
                 Money.ofPaise(QUOTED), zero, zero, zero, zero, 0, Money.ofPaise(QUOTED)),
             BOOKED.plus(Duration.ofMinutes(5)));
     Trip trip =
-        Trip.request(UUID.randomUUID(), quote.riderId(), quote, PaymentMethod.WALLET, BOOKED);
+        Trip.request(
+            UUID.randomUUID(),
+            quote.riderId(),
+            quote,
+            PaymentMethod.WALLET,
+            PlaceNames.NONE,
+            BOOKED);
     trip.assign(UUID.randomUUID(), "1234", BOOKED.plusSeconds(30));
     trip.arrive(ARRIVED);
     trip.start(ARRIVED.plus(waited));

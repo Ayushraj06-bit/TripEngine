@@ -50,7 +50,9 @@ class TripUpdatePusherTest {
             1_800,
             new FareBreakdown(fare, zero, zero, zero, zero, 0, fare),
             NOW.plusSeconds(300));
-    Trip trip = Trip.request(UUID.randomUUID(), quote.riderId(), quote, PaymentMethod.WALLET, NOW);
+    Trip trip =
+        Trip.request(
+            UUID.randomUUID(), quote.riderId(), quote, PaymentMethod.WALLET, PlaceNames.NONE, NOW);
     trip.assign(UUID.randomUUID(), "1234", NOW.plusSeconds(30));
     return trip;
   }

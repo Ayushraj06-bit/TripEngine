@@ -5,6 +5,7 @@ import com.rideflow.trip.PaymentMethod;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.internal.BookingService;
 import com.rideflow.trip.internal.Caller;
+import com.rideflow.trip.internal.PlaceNames;
 import com.rideflow.trip.internal.TripPage;
 import com.rideflow.trip.internal.TripService;
 import com.rideflow.trip.internal.TripView;
@@ -73,7 +74,8 @@ class TripController {
             idempotencyKey,
             request.quoteId(),
             request.vehicleType(),
-            request.paymentMethod());
+            request.paymentMethod(),
+            PlaceNames.of(request.pickupName(), request.dropName()));
     return ResponseEntity.accepted().contentType(MediaType.APPLICATION_JSON).body(trip);
   }
 
@@ -142,10 +144,16 @@ class TripController {
    * @param vehicleType the type the rider chose. Redundant with the quote, deliberately: a client
    *     that sends the wrong quote id for the type on screen gets a 422 instead of the wrong car.
    */
+  /**
+   * @param pickupName what the rider calls the pickup, shown with the trip later; optional
+   * @param dropName likewise for the drop
+   */
   record BookingRequest(
       @NotNull UUID quoteId,
       @NotNull VehicleType vehicleType,
-      @NotNull PaymentMethod paymentMethod) {}
+      @NotNull PaymentMethod paymentMethod,
+      @Size(max = 200) String pickupName,
+      @Size(max = 200) String dropName) {}
 
   record CancelRequest(@NotBlank @Size(min = 1, max = 500) String reason) {}
 

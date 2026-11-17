@@ -616,8 +616,10 @@ export interface components {
             entriesBalancePaise?: number;
         };
         BookingRequest: {
+            dropName?: string;
             /** @enum {string} */
             paymentMethod: "WALLET" | "CASH";
+            pickupName?: string;
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
@@ -909,6 +911,7 @@ export interface components {
             /** Format: uuid */
             driverId?: string;
             drop?: components["schemas"]["Point"];
+            dropName?: string;
             /** Format: int64 */
             durationSeconds?: number;
             /** Format: int64 */
@@ -923,6 +926,7 @@ export interface components {
             /** @enum {string} */
             paymentStatus?: "UNPAID" | "PAID" | "PENDING_SETTLEMENT" | "REFUNDED";
             pickup?: components["schemas"]["Point"];
+            pickupName?: string;
             /** Format: int64 */
             quotedFarePaise?: number;
             /** Format: date-time */

@@ -36,11 +36,21 @@
       },
       "BookingRequest": {
         "properties": {
+          "dropName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
           "paymentMethod": {
             "enum": [
               "WALLET",
               "CASH"
             ],
+            "type": "string"
+          },
+          "pickupName": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "quoteId": {
@@ -844,6 +854,9 @@
           "drop": {
             "$ref": "#/components/schemas/Point"
           },
+          "dropName": {
+            "type": "string"
+          },
           "durationSeconds": {
             "format": "int64",
             "type": "integer"
@@ -881,6 +894,9 @@
           },
           "pickup": {
             "$ref": "#/components/schemas/Point"
+          },
+          "pickupName": {
+            "type": "string"
           },
           "quotedFarePaise": {
             "format": "int64",

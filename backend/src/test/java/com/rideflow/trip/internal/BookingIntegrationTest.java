@@ -37,6 +37,20 @@ class BookingIntegrationTest extends TripIntegrationTestBase {
   @Autowired ApplicationEvents events;
   @Autowired IdempotencyStore idempotencyKeys;
 
+  /** A car booking with {@code extra}, JSON members, added to the usual body. */
+  private org.springframework.test.web.servlet.ResultActions bookWith(
+      User rider, UUID quoteId, String key, String extra) throws Exception {
+    return mockMvc.perform(
+        post("/api/v1/trips")
+            .header("Authorization", "Bearer " + rider.token())
+            .header("Idempotency-Key", key)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(
+                """
+                {"quoteId":"%s","vehicleType":"CAR","paymentMethod":"WALLET",%s}"""
+                    .formatted(quoteId, extra)));
+  }
+
   private long tripsOf(User rider) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM trips WHERE rider_id = ?", Long.class, rider.id());
@@ -73,6 +87,69 @@ class BookingIntegrationTest extends TripIntegrationTestBase {
                 assertThat(event.tripId()).isEqualTo(tripId);
                 assertThat(event.quotedFarePaise()).isEqualTo(quote.fare().total().paise());
               });
+    }
+
+    @Test
+    void keepsWhatTheRiderCalledThePickupAndTheDrop() throws Exception {
+      User rider = rider();
+      UUID quoteId = quote(rider, VehicleType.CAR).quoteId();
+
+      String body =
+          bookWith(
+                  rider,
+                  quoteId,
+                  newKey(),
+                  "\"pickupName\":\" MG Road \",\"dropName\":\"Indiranagar\"")
+              .andExpect(status().isAccepted())
+              .andExpect(jsonPath("$.pickupName").value("MG Road"))
+              .andExpect(jsonPath("$.dropName").value("Indiranagar"))
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+
+      UUID tripId = UUID.fromString(JsonPath.read(body, "$.id"));
+      assertThat(jdbc.queryForList("SELECT pickup_name, drop_name FROM trips WHERE id = ?", tripId))
+          .singleElement()
+          .satisfies(
+              row -> {
+                assertThat(row).containsEntry("pickup_name", "MG Road");
+                assertThat(row).containsEntry("drop_name", "Indiranagar");
+              });
+    }
+
+    @Test
+    void booksWithoutNamesAndTakesABlankNameAsNone() throws Exception {
+      User rider = rider();
+      UUID quoteId = quote(rider, VehicleType.CAR).quoteId();
+
+      bookWith(rider, quoteId, newKey(), "\"pickupName\":\"   \"")
+          .andExpect(status().isAccepted())
+          .andExpect(jsonPath("$.pickupName").value(org.hamcrest.Matchers.nullValue()))
+          .andExpect(jsonPath("$.dropName").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void refusesANameLongerThanTwoHundredCharacters() throws Exception {
+      User rider = rider();
+      UUID quoteId = quote(rider, VehicleType.CAR).quoteId();
+
+      bookWith(rider, quoteId, newKey(), "\"dropName\":\"" + "x".repeat(201) + "\"")
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+      assertThat(tripsOf(rider)).isZero();
+    }
+
+    @Test
+    void countsTheNamesAsPartOfTheRequestForItsKey() throws Exception {
+      User rider = rider();
+      UUID quoteId = quote(rider, VehicleType.CAR).quoteId();
+      String key = newKey();
+
+      bookWith(rider, quoteId, key, "\"dropName\":\"Indiranagar\"")
+          .andExpect(status().isAccepted());
+      bookWith(rider, quoteId, key, "\"dropName\":\"Koramangala\"")
+          .andExpect(status().isUnprocessableContent())
+          .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
     }
 
     @Test
@@ -154,7 +231,8 @@ class BookingIntegrationTest extends TripIntegrationTestBase {
       idempotencyKeys.claim(
           rider.id(),
           key,
-          BookingService.requestHash(quoteId, VehicleType.CAR, PaymentMethod.WALLET));
+          BookingService.requestHash(
+              quoteId, VehicleType.CAR, PaymentMethod.WALLET, PlaceNames.NONE));
 
       book(rider, quoteId, VehicleType.CAR, key)
           .andExpect(status().isConflict())

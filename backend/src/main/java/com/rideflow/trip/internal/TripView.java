@@ -13,6 +13,8 @@ import java.util.UUID;
 /**
  * A trip as its rider or driver sees it. Amounts are in paise.
  *
+ * @param pickupName what the rider called the pickup when booking; null when they did not say
+ * @param dropName likewise for the drop
  * @param otp only in the rider's own view, and only between assignment and start. The rider reads
  *     it out to the driver; a driver who could see it could start the trip without the rider.
  *     Omitted from the JSON entirely when absent.
@@ -23,6 +25,8 @@ public record TripView(
     VehicleType vehicleType,
     Point pickup,
     Point drop,
+    String pickupName,
+    String dropName,
     long quotedFarePaise,
     BigDecimal surgeMultiplier,
     PaymentMethod paymentMethod,

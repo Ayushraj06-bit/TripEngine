@@ -49,6 +49,8 @@ class Trip {
   private double pickupLng;
   private double dropLat;
   private double dropLng;
+  private String pickupName;
+  private String dropName;
   private long quotedFarePaise;
   private BigDecimal surgeMultiplier;
   private UUID rateCardId;
@@ -101,7 +103,12 @@ class Trip {
   protected Trip() {} // JPA
 
   static Trip request(
-      UUID id, UUID riderId, ConsumedQuote quote, PaymentMethod paymentMethod, Instant now) {
+      UUID id,
+      UUID riderId,
+      ConsumedQuote quote,
+      PaymentMethod paymentMethod,
+      PlaceNames names,
+      Instant now) {
     Trip trip = new Trip();
     trip.id = id;
     trip.riderId = riderId;
@@ -111,6 +118,8 @@ class Trip {
     trip.pickupLng = quote.pickup().longitude();
     trip.dropLat = quote.drop().latitude();
     trip.dropLng = quote.drop().longitude();
+    trip.pickupName = names.pickup();
+    trip.dropName = names.drop();
     trip.quotedFarePaise = quote.fare().total().paise();
     trip.surgeMultiplier = quote.surgeMultiplier();
     trip.rateCardId = quote.rateCardId();
@@ -242,6 +251,8 @@ class Trip {
         vehicleType,
         new TripView.Point(pickupLat, pickupLng),
         new TripView.Point(dropLat, dropLng),
+        pickupName,
+        dropName,
         quotedFarePaise,
         // numeric(8, 4) reads back as 1.0000; show the value the rider was quoted.
         surgeMultiplier.stripTrailingZeros(),
