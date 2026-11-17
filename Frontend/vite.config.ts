@@ -34,13 +34,14 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // One jsdom per worker rather than one per test file - building it was most of the run - with
-    // each file still in a sandbox of its own. The sandbox needs Node's web streams (streams.ts).
-    pool: 'vmThreads',
-    setupFiles: ['./src/test/streams.ts', './src/test/setup.ts'],
+    // A process per test file. vmThreads was twice as fast here, but now and then let a request
+    // past MSW to the real network: a suite that is sometimes wrong is not worth the seconds.
+    pool: 'forks',
+    setupFiles: ['./src/test/setup.ts'],
     css: false,
     restoreMocks: true,
-    // Clock times read the same on a laptop in Bengaluru and a CI runner in UTC (timezone.ts).
-    globalSetup: ['./src/test/timezone.ts'],
+    // Clock times read the same on a laptop in Bengaluru and a CI runner in UTC: set for each
+    // test file's own process, which forks gives it.
+    env: { TZ: 'Asia/Kolkata' },
   },
 });
