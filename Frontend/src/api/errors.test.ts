@@ -111,6 +111,12 @@ describe('describeError', () => {
     ).toBe('Add between ₹10 and ₹10,000 at a time.');
   });
 
+  it('does not point at highlighted fields where there are none', () => {
+    expect(describeError(new ApiError(400, 'VALIDATION_FAILED', undefined)).message).toBe(
+      'RideFlow couldn’t accept that as it was. Check what you entered and try again.',
+    );
+  });
+
   it('still reads well without them', () => {
     expect(describeError(new ApiError(422, 'NOT_AT_PICKUP', undefined)).message).toBe(
       'You’re not at the pickup yet. Get closer to mark arrival.',

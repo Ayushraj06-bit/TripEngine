@@ -91,7 +91,9 @@ export const ERROR_COPY: Readonly<Record<string, Copy>> = {
 
   // Generic request problems
   VALIDATION_FAILED: {
-    message: 'Some details need another look. Check the highlighted fields.',
+    // Shown only where nothing is highlighted: a form that can point at its fields (sign-up, the
+    // vehicle) says so itself.
+    message: 'RideFlow couldn’t accept that as it was. Check what you entered and try again.',
     recovery: 'edit',
   },
   NOT_FOUND: { message: 'That isn’t available any more.', recovery: 'refresh' },
