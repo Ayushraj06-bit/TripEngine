@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useBookingDraft } from '@/state/bookingDraft';
+import { useBookingDraft, YOUR_LOCATION } from '@/state/bookingDraft';
 import { renderApp, resetApp, screenAlert, signedInAs } from '@/test/app';
 import {
   at,
@@ -161,10 +161,13 @@ describe('booking', () => {
     expect(await screen.findByRole('heading', { name: 'Finding your driver' })).toBeVisible();
     expect(router.state.location.pathname).toBe('/trip/trip-1');
     expect(bookings()).toHaveLength(1);
+    // With the names the rider chose, for the trip to keep.
     expect(bookings()[0]?.body).toEqual({
       quoteId: 'quote-bike',
       vehicleType: 'BIKE',
       paymentMethod: 'CASH',
+      pickupName: 'MG Road',
+      dropName: 'Indiranagar',
     });
     expect(keyOf(0)).toMatch(/^[0-9a-f-]{36}$/);
     // The attempt is done with; the stops wait until a driver is on the way.
@@ -221,6 +224,18 @@ describe('booking', () => {
     await confirm();
     await screen.findByRole('heading', { name: 'Finding your driver' });
     expect(keyOf(1)).not.toBe(keyOf(0));
+  });
+
+  it('keeps no name for a stand-in: "Your location" says nothing later', async () => {
+    useBookingDraft
+      .getState()
+      .setStop('pickup', { name: YOUR_LOCATION, detail: '', at: at(MG_ROAD) });
+    bookingAnswers(() => booked('trip-1'));
+    renderApp('/?step=prices');
+    await confirm();
+    await screen.findByRole('heading', { name: 'Finding your driver' });
+    expect(bookings()[0]?.body).not.toHaveProperty('pickupName');
+    expect(bookings()[0]?.body).toMatchObject({ dropName: 'Indiranagar' });
   });
 
   it('says why when an earlier ride is unpaid', async () => {

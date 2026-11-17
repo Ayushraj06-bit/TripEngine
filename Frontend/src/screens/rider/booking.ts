@@ -8,6 +8,9 @@ export interface BookingRequest {
   quoteId: string;
   vehicleType: VehicleType;
   paymentMethod: PaymentMethod;
+  /** What the rider called the stops, for the trip to keep; left out for a stand-in. */
+  pickupName?: string;
+  dropName?: string;
 }
 
 /**

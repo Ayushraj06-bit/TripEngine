@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { LatLng } from '@/map/MapCanvas';
 import { placeAt } from '@/places/nominatim';
 import { insideServiceArea } from '@/places/serviceArea';
-import { useBookingDraft, type Stop, type StopKind } from '@/state/bookingDraft';
+import { PIN_ON_THE_MAP, useBookingDraft, type Stop, type StopKind } from '@/state/bookingDraft';
 import { Button } from '@/ui/Button';
 import { position, tooClose } from './stops';
 
@@ -32,7 +32,7 @@ export function ChooseOnMap({
 
   const served = at !== null && insideServiceArea(at);
   const clash = at && served ? tooClose(kind, at, other) : null;
-  const name = address.data?.name ?? 'Pin on the map';
+  const name = address.data?.name ?? PIN_ON_THE_MAP;
   const detail = address.data?.detail || (at ? position(at) : '');
   const status = !at
     ? 'Finding the pin…'

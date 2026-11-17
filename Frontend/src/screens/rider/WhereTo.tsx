@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { locate, ROUGH_METRES, type Located, type LocationFailure } from '@/places/location';
 import { PlacesError, searchPlaces, type Place, type PlacesFailure } from '@/places/nominatim';
 import { insideServiceArea } from '@/places/serviceArea';
-import { useBookingDraft, type Stop, type StopKind } from '@/state/bookingDraft';
+import { useBookingDraft, YOUR_LOCATION, type Stop, type StopKind } from '@/state/bookingDraft';
 import { Icon } from '@/ui/Icon';
 import { Input } from '@/ui/Input';
 import { OptionRow } from '@/ui/OptionRow';
@@ -103,7 +103,7 @@ export function WhereTo({
     const rough = answer.accuracyMetres > ROUGH_METRES;
     const metres = String(Math.round(answer.accuracyMetres / 10) * 10);
     setStop('pickup', {
-      name: 'Your location',
+      name: YOUR_LOCATION,
       detail: rough ? `Approximate, within ${metres} m` : '',
       at: answer.at,
     });

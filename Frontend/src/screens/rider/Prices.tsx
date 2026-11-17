@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { describeError, type Recovery } from '@/api/errors';
 import type { VehicleType } from '@/map/NearbyDrivers';
-import { useBookingDraft, type PaymentMethod } from '@/state/bookingDraft';
+import { placeName, useBookingDraft, type PaymentMethod } from '@/state/bookingDraft';
 import { Button } from '@/ui/Button';
 import { ChoiceCard } from '@/ui/Card';
 import { Countdown } from '@/ui/Countdown';
@@ -77,7 +77,13 @@ export function Prices({
     placing.current = true;
     setFailure(null);
     book.mutate(
-      { quoteId: chosen.quoteId, vehicleType: chosen.vehicleType, paymentMethod: payment },
+      {
+        quoteId: chosen.quoteId,
+        vehicleType: chosen.vehicleType,
+        paymentMethod: payment,
+        pickupName: placeName(pickup),
+        dropName: placeName(drop),
+      },
       {
         onError: () => {
           placing.current = false;

@@ -13,6 +13,20 @@ export interface Stop {
 
 export type StopKind = 'pickup' | 'drop';
 
+/** What a stop is called when it has no name of its own: the device's position, or a bare pin. */
+export const YOUR_LOCATION = 'Your location';
+export const PIN_ON_THE_MAP = 'Pin on the map';
+
+/**
+ * The stop's own name, for the trip to keep - "MG Road" - and nothing for a stand-in: a trip
+ * listed later as from "Your location" would say nothing about where it was.
+ */
+export function placeName(stop: Stop | null): string | undefined {
+  return !stop || stop.name === YOUR_LOCATION || stop.name === PIN_ON_THE_MAP
+    ? undefined
+    : stop.name;
+}
+
 export type PaymentMethod = 'CASH' | 'WALLET';
 
 /**
