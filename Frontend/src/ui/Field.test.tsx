@@ -71,12 +71,12 @@ describe('Field and Input', () => {
     expect(screen.getByLabelText('Plate')).toBeDisabled();
   });
 
-  it('shows a placeholder only as a hint, in the muted colour', () => {
+  it('shows a placeholder only as a hint, lighter than what is typed but readable', () => {
     render(
       <Field label="Drop">{(control) => <Input {...control} placeholder="Where to?" />}</Field>,
     );
     const input = screen.getByLabelText('Drop');
     expect(input).toHaveAttribute('placeholder', 'Where to?');
-    expect(input).toHaveClass('placeholder:text-mute', 'min-h-12');
+    expect(input).toHaveClass('placeholder:text-ink-soft/80', 'min-h-12');
   });
 });

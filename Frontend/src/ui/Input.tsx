@@ -11,8 +11,9 @@ export interface InputProps extends ComponentProps<'input'> {
   trailing?: ReactNode;
 }
 
+// Placeholders lighter than what is typed, but readable: 5.3:1 on the wash, 4.6:1 on ink.
 const SURFACE: Record<Surface, string> = {
-  paper: 'bg-wash text-ink placeholder:text-mute focus:border-ink',
+  paper: 'bg-wash text-ink placeholder:text-ink-soft/80 focus:border-ink',
   ink: 'bg-paper/10 text-paper placeholder:text-paper/50 focus:border-signal',
 };
 
