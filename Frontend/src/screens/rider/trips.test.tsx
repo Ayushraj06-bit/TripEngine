@@ -2,7 +2,17 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { renderApp, resetApp, signedInAs } from '@/test/app';
-import { backendFor, RIDER, trip, tripAnswers, tripsAre } from '@/test/backend';
+import { useBookingDraft } from '@/state/bookingDraft';
+import {
+  at as point,
+  backendFor,
+  INDIRANAGAR,
+  MG_ROAD,
+  RIDER,
+  trip,
+  tripAnswers,
+  tripsAre,
+} from '@/test/backend';
 
 beforeEach(() => {
   resetApp();
@@ -29,6 +39,17 @@ describe('the rider’s trips', () => {
       expect.stringMatching(/^No driver found · Auto.*[^₹\d]$/),
     ]);
     expect(rows[0]).toHaveAttribute('href', '/trip/trip-2');
+  });
+
+  it('are a tap away with a ride planned, too', async () => {
+    const draft = useBookingDraft.getState();
+    draft.setStop('pickup', { name: 'MG Road', detail: '', at: point(MG_ROAD) });
+    draft.setStop('drop', { name: 'Indiranagar', detail: '', at: point(INDIRANAGAR) });
+    tripsAre([]);
+    renderApp('/');
+    expect(await screen.findByRole('region', { name: 'Your ride' })).toBeVisible();
+    await userEvent.click(screen.getByRole('link', { name: 'Your trips' }));
+    expect(await screen.findByText('No trips yet.')).toBeVisible();
   });
 
   it('show earlier ones a page at a time', async () => {

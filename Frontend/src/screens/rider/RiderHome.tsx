@@ -92,6 +92,22 @@ export function RiderHome() {
   const start = (kind === 'pickup' ? pickup : drop)?.at ?? pickup?.at ?? CITY_CENTRE;
   const fit = step === 'map' ? [] : [pickup?.at, drop?.at].filter((p): p is LatLng => !!p);
 
+  // On the greeting's line, with or without a ride planned: the sheet's lowest height has room
+  // for nothing more.
+  const greeting = (
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-subhead text-ink-soft">
+        {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
+      </p>
+      <Link
+        to="/trips"
+        className="-mr-3 flex min-h-11 items-center rounded-full px-3 text-subhead font-semibold text-ink"
+      >
+        Your trips
+      </Link>
+    </div>
+  );
+
   return (
     <>
       <title>RideFlow</title>
@@ -177,6 +193,7 @@ export function RiderHome() {
             />
           ) : ready ? (
             <div className="flex flex-col gap-1 pb-4">
+              {greeting}
               <Row
                 label="Pickup"
                 value={pickup.name}
@@ -215,18 +232,7 @@ export function RiderHome() {
             </div>
           ) : (
             <div className="flex flex-col gap-3 pb-4">
-              {/* On the greeting's line: the sheet's lowest height has room for nothing more. */}
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-subhead text-ink-soft">
-                  {name ? `Hello, ${name.split(' ')[0] ?? name}.` : 'Hello.'}
-                </p>
-                <Link
-                  to="/trips"
-                  className="-mr-3 flex min-h-11 items-center rounded-full px-3 text-subhead font-semibold text-ink"
-                >
-                  Your trips
-                </Link>
-              </div>
+              {greeting}
               <button
                 type="button"
                 onClick={() => {
