@@ -84,8 +84,9 @@ with sync_playwright() as playwright, journey.running():
     rider.get_by_role("link", name="Home").click()
     rider.get_by_role("link", name="Your trips").click()
     row = rider.get_by_role("list").get_by_role("link").first
-    expect(row).to_have_text(re.compile(r"^Completed · Car.*₹[\d,]+$"), timeout=15_000)
-    journey.check(True, "the rider goes home, and finds the trip in their trips with its fare")
+    # The drop by the name the rider chose; the pickup was their device's position, which has none.
+    expect(row).to_have_text(re.compile(r"^Completed · CarTo Indiranagar.*₹[\d,]+$"), timeout=15_000)
+    journey.check(True, "the rider goes home, and finds the trip in their trips, named, with its fare")
     journey.shot(rider, "rider-trips")
     row.click()
     expect(rider.get_by_text("You’ve rated this trip.")).to_be_visible(timeout=15_000)
@@ -103,9 +104,9 @@ with sync_playwright() as playwright, journey.running():
     journey.shot(driver, "driver-rated")
     driver.get_by_role("link", name="Your trips").click()
     expect(driver.get_by_role("list").get_by_role("link").first).to_have_text(
-        re.compile(r"^Completed · Car"), timeout=15_000
+        re.compile(r"^Completed · CarTo Indiranagar"), timeout=15_000
     )
-    journey.check(True, "the driver finds the trip in their trips")
+    journey.check(True, "the driver finds the trip in their trips, named")
     browser.close()
 
 journey.finish()
