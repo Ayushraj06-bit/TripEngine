@@ -157,15 +157,18 @@ def sign_up_driver(page: Page, name: str) -> str:
 def approve(playwright: object, driver_phone: str) -> bool:
     """The admin approves the driver, as an admin would, over the API."""
     api = playwright.request.new_context(base_url=BASE)  # type: ignore[attr-defined]
-    admin = api.post(
-        "/api/v1/auth/login",
-        data={"phone": os.environ["ADMIN_PHONE"], "password": os.environ["ADMIN_PASSWORD"]},
-    ).json()["accessToken"]
-    driver = api.post("/api/v1/auth/login", data={"phone": driver_phone, "password": PASSWORD}).json()
-    me = api.get("/api/v1/users/me", headers={"Authorization": "Bearer " + driver["accessToken"]}).json()
-    return api.post(
-        f"/api/v1/admin/drivers/{me['id']}/approve", headers={"Authorization": "Bearer " + admin}
-    ).ok
+    try:
+        admin = api.post(
+            "/api/v1/auth/login",
+            data={"phone": os.environ["ADMIN_PHONE"], "password": os.environ["ADMIN_PASSWORD"]},
+        ).json()["accessToken"]
+        driver = api.post("/api/v1/auth/login", data={"phone": driver_phone, "password": PASSWORD}).json()
+        me = api.get("/api/v1/users/me", headers={"Authorization": "Bearer " + driver["accessToken"]}).json()
+        return api.post(
+            f"/api/v1/admin/drivers/{me['id']}/approve", headers={"Authorization": "Bearer " + admin}
+        ).ok
+    finally:
+        api.dispose()
 
 
 def book_to_indiranagar(page: Page) -> None:
