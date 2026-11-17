@@ -39,7 +39,6 @@ export function KeepInView({ stops, mover }: { stops: readonly LatLng[]; mover: 
 
   const keep = useEffectEvent(() => {
     const points = mover ? [...stops, mover] : stops;
-    if (points.length === 0) return;
     if (fitted.current === key && mover && inView(map, mover, { bottom, left })) return;
     fitted.current = key;
     fitInView(map, points, { bottom, left });
