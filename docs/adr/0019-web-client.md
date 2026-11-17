@@ -110,3 +110,5 @@ materials, defined once in `Frontend/src/styles/theme.css`.
 - [ADR 0027](0027-the-web-app-finished.md): the web app, finished. What it covers, how it was
   checked - every commit, a run against the demo per stage, and an accessibility audit - and what
   it leaves out.
+- [ADR 0028](0028-place-names-on-trips.md): place names on trips. The names the rider chose, kept
+  for display only, and never a stand-in such as "Your location".

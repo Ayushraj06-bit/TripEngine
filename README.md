@@ -168,7 +168,7 @@ and the end-to-end, chaos, demo and web app journeys every night.
 ## Read more
 
 - [PROJECT_SPEC.md](PROJECT_SPEC.md): scope, architecture, domain rules, standards
-- [Architecture decisions](docs/adr/): twenty-seven ADRs, from the modular monolith to the finished
-  web app
+- [Architecture decisions](docs/adr/): twenty-eight ADRs, from the modular monolith to place names
+  on trips
 - [Event catalog](docs/events.md) · [Runbook](docs/runbook.md) · [Security review](docs/security.md)
 - [Performance](docs/performance.md) · [Deployment](docs/deploy.md) · [Development](docs/development.md)

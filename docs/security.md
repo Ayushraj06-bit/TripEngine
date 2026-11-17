@@ -190,6 +190,9 @@ nightly. What it keeps, and what it sends:
   looked up. The device's own position is never sent to either ([ADR 0020](adr/0020-places-and-location.md)).
   A driver's "Open in Maps" hands the next stop's coordinates to Apple or Google, when they tap
   it and not before ([ADR 0024](adr/0024-the-live-map.md)).
+- **Place names:** a booking carries the names the rider chose for its stops, and the trip keeps
+  them for its rider and driver to see later; a stand-in such as "Your location" is never sent
+  ([ADR 0028](adr/0028-place-names-on-trips.md)).
 - **The driver's position** goes to RideFlow's `/ws` only, and only while they are online.
 - **Redirects:** the page to return to after signing in must be one of the app's own, in the
   user's own part of it; anything else is ignored.
