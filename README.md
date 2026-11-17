@@ -159,10 +159,11 @@ truth; the live connection only hurries it along ([ADRs 0020 to 0027](docs/adr/)
 ./mvnw -Pe2e verify      # the whole stack in containers, the backend as a black box
 ./mvnw -Pchaos verify    # Redis paused, Kafka stopped, the backend killed mid-matching
 cd Frontend && npm test  # the web app: Vitest, Testing Library, MSW, and a fake /ws
+Frontend/e2e/run.sh      # the web app in a real browser against the running demo: four journeys, axe
 ```
 
 CI runs build, unit tests, integration tests, the coverage gate and the image builds on every push,
-and the end-to-end, chaos and demo runs every night.
+and the end-to-end, chaos, demo and web app journeys every night.
 
 ## Read more
 
