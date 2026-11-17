@@ -34,6 +34,8 @@ export function DriverMarker({
     if (!shown) return;
     const from = drawn.current;
     const to = { lat, lng };
+    // Where it is drawn already - as when it first appears: a glide there would go nowhere.
+    if (from.lat === lat && from.lng === lng) return;
     if (prefersReducedMotion()) {
       drawn.current = to;
       shown.setLatLng([lat, lng]);
