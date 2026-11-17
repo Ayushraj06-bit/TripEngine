@@ -34,7 +34,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
+    // One jsdom per worker rather than one per test file - building it was most of the run - with
+    // each file still in a sandbox of its own. The sandbox needs Node's web streams (streams.ts).
+    pool: 'vmThreads',
+    setupFiles: ['./src/test/streams.ts', './src/test/setup.ts'],
     css: false,
     restoreMocks: true,
     // Clock times read the same on a laptop in Bengaluru and a CI runner in UTC.
