@@ -21,6 +21,11 @@ export function formatRupees(paise: number): string {
   return (paise % 100 === 0 ? WHOLE : EXACT).format(paise / 100);
 }
 
+/** A balance that may be below zero, signed with a true minus: −₹50, not -₹50. */
+export function formatBalance(paise: number): string {
+  return paise < 0 ? `−${formatRupees(-paise)}` : formatRupees(paise);
+}
+
 export function Money({ paise, className }: { paise: number; className?: string }) {
   return <span className={cx('tabular-nums', className)}>{formatRupees(paise)}</span>;
 }

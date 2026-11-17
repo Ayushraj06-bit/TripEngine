@@ -1,7 +1,7 @@
 import { describeError } from '@/api/errors';
 import { TRIP_RULES } from '@/trip/rules';
 import { Button } from '@/ui/Button';
-import { formatRupees } from '@/ui/Money';
+import { formatBalance, formatRupees } from '@/ui/Money';
 import { BarLink, DarkScreen, FormAlert, ListSkeleton } from '../common';
 import { Movements, useWalletPages } from '../Movements';
 import { SignOutButton } from '../SignOutButton';
@@ -45,9 +45,7 @@ export function Wallet() {
     <DarkScreen title="Wallet" actions={actions}>
       <section aria-label="Balance" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
         <p className="text-footnote text-paper/70">Balance</p>
-        <p className="text-large font-semibold tabular-nums">
-          {balance < 0 ? `−${formatRupees(-balance)}` : formatRupees(balance)}
-        </p>
+        <p className="text-large font-semibold tabular-nums">{formatBalance(balance)}</p>
         {balance < 0 && (
           // The backend refuses every booking, cash ones too, until the wallet is back to zero.
           <p className="text-body">

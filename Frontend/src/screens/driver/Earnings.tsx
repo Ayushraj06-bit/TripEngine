@@ -1,6 +1,6 @@
 import { describeError } from '@/api/errors';
 import { Button } from '@/ui/Button';
-import { formatRupees } from '@/ui/Money';
+import { formatBalance } from '@/ui/Money';
 import { BarLink, DarkScreen, FormAlert, ListSkeleton } from '../common';
 import { Movements, useWalletPages } from '../Movements';
 import { SignOutButton } from '../SignOutButton';
@@ -46,9 +46,7 @@ export function Earnings() {
     <DarkScreen title="Earnings" actions={actions}>
       <section aria-label="Balance" className="flex flex-col gap-1 rounded-card bg-paper/6 p-4">
         <p className="text-footnote text-paper/70">Balance</p>
-        <p className="text-large font-semibold tabular-nums">
-          {balance < 0 ? `−${formatRupees(-balance)}` : formatRupees(balance)}
-        </p>
+        <p className="text-large font-semibold tabular-nums">{formatBalance(balance)}</p>
         <p className="text-body">
           {balance < 0
             ? 'You owe RideFlow this in commission on cash rides.'
