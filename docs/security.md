@@ -176,8 +176,8 @@ request can name a URL for the server to fetch.
 
 ## The web app
 
-Added after this review, Stages 1 to 4 of [`Frontend/`](../Frontend/). What it keeps, and what it
-sends:
+Added after this review: the stages of [`Frontend/`](../Frontend/), and the journeys that check it
+nightly. What it keeps, and what it sends:
 
 - **Tokens:** the access token lives in memory only, and the refresh token in the `HttpOnly`
   cookie above. A test checks that no token is ever written to `localStorage`,
@@ -188,9 +188,18 @@ sends:
 - **What reaches third parties:** OpenStreetMap's tile servers see which part of the map is
   shown. Nominatim sees what a rider searches for, and the position of a pin whose address is
   looked up. The device's own position is never sent to either ([ADR 0020](adr/0020-places-and-location.md)).
+  A driver's "Open in Maps" hands the next stop's coordinates to Apple or Google, when they tap
+  it and not before ([ADR 0024](adr/0024-the-live-map.md)).
 - **The driver's position** goes to RideFlow's `/ws` only, and only while they are online.
 - **Redirects:** the page to return to after signing in must be one of the app's own, in the
   user's own part of it; anything else is ignored.
+- **The demo's test gateway:** the dev server, and the journeys' proxy, forward `/mock-gateway`
+  to the backend, where it exists only while the `sim` profile turns it on (A05 above). Nothing
+  forwards it in production, and a real gateway's page would be opened instead
+  ([ADR 0025](adr/0025-the-wallet-in-the-web-app.md)).
+- **The journeys** (`Frontend/e2e`) read the demo admin's sign-in from the demo's own secrets
+  volume and pass it to the browser container's environment; it is never printed or written to
+  their results.
 - **Injection:** React escapes everything it renders. The only raw markup is the map markers', and
   it is built from constants, never from data.
 
