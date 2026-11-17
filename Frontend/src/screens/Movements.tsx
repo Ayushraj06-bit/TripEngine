@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { dayAndTimeAt } from '@/api/errors';
 import type { Schemas } from '@/api/types';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
@@ -16,13 +17,6 @@ const WHAT: Record<NonNullable<Movement['type']>, string> = {
   CANCELLATION_FEE: 'Cancellation fee',
   REFUND: 'Refund',
 };
-
-const WHEN = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  hour: 'numeric',
-  minute: '2-digit',
-});
 
 /**
  * The signed-in user's account - a rider's wallet or a driver's earnings - newest first, a page at
@@ -58,9 +52,7 @@ export function Movements({ pages }: { pages: ReturnType<typeof useWalletPages> 
               <span className="flex flex-col">
                 <span className="text-body">{m.type ? WHAT[m.type] : 'Payment'}</span>
                 {m.createdAt && (
-                  <span className="text-footnote text-paper/70">
-                    {WHEN.format(new Date(m.createdAt))}
-                  </span>
+                  <span className="text-footnote text-paper/70">{dayAndTimeAt(m.createdAt)}</span>
                 )}
               </span>
               <span className="text-body tabular-nums">

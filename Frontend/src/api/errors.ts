@@ -42,6 +42,18 @@ export function clockTimeAt(instant: string): string {
   return new Date(instant).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
 }
 
+const DAY_AND_TIME = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** A moment the server named, with its day, for a list of past ones: "31 Oct, 2:32 pm". */
+export function dayAndTimeAt(instant: string): string {
+  return DAY_AND_TIME.format(new Date(instant));
+}
+
 function after(error: ApiError, otherwise: string): string {
   return error.retryAfterSeconds === undefined
     ? otherwise

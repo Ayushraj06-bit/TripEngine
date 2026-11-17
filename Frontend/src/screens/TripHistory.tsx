@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '@/api/client';
-import { describeError } from '@/api/errors';
+import { dayAndTimeAt, describeError } from '@/api/errors';
 import type { Schemas } from '@/api/types';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
@@ -23,13 +23,6 @@ const STATUS: Record<NonNullable<Trip['status']>, string> = {
 };
 
 const RIDE: Record<string, string> = { BIKE: 'Bike', AUTO: 'Auto', CAR: 'Car' };
-
-const WHEN = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  hour: 'numeric',
-  minute: '2-digit',
-});
 
 /** What the trip came to: the fare, or a cancellation fee; nothing when nothing was charged. */
 function charged(trip: Trip): number | null {
@@ -101,7 +94,7 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
                     </span>
                     {trip.requestedAt && (
                       <span className="text-footnote text-paper/70">
-                        {WHEN.format(new Date(trip.requestedAt))}
+                        {dayAndTimeAt(trip.requestedAt)}
                       </span>
                     )}
                   </span>

@@ -2,7 +2,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clockTimeIn, describeError, ERROR_COPY, NOT_SHOWN_TO_USERS, waitText } from './errors';
+import {
+  clockTimeIn,
+  dayAndTimeAt,
+  describeError,
+  ERROR_COPY,
+  NOT_SHOWN_TO_USERS,
+  waitText,
+} from './errors';
 import { ApiError } from './problem';
 
 // Tests run from Frontend/, so the backend's sources sit one level up.
@@ -180,6 +187,13 @@ describe('a locked account', () => {
       canCancelAt: '2026-10-27T08:15:00Z',
     });
     expect(describeError(early).message).toBe('You can cancel for a no-show from 1:45 pm.');
+  });
+});
+
+describe('a moment in a list of past ones', () => {
+  it('has its day, and the time as people in India read it', () => {
+    // Tests run in Asia/Kolkata (vite.config.ts): 03:02 UTC is 8:32 in the morning there.
+    expect(dayAndTimeAt('2026-10-31T03:02:00Z')).toBe('31 Oct, 8:32 am');
   });
 });
 
