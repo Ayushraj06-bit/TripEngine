@@ -17,6 +17,17 @@ web="rideflow-e2e-web"
 journeys=("$@")
 [ ${#journeys[@]} -eq 0 ] && journeys=(booking trip live_map wallet)
 
+# What the journeys need, said plainly rather than failing later: reading the secrets volume of a
+# demo that is not there would quietly create an empty one.
+if [ "$(docker inspect -f '{{.State.Running}}' rideflow-lb 2>/dev/null)" != true ]; then
+  echo "The one-command demo is not running. Start it first (docs/development.md)." >&2
+  exit 1
+fi
+if [ ! -f "$here/../dist/index.html" ]; then
+  echo "The app is not built. Run npm run build in Frontend/ first." >&2
+  exit 1
+fi
+
 # The admin's sign-in, from the demo's own secrets volume: never printed.
 set -a
 eval "$(docker run --rm -v rideflow_secrets:/s:ro alpine:3.22 cat /s/demo.env)"
