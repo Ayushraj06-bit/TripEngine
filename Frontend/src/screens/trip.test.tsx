@@ -116,6 +116,17 @@ describe('waiting for a driver', () => {
   });
 });
 
+describe('where the ride is going', () => {
+  it('is said while it is under way, from finding a driver to the drop', async () => {
+    tripAnswers(trip('trip-1', 'REQUESTED', { pickupName: 'MG Road', dropName: 'Indiranagar' }));
+    renderApp('/trip/trip-1');
+    await screen.findByRole('heading', { name: 'Finding your driver' });
+    expect(
+      within(screen.getByRole('region', { name: 'Your trip' })).getByText(/MG Road/),
+    ).toHaveTextContent('MG Road →to Indiranagar');
+  });
+});
+
 describe('following the driver', () => {
   const STOPS = { pickup: at(MG_ROAD), drop: at(INDIRANAGAR) };
   const minuteAgo = () => new Date(Date.now() - 60_000).toISOString();

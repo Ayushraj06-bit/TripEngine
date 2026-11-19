@@ -278,6 +278,12 @@ export function TripStatus() {
           </MapCanvas>
         }
       >
+        {routeWords(view.pickupName, view.dropName) && (
+          <p className="text-body">
+            <Route pickupName={view.pickupName} dropName={view.dropName} />
+          </p>
+        )}
+
         {view.otp && (status === 'DRIVER_ASSIGNED' || status === 'DRIVER_ARRIVED') && (
           <section aria-label="Your code" className="flex flex-col gap-1 rounded-card bg-wash p-4">
             <p className="text-footnote text-ink-soft">Your code</p>
