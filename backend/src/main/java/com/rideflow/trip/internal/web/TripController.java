@@ -152,8 +152,16 @@ class TripController {
       @NotNull UUID quoteId,
       @NotNull VehicleType vehicleType,
       @NotNull PaymentMethod paymentMethod,
-      @Size(max = 200) String pickupName,
-      @Size(max = 200) String dropName) {}
+      @Schema(
+              description =
+                  "What the rider calls the pickup, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none.")
+          @Size(max = 200)
+          String pickupName,
+      @Schema(
+              description =
+                  "What the rider calls the drop, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none.")
+          @Size(max = 200)
+          String dropName) {}
 
   record CancelRequest(@NotBlank @Size(min = 1, max = 500) String reason) {}
 

@@ -616,9 +616,11 @@ export interface components {
             entriesBalancePaise?: number;
         };
         BookingRequest: {
+            /** @description What the rider calls the drop, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none. */
             dropName?: string;
             /** @enum {string} */
             paymentMethod: "WALLET" | "CASH";
+            /** @description What the rider calls the pickup, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none. */
             pickupName?: string;
             /** Format: uuid */
             quoteId: string;
@@ -911,6 +913,7 @@ export interface components {
             /** Format: uuid */
             driverId?: string;
             drop?: components["schemas"]["Point"];
+            /** @description What the rider called the drop when booking; absent when they did not say. */
             dropName?: string;
             /** Format: int64 */
             durationSeconds?: number;
@@ -926,6 +929,7 @@ export interface components {
             /** @enum {string} */
             paymentStatus?: "UNPAID" | "PAID" | "PENDING_SETTLEMENT" | "REFUNDED";
             pickup?: components["schemas"]["Point"];
+            /** @description What the rider called the pickup when booking; absent when they did not say. */
             pickupName?: string;
             /** Format: int64 */
             quotedFarePaise?: number;

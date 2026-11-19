@@ -37,6 +37,7 @@
       "BookingRequest": {
         "properties": {
           "dropName": {
+            "description": "What the rider calls the drop, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none.",
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
@@ -49,6 +50,7 @@
             "type": "string"
           },
           "pickupName": {
+            "description": "What the rider calls the pickup, kept with the trip to show it later. Optional, for display only: pricing, matching and the fare go by the points. Trimmed, with inner spaces collapsed; blank means none.",
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
@@ -855,6 +857,7 @@
             "$ref": "#/components/schemas/Point"
           },
           "dropName": {
+            "description": "What the rider called the drop when booking; absent when they did not say.",
             "type": "string"
           },
           "durationSeconds": {
@@ -896,6 +899,7 @@
             "$ref": "#/components/schemas/Point"
           },
           "pickupName": {
+            "description": "What the rider called the pickup when booking; absent when they did not say.",
             "type": "string"
           },
           "quotedFarePaise": {

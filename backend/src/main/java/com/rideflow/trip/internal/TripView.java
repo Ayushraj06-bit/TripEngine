@@ -6,6 +6,7 @@ import com.rideflow.trip.PaymentMethod;
 import com.rideflow.trip.PaymentStatus;
 import com.rideflow.trip.TripActor;
 import com.rideflow.trip.TripStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -25,8 +26,14 @@ public record TripView(
     VehicleType vehicleType,
     Point pickup,
     Point drop,
-    String pickupName,
-    String dropName,
+    @Schema(
+            description =
+                "What the rider called the pickup when booking; absent when they did not say.")
+        String pickupName,
+    @Schema(
+            description =
+                "What the rider called the drop when booking; absent when they did not say.")
+        String dropName,
     long quotedFarePaise,
     BigDecimal surgeMultiplier,
     PaymentMethod paymentMethod,
