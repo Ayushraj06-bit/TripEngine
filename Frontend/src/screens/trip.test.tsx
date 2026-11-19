@@ -338,6 +338,19 @@ describe('at the pickup and after', () => {
     expect(screen.queryByRole('region', { name: 'Map of your trip' })).not.toBeInTheDocument();
   });
 
+  it('says where a finished trip went, as the rider’s trips do', async () => {
+    tripAnswers(
+      trip('trip-1', 'COMPLETED', {
+        finalFarePaise: 31200,
+        paymentMethod: 'CASH',
+        dropName: 'Indiranagar',
+      }),
+    );
+    renderApp('/trip/trip-1');
+    expect(await screen.findByRole('heading', { name: 'Trip completed' })).toBeVisible();
+    expect(screen.getByText('To Indiranagar')).toBeVisible();
+  });
+
   it('leaves the ride being planned alone when an old trip is opened', async () => {
     tripAnswers(trip('trip-1', 'COMPLETED', { finalFarePaise: 31200, paymentMethod: 'CASH' }));
     renderApp('/trip/trip-1');

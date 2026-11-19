@@ -21,6 +21,7 @@ import { toast } from '@/ui/toasts';
 import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from './common';
 import { useForgetEndedTrip } from './queries';
 import { RateTrip } from './RateTrip';
+import { routeWords } from './rider/stops';
 import { SignOutButton } from './SignOutButton';
 
 type Trip = Schemas['TripView'];
@@ -308,7 +309,8 @@ export function TripStatus() {
   return (
     <DarkScreen
       title={status ? TITLE[status] : 'Your trip'}
-      lead={status ? LEAD[status] : undefined}
+      // Opened from the rider's trips, a finished trip says where it went, as the list does.
+      lead={(status && LEAD[status]) ?? routeWords(view.pickupName, view.dropName) ?? undefined}
       actions={<SignOutButton />}
     >
       {status === 'COMPLETED' && <Paid trip={view} />}

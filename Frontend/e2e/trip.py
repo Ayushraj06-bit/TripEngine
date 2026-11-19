@@ -91,6 +91,7 @@ with sync_playwright() as playwright, journey.running():
     row.click()
     expect(rider.get_by_text("You’ve rated this trip.")).to_be_visible(timeout=15_000)
     journey.check(True, "opened again, the trip is not offered for rating twice")
+    journey.check(rider.get_by_text("To Indiranagar").is_visible(), "opened again, the trip says where it went")
 
     driver.get_by_role("link", name="Back to driving").click()
     stars = driver.get_by_text("Rated 5.0 by riders, from 1 rating.")
