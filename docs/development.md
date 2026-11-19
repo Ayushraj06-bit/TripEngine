@@ -238,6 +238,11 @@ npm run build         # type check, then the production bundle in dist/
 npm run api:update    # after a backend API change: refresh the API snapshot and its types
 ```
 
+**On Windows, run the tests from a path that starts with a capital drive letter** (`C:\...`).
+From `c:\...` - some terminals and editors open there - Vite loads Vitest twice, and every test
+file fails with "Vitest failed to find the runner". `cd C:\Users\...` first, or open the terminal
+from Explorer.
+
 The client's types are generated from a committed copy of the backend's OpenAPI document. CI
 fails when that copy and the running backend disagree, so an API change and `npm run api:update`
 go in the same commit.
