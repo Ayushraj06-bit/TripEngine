@@ -35,6 +35,10 @@ class TripUpdatePusherTest {
   private final TripUpdatePusher pusher = new TripUpdatePusher(trips, realtime);
 
   private static Trip assignedTrip() {
+    return assignedTrip(PlaceNames.NONE);
+  }
+
+  private static Trip assignedTrip(PlaceNames names) {
     Money fare = Money.ofPaise(15_400);
     Money zero = Money.ofPaise(0);
     ConsumedQuote quote =
@@ -51,8 +55,7 @@ class TripUpdatePusherTest {
             new FareBreakdown(fare, zero, zero, zero, zero, 0, fare),
             NOW.plusSeconds(300));
     Trip trip =
-        Trip.request(
-            UUID.randomUUID(), quote.riderId(), quote, PaymentMethod.WALLET, PlaceNames.NONE, NOW);
+        Trip.request(UUID.randomUUID(), quote.riderId(), quote, PaymentMethod.WALLET, names, NOW);
     trip.assign(UUID.randomUUID(), "1234", NOW.plusSeconds(30));
     return trip;
   }
@@ -77,5 +80,29 @@ class TripUpdatePusherTest {
     verify(realtime, times(2)).toUser(any(), eq(TripUpdatePusher.DESTINATION), sent.capture());
     // The rider's copy and the driver's: one event, one number.
     assertThat(sent.getAllValues()).extracting(RealtimeMessage::seq).containsOnly(7L);
+  }
+
+  /**
+   * Each push replaces the trip a screen shows, so it must carry the names too, or the route would
+   * vanish from the rider's screen - and the driver's - at the next update.
+   */
+  @Test
+  void sendsThePlaceNamesWithEveryUpdate() {
+    Trip trip = assignedTrip(PlaceNames.of("MG Road", "Indiranagar"));
+    when(realtime.nextSeq(trip.id())).thenReturn(3L);
+    when(trips.findById(trip.id())).thenReturn(Optional.of(trip));
+
+    pusher.on(
+        new DriverArrived(UUID.randomUUID(), NOW, trip.id(), trip.riderId(), trip.driverId()));
+
+    ArgumentCaptor<RealtimeMessage> sent = ArgumentCaptor.forClass(RealtimeMessage.class);
+    verify(realtime, times(2)).toUser(any(), eq(TripUpdatePusher.DESTINATION), sent.capture());
+    assertThat(sent.getAllValues())
+        .extracting(message -> (TripView) message.payload())
+        .allSatisfy(
+            view -> {
+              assertThat(view.pickupName()).isEqualTo("MG Road");
+              assertThat(view.dropName()).isEqualTo("Indiranagar");
+            });
   }
 }
