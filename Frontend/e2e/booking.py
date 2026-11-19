@@ -91,6 +91,11 @@ with sync_playwright() as playwright, journey.running():
     expect(rider.get_by_role("heading", name="Finding your driver")).to_be_visible(timeout=15_000)
     journey.check(len(bookings) == 1, f"a double tap books once ({len(bookings)} sent)")
     journey.check(bool(bookings and bookings[0]), "the booking carries an Idempotency-Key")
+    # From the rider's own position, which has no name, to the drop they chose.
+    journey.check(
+        rider.get_by_text("To Indiranagar").is_visible(),
+        "the booked ride says where it is going, by the name the rider chose",
+    )
     journey.shot(rider, "finding")
 
     # Free while no driver is found - and no trip left behind for the next journey's driver.
