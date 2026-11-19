@@ -12,17 +12,23 @@ A trip kept its pickup and drop as points. The backend has no geocoder, so the t
 ## Decision
 
 - **The app sends the names with the booking**: optional `pickupName` and `dropName`, up to 200
-  characters, trimmed. A blank name is no name. The backend keeps them on the trip
-  (`trips.pickup_name`, `trips.drop_name`, migration V15) and returns them in `TripView`.
+  characters. The backend keeps each as one line: trimmed, with any run of spaces, tabs or line
+  breaks inside collapsed to one space; a blank name is no name. It keeps them on the trip
+  (`trips.pickup_name`, `trips.drop_name`, migration V15) and returns them in `TripView`, including
+  in every update pushed over `/ws`, which replaces the trip a screen shows. The published API
+  describes both fields.
 - **The names are display-only.** Pricing, matching, the geofence and the fare all keep using the
   points. The backend never looks a name up, and never checks it against the point.
 - **A stand-in is not a name.** "Your location" and "Pin on the map" say nothing about where a trip
   went a day later, so the app sends no name for them.
-- **The names are part of the booking's request for its Idempotency-Key.** A retry carries the
-  same names; a different body under the same key is refused, as before.
-- **Shown where a trip is looked back on**: both trips lists ("MG Road → Indiranagar", "To
-  Indiranagar"), and the driver's trip, beside the ride's other facts. The ride offer, before
-  acceptance, is unchanged.
+- **The names are part of the booking's request for its Idempotency-Key**, cleaned before they
+  are hashed. A retry that differs only in spacing is the same booking. Different names under the
+  same key are refused, as any different body is.
+- **Shown wherever the trip is**: both trips lists ("MG Road → Indiranagar", "To Indiranagar"),
+  the rider's sheet while the ride is under way, a finished trip opened again, and the driver's
+  trip, beside the ride's other facts. The ride offer, before acceptance, is unchanged.
+- **The arrow is drawn, and read aloud as "to".** A screen reader would otherwise say "MG Road
+  right arrow Indiranagar".
 
 ## Consequences
 
