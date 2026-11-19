@@ -20,7 +20,7 @@ import { Field } from '@/ui/Field';
 import { Input } from '@/ui/Input';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
-import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from '../common';
+import { ConfirmStep, DarkScreen, FormAlert, MapScreen, Route } from '../common';
 import { DRIVER_PROFILE, useForgetEndedTrip } from '../queries';
 import { RateTrip } from '../RateTrip';
 import { distanceText } from '../rider/fare';
@@ -60,7 +60,9 @@ function RideFacts({ trip }: { trip: Trip }) {
         {trip.paymentMethod === 'WALLET' ? 'Wallet' : 'Cash'}
       </p>
       {routeWords(trip.pickupName, trip.dropName) && (
-        <p className="text-subhead">{routeWords(trip.pickupName, trip.dropName)}</p>
+        <p className="text-subhead">
+          <Route pickupName={trip.pickupName} dropName={trip.dropName} />
+        </p>
       )}
       {trip.quotedFarePaise !== undefined && (
         <p className="text-subhead text-ink-soft">

@@ -7,6 +7,7 @@ import { Input, type InputProps } from '@/ui/Input';
 import { Sheet, type SheetHeight } from '@/ui/Sheet';
 import { Skeleton } from '@/ui/Skeleton';
 import { TopBar } from '@/ui/TopBar';
+import { routeWords } from './rider/stops';
 
 /**
  * The dark screens - signing in, creating an account, a driver's onboarding: the ink canvas, the
@@ -92,6 +93,22 @@ export function ListSkeleton({ label, balance = false }: { label: string; balanc
       </div>
     </div>
   );
+}
+
+/**
+ * Where a trip went, in the rider's names. The arrow is drawn but read aloud as "to": a screen
+ * reader would say "MG Road right arrow Indiranagar". Nothing when the trip has no names.
+ */
+export function Route({ pickupName, dropName }: { pickupName?: string; dropName?: string }) {
+  if (pickupName && dropName) {
+    return (
+      <>
+        {pickupName} <span aria-hidden="true">→</span>
+        <span className="sr-only">to</span> {dropName}
+      </>
+    );
+  }
+  return routeWords(pickupName, dropName);
 }
 
 /** A link in the top bar, drawn as the bar's buttons are. */

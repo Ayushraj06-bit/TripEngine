@@ -39,11 +39,13 @@ describe('the rider’s trips', () => {
 
     const rows = within(await screen.findByRole('list')).getAllByRole('link');
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^Completed · AutoMG Road → Indiranagar.*₹312$/),
+      expect.stringMatching(/^Completed · AutoMG Road →to Indiranagar.*₹312$/),
       expect.stringMatching(/^Cancelled · Auto.*₹50$/),
       expect.stringMatching(/^No driver found · Auto.*[^₹\d]$/),
     ]);
     expect(rows[0]).toHaveAttribute('href', '/trip/trip-2');
+    // Read aloud with "to", not "right arrow".
+    expect(rows[0]).toHaveAccessibleName(/^Completed · Auto ?MG Road to Indiranagar/);
   });
 
   it('are a tap away with a ride planned, too', async () => {

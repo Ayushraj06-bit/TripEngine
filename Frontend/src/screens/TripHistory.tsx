@@ -5,7 +5,7 @@ import { dayAndTimeAt, describeError } from '@/api/errors';
 import type { Schemas } from '@/api/types';
 import { Button } from '@/ui/Button';
 import { formatRupees } from '@/ui/Money';
-import { BarLink, DarkScreen, FormAlert, ListSkeleton } from './common';
+import { BarLink, DarkScreen, FormAlert, ListSkeleton, Route } from './common';
 import { routeWords } from './rider/stops';
 import { SignOutButton } from './SignOutButton';
 
@@ -82,6 +82,7 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
         <ul>
           {trips.map((trip) => {
             const paise = charged(trip);
+            const route = routeWords(trip.pickupName, trip.dropName);
             return (
               <li key={trip.id} className="border-b border-paper/12">
                 <Link
@@ -93,9 +94,9 @@ function TripHistory({ home, tripPath }: { home: string; tripPath: (id: string) 
                       {trip.status ? STATUS[trip.status] : 'Trip'} ·{' '}
                       {RIDE[trip.vehicleType ?? ''] ?? 'Ride'}
                     </span>
-                    {routeWords(trip.pickupName, trip.dropName) && (
+                    {route && (
                       <span className="text-subhead">
-                        {routeWords(trip.pickupName, trip.dropName)}
+                        <Route pickupName={trip.pickupName} dropName={trip.dropName} />
                       </span>
                     )}
                     {trip.requestedAt && (

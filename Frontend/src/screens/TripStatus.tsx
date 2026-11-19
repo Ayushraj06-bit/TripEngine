@@ -18,7 +18,7 @@ import { Button } from '@/ui/Button';
 import { Countdown } from '@/ui/Countdown';
 import { formatRupees } from '@/ui/Money';
 import { toast } from '@/ui/toasts';
-import { ConfirmStep, DarkScreen, FormAlert, MapScreen } from './common';
+import { ConfirmStep, DarkScreen, FormAlert, MapScreen, Route } from './common';
 import { useForgetEndedTrip } from './queries';
 import { RateTrip } from './RateTrip';
 import { routeWords } from './rider/stops';
@@ -310,7 +310,12 @@ export function TripStatus() {
     <DarkScreen
       title={status ? TITLE[status] : 'Your trip'}
       // Opened from the rider's trips, a finished trip says where it went, as the list does.
-      lead={(status && LEAD[status]) ?? routeWords(view.pickupName, view.dropName) ?? undefined}
+      lead={
+        (status && LEAD[status]) ??
+        (routeWords(view.pickupName, view.dropName) ? (
+          <Route pickupName={view.pickupName} dropName={view.dropName} />
+        ) : undefined)
+      }
       actions={<SignOutButton />}
     >
       {status === 'COMPLETED' && <Paid trip={view} />}
