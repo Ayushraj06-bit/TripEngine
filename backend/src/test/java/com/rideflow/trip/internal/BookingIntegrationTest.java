@@ -153,6 +153,30 @@ class BookingIntegrationTest extends TripIntegrationTestBase {
     }
 
     @Test
+    void takesARetryWhoseNamesDifferOnlyInSpacingAsTheSameRequest() throws Exception {
+      User rider = rider();
+      UUID quoteId = quote(rider, VehicleType.CAR).quoteId();
+      String key = newKey();
+
+      String first =
+          bookWith(rider, quoteId, key, "\"dropName\":\"Indiranagar\"")
+              .andExpect(status().isAccepted())
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+      // The names are cleaned before the request is hashed: the same booking, answered again.
+      String again =
+          bookWith(rider, quoteId, key, "\"dropName\":\"  Indiranagar \"")
+              .andExpect(status().isAccepted())
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+
+      assertThat(JsonPath.<String>read(again, "$.id")).isEqualTo(JsonPath.read(first, "$.id"));
+      assertThat(tripsOf(rider)).isOne();
+    }
+
+    @Test
     void refusesASecondActiveTrip() throws Exception {
       User rider = rider();
       bookedTrip(rider);
