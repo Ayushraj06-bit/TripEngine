@@ -31,6 +31,10 @@ import org.springframework.stereotype.Component;
  * {@code short-trip-flag-seconds}: it had no time to cover its estimate, so it is priced at what
  * was recorded - nothing, the minimum fare - and flagged as short. Otherwise a driver who starts
  * and completes at once, before a single position arrives, would charge the whole quote.
+ *
+ * <p>Nor is a route whose start is missing, when Redis lost it mid-ride, a shorter ride: what is
+ * left would underpay the driver in the same way, so it counts as no route. Missing means nothing
+ * recorded within {@code stale-after-seconds} of the start, the silence a driver is allowed.
  */
 @Component
 class FinalFares {
@@ -58,8 +62,15 @@ class FinalFares {
     var rules = properties.trip();
     long seconds = Duration.between(trip.startedAt(), completedAt).toSeconds();
     // Two points at least: one alone has no length, and is no more evidence than none.
+    boolean enough = route.size() >= 2;
+    boolean startMissing =
+        enough
+            && route
+                .getFirst()
+                .at()
+                .isAfter(trip.startedAt().plusSeconds(properties.location().staleAfterSeconds()));
     // A trip shorter than the flag threshold is measured whatever was recorded.
-    boolean recorded = route.size() >= 2 || seconds < rules.shortTripFlagSeconds();
+    boolean recorded = (enough && !startMissing) || seconds < rules.shortTripFlagSeconds();
     long meters =
         recorded
             ? RouteDistance.meters(route, properties.location().maxSpeedKmph())
@@ -79,7 +90,10 @@ class FinalFares {
 
     String flag = null;
     if (!recorded) {
-      flag = "No route was recorded; charged the quoted fare";
+      flag =
+          startMissing
+              ? "The route's start was not recorded; charged the quoted fare"
+              : "No route was recorded; charged the quoted fare";
     } else if (seconds < rules.shortTripFlagSeconds() && meters < rules.shortTripFlagMeters()) {
       flag = "Completed in %d s over %d m".formatted(seconds, meters);
     } else if (repriced && fare > trip.quotedFarePaise() * (1 + rules.repriceFlagIncrease())) {

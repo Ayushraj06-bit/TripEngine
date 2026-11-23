@@ -268,6 +268,36 @@ class FinalFaresTest {
       assertThat(fare.flag()).isNull();
     }
 
+    /**
+     * Redis lost the first half of the route. What is left is shorter than the estimate, and
+     * pricing the trip on it would pay the driver for half the ride.
+     */
+    @Test
+    void keepsTheQuoteAndFlagsTheTripWhenTheRoutesStartIsMissing() {
+      Trip trip = startedTrip(Duration.ZERO);
+      List<RoutePoint> whole = routeOf(10_000, trip.startedAt());
+
+      var fare = settle(trip, whole.subList(50, whole.size()));
+
+      assertThat(fare.farePaise()).isEqualTo(QUOTED);
+      assertThat(fare.distanceMeters()).isEqualTo(ESTIMATED_METERS);
+      assertThat(fare.repriced()).isFalse();
+      assertThat(fare.flag())
+          .isEqualTo("The route's start was not recorded; charged the quoted fare");
+    }
+
+    /** Quiet for exactly as long as a driver may be before they count as stale: still measured. */
+    @Test
+    void measuresARouteThatBeginsWithinTheStaleTime() {
+      Trip trip = startedTrip(Duration.ZERO);
+
+      var begunAt30s = settle(trip, routeOf(5_000, trip.startedAt().plusSeconds(30)));
+      var begunAt31s = settle(trip, routeOf(5_000, trip.startedAt().plusSeconds(31)));
+
+      assertThat(begunAt30s.repriced()).isTrue();
+      assertThat(begunAt31s.repriced()).isFalse();
+    }
+
     @Test
     void keepsTheQuoteAndFlagsTheTripWhenNoRouteWasRecorded() {
       Trip trip = startedTrip(Duration.ZERO);
