@@ -61,10 +61,12 @@ update would fail until the application was redeployed.
 ## Consequences
 
 - The booking path never contends with position writes. That is the whole point.
-- Losing Redis loses the live map. Drivers repopulate it within one ping cycle of
-  a few seconds, and the stale sweep would have discarded that data shortly anyway.
-  Nothing durable depends on it: `drivers.status` in Postgres remains the record of
-  whether a driver intends to work.
+- Losing Redis loses the live map, and drivers repopulate it with their next few
+  pings. A position alone is not enough: a driver's status and trip reach Redis only
+  as events when they change, and a restart changes neither. So a position that finds
+  no status restores both from Postgres (`DriverStateRepair`), where `drivers.status`
+  remains the record of whether a driver intends to work. Until that was added, every
+  driver online at the time stayed invisible to matching.
 - A driver's position and their trip state cannot change in one transaction. They
   do not need to — a position is an observation, not a decision.
 - The nearby search returns straight-line distances. Road distance is longer, and

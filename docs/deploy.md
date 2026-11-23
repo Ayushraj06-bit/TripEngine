@@ -107,7 +107,8 @@ docker compose -f infra/deploy/compose.yml up -d --wait
   backend is health-checked on `/readyz` every two seconds, and a request that reaches one just as
   it stops is retried on the other.
 - **Redis keeps no backups on purpose:** positions, offers and quotes are minutes old by nature, and
-  rebuild themselves from the drivers' next reports and PostgreSQL.
+  rebuild themselves from the drivers' next reports and PostgreSQL. A restart does lose what the
+  runbook lists under *Redis is down*; the surge kill switch is the one to act on.
 - **Logs:** Docker's `local` driver, which bounds them on disk.
 
 ## 5. Operating it

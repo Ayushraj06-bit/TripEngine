@@ -201,6 +201,14 @@ listener's exception in the logs before intervening.
    - Driver positions return with the next report, 3 s later.
    - Offers in flight expire, and the recovery sweep re-matches their trips from PostgreSQL.
    - Quotes made before the outage must be asked for again.
+4. If Redis came back **empty** (it keeps nothing on disk in production), also:
+   - Drivers' statuses and trips are restored from PostgreSQL by their next reports, two drivers at a
+     time on each instance. The log says `Could not restore driver ...` while PostgreSQL is away.
+   - **The surge kill switch and the admins' overrides are gone: if surge was off, switch it off
+     again.**
+   - A ride under way has lost the start of its route: it is charged its quote, and flagged.
+   - Each trip's message numbers start again at 1, so a trip screen already open in the web app
+     ignores pushed updates until it is reloaded.
 
 ### Kafka is down
 
@@ -334,6 +342,9 @@ look.
   estimated. Compare with the quote.
 - `No route was recorded...`: the phone sent nothing during the ride, or Redis
   lost the list. The quote was charged.
+- `The route's start was not recorded...`: nothing arrived within 30 s of the start,
+  or Redis lost it mid-ride. What is left would understate the ride, so the quote was
+  charged.
 - `Driver silent for over 10 minutes...`: the driver's phone stopped reporting
   mid-ride.
 
