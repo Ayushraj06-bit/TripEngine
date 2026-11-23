@@ -53,6 +53,7 @@ public class LocationIngestService {
 
   private final DriverStateStore store;
   private final LiveTripRelay liveTrips;
+  private final DriverStateRepair repair;
   private final Clock clock;
   private final ServiceArea serviceArea;
   private final DriverFlagging driverFlagging;
@@ -64,6 +65,7 @@ public class LocationIngestService {
   LocationIngestService(
       DriverStateStore store,
       LiveTripRelay liveTrips,
+      DriverStateRepair repair,
       Clock clock,
       ServiceArea serviceArea,
       DriverFlagging driverFlagging,
@@ -73,6 +75,7 @@ public class LocationIngestService {
     this.redisBreaker = breakers.circuitBreaker("redis-location");
     this.store = store;
     this.liveTrips = liveTrips;
+    this.repair = repair;
     this.clock = clock;
     this.serviceArea = serviceArea;
     this.driverFlagging = driverFlagging;
@@ -160,6 +163,9 @@ public class LocationIngestService {
 
     if ("rejected_spoof".equals(outcome.result())) {
       flagIfPersistent(driverId, outcome.spoofStrikes());
+    }
+    if (outcome.accepted() && !outcome.statusKnown()) {
+      repair.repair(driverId);
     }
     if (outcome.accepted() && outcome.onTrip() != null) {
       liveTrips.relay(driverId, position, clock.instant(), outcome.onTrip());

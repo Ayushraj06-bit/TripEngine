@@ -5,6 +5,7 @@ import com.rideflow.driver.DriverFlagging;
 import com.rideflow.driver.DriverRegistration;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.driver.DriverStatusChanged;
+import com.rideflow.driver.DriverStatuses;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.IdGenerator;
 import com.rideflow.shared.VehicleType;
@@ -22,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** A driver's own profile: vehicle registration and going online or offline. */
 @Service
-public class DriverService implements DriverRegistration, DriverFlagging {
+public class DriverService implements DriverRegistration, DriverFlagging, DriverStatuses {
 
   private static final Logger log = LoggerFactory.getLogger(DriverService.class);
 
@@ -197,6 +198,19 @@ public class DriverService implements DriverRegistration, DriverFlagging {
       publishStatusChange(
           driver, previous, vehicles.findByDriverId(driverId).map(Vehicle::type).orElse(null), now);
     }
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Current> current(UUID driverId) {
+    return drivers
+        .findByUserId(driverId)
+        .map(
+            driver ->
+                new Current(
+                    driver.status(),
+                    vehicles.findByDriverId(driverId).map(Vehicle::type).orElse(null),
+                    driver.version()));
   }
 
   @Transactional(readOnly = true)

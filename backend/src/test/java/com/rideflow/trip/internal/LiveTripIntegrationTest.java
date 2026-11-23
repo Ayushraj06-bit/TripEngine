@@ -222,6 +222,43 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
   }
 
   @Nested
+  class WhenRedisLosesEverything {
+
+    /**
+     * Mid-ride. The rider sees the car again, and the fare is the quote: the route's start is gone,
+     * and the half still recorded would underpay the driver.
+     */
+    @Test
+    void showsTheRiderTheirDriverAgainAndChargesTheQuote() throws Exception {
+      User rider = rider();
+      User driver = driver();
+      UUID tripId = tripUnderWay(rider, driver);
+      await().atMost(EVENTUALLY).until(() -> "ON_TRIP".equals(stateOf(driver, "status")));
+      for (long meters = 0; meters <= 1_000; meters += 100) {
+        CLOCK.advance(Duration.ofSeconds(10));
+        assertThat(report(driver, northOfPickup(meters))).isEqualTo("accepted");
+      }
+
+      redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+      int shown = PUSHES.to(rider.id(), "/queue/driver-location").size();
+      for (long meters = 1_100; meters <= 1_500; meters += 100) {
+        CLOCK.advance(Duration.ofSeconds(10));
+        assertThat(report(driver, northOfPickup(meters))).isEqualTo("accepted");
+      }
+
+      assertThat(stateOf(driver, "tripId")).isEqualTo(tripId.toString());
+      assertThat(stateOf(driver, "tripPhase")).isEqualTo("TO_DROP");
+      assertThat(stateOf(driver, "status")).isEqualTo("ON_TRIP");
+      assertThat(PUSHES.to(rider.id(), "/queue/driver-location")).hasSizeGreaterThan(shown);
+
+      TripView completed = trips.complete(tripId, driver.asDriver());
+      assertThat(completed.finalFarePaise()).isEqualTo(completed.quotedFarePaise());
+      assertThat(flaggedReason(tripId))
+          .isEqualTo("The route's start was not recorded; charged the quoted fare");
+    }
+  }
+
+  @Nested
   class ASilentDriver {
 
     @Test

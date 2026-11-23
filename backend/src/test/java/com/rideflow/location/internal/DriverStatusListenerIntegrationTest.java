@@ -130,6 +130,52 @@ class DriverStatusListenerIntegrationTest {
     assertThat(isIn(VehicleType.CAR)).isFalse();
   }
 
+  /** A restart of Redis: nothing changes the driver's status, so no event brings it back. */
+  @Test
+  void putsAnOnlineDriverBackOnTheMapAfterRedisLosesEverything() {
+    drivers.goOnline(driverId);
+    await().atMost(EVENTUALLY).until(() -> "AVAILABLE".equals(storedStatus()));
+    ping();
+
+    redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+    // The first position finds no status and restores it; the next one puts them on the map.
+    assertThat(ping()).isEqualTo("accepted");
+    assertThat(ping()).isEqualTo("accepted");
+
+    assertThat(storedStatus()).isEqualTo("AVAILABLE");
+    assertThat(isIn(VehicleType.CAR)).isTrue();
+  }
+
+  @Test
+  void leavesAnOfflineDriverOfflineAfterRedisLosesEverything() {
+    drivers.goOnline(driverId);
+    await().atMost(EVENTUALLY).until(() -> "AVAILABLE".equals(storedStatus()));
+    drivers.goOffline(driverId);
+    await().atMost(EVENTUALLY).until(() -> "OFFLINE".equals(storedStatus()));
+
+    redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+    ping();
+    ping();
+
+    assertThat(storedStatus()).isEqualTo("OFFLINE");
+    assertThat(isIn(VehicleType.CAR)).isFalse();
+  }
+
+  /** The version restored is the row's: an older change still arriving must not undo it. */
+  @Test
+  void restoresTheVersionSoAnOlderChangeCannotUndoIt() {
+    drivers.goOnline(driverId);
+    await().atMost(EVENTUALLY).until(() -> "AVAILABLE".equals(storedStatus()));
+    long version =
+        jdbc.queryForObject("SELECT version FROM drivers WHERE user_id = ?", Long.class, driverId);
+
+    redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+    ping();
+
+    assertThat(redis.opsForHash().get("driver:state:" + driverId, "statusVersion"))
+        .isEqualTo(Long.toString(version));
+  }
+
   @Test
   void movesADriverBetweenSetsWhenTheirVehicleTypeChanges() {
     drivers.goOnline(driverId);

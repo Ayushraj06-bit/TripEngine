@@ -422,32 +422,35 @@ class DriverStateStore implements DriverPositions, LiveDrivers {
 
   /** What the update script decided, and what it did. */
   /**
+   * @param statusKnown on an accepted position, whether Redis holds the driver's status
    * @param onTrip set when an accepted position belongs to a driver on a trip
    */
-  record UpdateOutcome(String result, int spoofStrikes, boolean geoWritten, OnTrip onTrip) {
+  record UpdateOutcome(
+      String result, int spoofStrikes, boolean geoWritten, boolean statusKnown, OnTrip onTrip) {
 
     static UpdateOutcome from(List<Object> raw) {
       if (raw == null || raw.size() < 3) {
         throw new IllegalStateException("location_update.lua returned an unexpected shape: " + raw);
       }
       OnTrip onTrip = null;
-      if (raw.size() >= 10 && !String.valueOf(raw.get(5)).isEmpty()) {
-        String vehicleType = String.valueOf(raw.get(9));
+      if (raw.size() >= 11 && !String.valueOf(raw.get(6)).isEmpty()) {
+        String vehicleType = String.valueOf(raw.get(10));
         onTrip =
             new OnTrip(
-                UUID.fromString(String.valueOf(raw.get(3))),
                 UUID.fromString(String.valueOf(raw.get(4))),
-                TripPhase.valueOf(String.valueOf(raw.get(5))),
+                UUID.fromString(String.valueOf(raw.get(5))),
+                TripPhase.valueOf(String.valueOf(raw.get(6))),
                 new GeoPoint(
-                    Double.parseDouble(String.valueOf(raw.get(6))),
-                    Double.parseDouble(String.valueOf(raw.get(7)))),
-                "1".equals(String.valueOf(raw.get(8))),
+                    Double.parseDouble(String.valueOf(raw.get(7))),
+                    Double.parseDouble(String.valueOf(raw.get(8)))),
+                "1".equals(String.valueOf(raw.get(9))),
                 vehicleType.isEmpty() ? null : VehicleType.valueOf(vehicleType));
       }
       return new UpdateOutcome(
           String.valueOf(raw.get(0)),
           Integer.parseInt(String.valueOf(raw.get(1))),
           "1".equals(String.valueOf(raw.get(2))),
+          raw.size() >= 4 && "1".equals(String.valueOf(raw.get(3))),
           onTrip);
     }
 

@@ -35,7 +35,8 @@
 -- ARGV[11] stateTtlSeconds
 -- ARGV[12] forwardIntervalMs: how often a rider may be sent their driver's position
 --
--- Returns { result, spoofStrikes, geoWritten }, and for a driver on a trip also
+-- Returns { result, spoofStrikes, geoWritten }; when accepted, also statusKnown (1, or 0 once
+--   Redis has lost it, for the caller to restore); and for a driver on a trip also
 --   tripId, riderId, tripPhase, targetLat, targetLng, forward (1 or 0), vehicleType
 --   result: accepted | ignored_out_of_order | throttled | rejected_spoof
 
@@ -160,6 +161,8 @@ else
   removeFromEveryAvailableSet()
 end
 
+local statusKnown = status and 1 or 0
+
 -- 6. On a trip. Phase 6: the caller records the route and shows the rider where their
 --    driver is - the latter at most every forwardIntervalMs, decided here, against the
 --    same clock, so two instances cannot both decide to send.
@@ -171,8 +174,8 @@ if tripId then
     redis.call('HSET', stateKey, 'lastForwardTs', nowMs)
     forward = 1
   end
-  return { 'accepted', spoofStrikes, geoWritten, tripId, stored[10] or '', stored[11] or '',
+  return { 'accepted', spoofStrikes, geoWritten, statusKnown, tripId, stored[10] or '', stored[11] or '',
            stored[12] or '', stored[13] or '', forward, vehicleType or '' }
 end
 
-return { 'accepted', spoofStrikes, geoWritten }
+return { 'accepted', spoofStrikes, geoWritten, statusKnown }

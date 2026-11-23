@@ -63,9 +63,13 @@ class TripContextListener {
           // Money, not movement: the trip ended before it.
           case TripPaymentStatusChanged payment -> null;
         };
-    if (driverId == null) {
-      return;
+    if (driverId != null) {
+      follow(driverId);
     }
+  }
+
+  /** Writes the trip the driver is on now, or that there is none. */
+  void follow(UUID driverId) {
     Optional<ActiveTrip> trip = driverTrips.activeTrip(driverId);
     for (int write = 0; write < MAX_WRITES; write++) {
       store.applyTripContext(driverId, trip);
