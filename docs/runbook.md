@@ -96,6 +96,12 @@ volume. The applications read them as a Spring config tree (`SPRING_CONFIG_IMPOR
 - **Its own data:** the demo's PostgreSQL and Kafka use `demo-*` volumes, not the
   development stack's. An admin already in the development database, with another password, would
   otherwise lock the demo out of the login it generated, and the simulator out of approving drivers.
+- **Stopped without warning** (Docker quit, or the laptop hibernated): `up -d` again. Redis keeps
+  nothing, and drivers are back within a minute ([ADR 0029](adr/0029-restoring-what-redis-loses.md)).
+  The simulator stays quiet for a while, as its riders are still in rides from before.
+- **A demo created before ADR 0029** still mounts its old Redis data, and Compose keeps a mount when
+  it recreates a container. Remove the container once, with the same two `-f` files: `rm -sf redis`,
+  then `docker volume rm rideflow_demo-redis-data`.
 
 The backends run the `sim` profile: the simulator signs everyone up and in from one address, and
 tops wallets up through the mock gateway. Never in production (`docs/deploy.md`).
