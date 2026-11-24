@@ -227,6 +227,23 @@ jobs:
           query='sum(trips_requested_total)'
           timeout 300 sh -c "until curl -fsS --get http://localhost:9090/api/v1/query --data-urlencode query='$query' | grep -q '\"value\":\[[^,]*,\"[1-9]'; do sleep 10; done"
 
+      # Redis keeps nothing, so a restart empties it. Drivers already online once stayed invisible to
+      # matching for good after that (ADR 0029).
+      - name: Drivers can be offered rides again after Redis restarts
+        run: |
+          available() {
+            docker exec rideflow-redis redis-cli EVAL "local n = 0 for _, k in ipairs(KEYS) do n = n + redis.call('ZCARD', k) end return n" \
+              3 drivers:available:CAR drivers:available:AUTO drivers:available:BIKE
+          }
+          echo "before: $(available)"
+          docker restart rideflow-redis
+          for _ in $(seq 60); do
+            now=$(available 2>/dev/null) && [ "${now:-0}" -gt 0 ] && echo "after: $now" && exit 0
+            sleep 2
+          done
+          echo "No driver came back within two minutes" >&2
+          exit 1
+
       # Only on a manual run: the README's GIF, from the demo just checked.
       - uses: actions/setup-python@v5
         if: github.event_name == 'workflow_dispatch'
