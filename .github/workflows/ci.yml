@@ -245,7 +245,7 @@ jobs:
           exit 1
 
       # Only on a manual run: the README's GIF, from the demo just checked.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: github.event_name == 'workflow_dispatch'
         with:
           python-version: "3.12"
