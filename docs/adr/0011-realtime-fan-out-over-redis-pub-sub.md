@@ -108,6 +108,8 @@ message.
   numbers.
 - Losing Redis stops real-time delivery but not the product. Bookings, matching
   recovery and the REST reads all still work.
+- If Redis comes back empty, `trip:seq:{tripId}` starts again at 1. A client that stayed open keeps
+  its highest `seq` and ignores pushes until the numbers pass it. Its REST reads stay right.
 - `infra/docker-compose.scale.yml` runs two instances behind nginx with plain
   round robin and no sticky sessions. The runbook shows how to watch a message
   cross from one to the other.
