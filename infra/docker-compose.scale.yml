@@ -10,7 +10,8 @@
 # The secrets the two instances must share - the token signing key, the webhook secret - and the
 # admin's password are generated on first start into the "secrets" volume. They are never in the
 # repository and never leave the machine; `down -v` discards them with the data. The demo's
-# PostgreSQL, Redis and Kafka data are its own too, so they always match those secrets.
+# PostgreSQL and Kafka data are its own too, so they always match those secrets. Its Redis keeps
+# nothing, as in production (docs/deploy.md).
 #
 # The instances are also published on 8091 and 8092, to inspect them one at a time.
 name: rideflow
@@ -172,8 +173,13 @@ services:
     volumes:
       - demo-postgres-data:/var/lib/postgresql/data
   redis:
+    # Keeps nothing, as in production: a laptop that hibernated mid-write left an append-only file
+    # Redis then refused to start on. Memory at /data, because Redis loads a snapshot it finds
+    # there even when told not to save one.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     volumes:
-      - demo-redis-data:/data
+      - type: tmpfs
+        target: /data
   kafka:
     volumes:
       - demo-kafka-data:/var/lib/kafka/data
@@ -181,5 +187,4 @@ services:
 volumes:
   secrets:
   demo-postgres-data:
-  demo-redis-data:
   demo-kafka-data:
