@@ -161,6 +161,21 @@ class DriverStatusListenerIntegrationTest {
     assertThat(isIn(VehicleType.CAR)).isFalse();
   }
 
+  /** The vehicle they drive now, not the one they registered first. */
+  @Test
+  void putsADriverBackInTheirCurrentVehiclesSetAfterRedisLosesEverything() {
+    drivers.registerVehicle(driverId, VehicleType.BIKE, "KA02CD5678", "Activa", "Grey");
+    drivers.goOnline(driverId);
+    await().atMost(EVENTUALLY).until(() -> "AVAILABLE".equals(storedStatus()));
+
+    redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+    ping();
+    ping();
+
+    assertThat(isIn(VehicleType.BIKE)).isTrue();
+    assertThat(isIn(VehicleType.CAR)).isFalse();
+  }
+
   /** The version restored is the row's: an older change still arriving must not undo it. */
   @Test
   void restoresTheVersionSoAnOlderChangeCannotUndoIt() {
