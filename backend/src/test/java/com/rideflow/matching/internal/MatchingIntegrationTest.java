@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.location.DriverWentStale;
+import com.rideflow.location.internal.LocationUpdate;
 import com.rideflow.shared.BusinessException;
 import com.rideflow.shared.VehicleType;
 import com.rideflow.trip.PaymentMethod;
@@ -121,6 +122,31 @@ class MatchingIntegrationTest extends MatchingIntegrationTestBase {
               () ->
                   finder.findAvailableDrivers(PICKUP, VehicleType.CAR, 2.0, 20).stream()
                       .noneMatch(driver -> driver.driverId().equals(near.id())));
+    }
+
+    /** The demo after a restart of Redis: 200 drivers reporting, and not one was ever offered. */
+    @Test
+    void offersARideToADriverOnlineSinceBeforeRedisLostEverything() {
+      User driver = driverAt(north(500));
+      redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+
+      for (int seq = 2; seq <= 3; seq++) {
+        CLOCK.advance(Duration.ofSeconds(5));
+        ingest.accept(
+            driver.id(),
+            new LocationUpdate(
+                north(500).latitude(),
+                north(500).longitude(),
+                10,
+                null,
+                null,
+                seq,
+                CLOCK.instant()));
+      }
+      UUID tripId = book(rider());
+      matcher.accept(awaitOffer(driver.id()).offerId(), driver.id());
+
+      assertThat(statusOf(tripId)).isEqualTo(TripStatus.DRIVER_ASSIGNED);
     }
 
     @Test
