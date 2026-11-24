@@ -259,6 +259,39 @@ class LiveTripIntegrationTest extends TripIntegrationTestBase {
   }
 
   @Nested
+  class WhenRedisLosesEverythingBeforeTheRide {
+
+    /** On the way to the pickup: nothing of the route is lost, so the ride is priced as driven. */
+    @Test
+    void recordsAndPricesTheWholeRoute() throws Exception {
+      User driver = driver();
+      UUID tripId = assignedTrip(rider(), driver);
+      await().atMost(EVENTUALLY).until(() -> "ON_TRIP".equals(stateOf(driver, "status")));
+      await().atMost(EVENTUALLY).until(() -> "TO_PICKUP".equals(stateOf(driver, "tripPhase")));
+
+      redis.getConnectionFactory().getConnection().serverCommands().flushDb();
+      assertThat(report(driver, MG_ROAD)).isEqualTo("accepted");
+      assertThat(stateOf(driver, "tripPhase")).isEqualTo("TO_PICKUP");
+
+      trips.arrive(tripId, driver.asDriver());
+      trips.start(tripId, driver.asDriver(), otpOf(tripId));
+      await().atMost(EVENTUALLY).until(() -> "TO_DROP".equals(stateOf(driver, "tripPhase")));
+      long estimated =
+          jdbc.queryForObject("SELECT distance_m FROM trips WHERE id = ?", Long.class, tripId);
+      long driven = estimated * 14 / 10;
+      for (long meters = 0; meters <= driven; meters += 100) {
+        CLOCK.advance(Duration.ofSeconds(10));
+        assertThat(report(driver, northOfPickup(meters))).isEqualTo("accepted");
+      }
+
+      TripView completed = trips.complete(tripId, driver.asDriver());
+
+      assertThat(completed.finalFarePaise()).isGreaterThan(completed.quotedFarePaise());
+      assertThat(flaggedReason(tripId)).isNull();
+    }
+  }
+
+  @Nested
   class ASilentDriver {
 
     @Test
