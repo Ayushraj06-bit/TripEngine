@@ -103,6 +103,9 @@ never changes the fare booked with it.
 
 ## Consequences
 
+- The kill switch and the overrides live only in Redis, which keeps nothing on disk. A Redis restart
+  forgets both, so surge comes back on by itself: the failure the missing TTL is there to avoid. The
+  runbook says to switch it off again.
 - One multiplier per cell for every vehicle type, as the spec's single
   `surge:{cell}` key implies. Surge per vehicle type would need a key per type
   and supply counted per set.
