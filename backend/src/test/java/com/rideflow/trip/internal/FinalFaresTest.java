@@ -286,6 +286,27 @@ class FinalFaresTest {
           .isEqualTo("The route's start was not recorded; charged the quoted fare");
     }
 
+    /**
+     * Over in under a minute, quiet for the first half of it: still a trip that went nowhere, or
+     * staying quiet would be a way to charge the whole quote for it.
+     */
+    @Test
+    void chargesTheMinimumForATripOverInSecondsWhoseRoutesStartIsMissing() {
+      Trip trip = startedTrip(Duration.ZERO);
+      Instant start = trip.startedAt();
+
+      var fare =
+          finalFares.settle(
+              trip,
+              List.of(
+                  new RoutePoint(PICKUP, start.plusSeconds(40)),
+                  new RoutePoint(PICKUP, start.plusSeconds(50))),
+              start.plusSeconds(55));
+
+      assertThat(fare.farePaise()).isEqualTo(8_000);
+      assertThat(fare.flag()).isEqualTo("Completed in 55 s over 0 m");
+    }
+
     /** Quiet for exactly as long as a driver may be before they count as stale: still measured. */
     @Test
     void measuresARouteThatBeginsWithinTheStaleTime() {
