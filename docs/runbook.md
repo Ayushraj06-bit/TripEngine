@@ -204,6 +204,8 @@ listener's exception in the logs before intervening.
 4. If Redis came back **empty** (it keeps nothing on disk in production), also:
    - Drivers' statuses and trips are restored from PostgreSQL by their next reports, two drivers at a
      time on each instance. The log says `Could not restore driver ...` while PostgreSQL is away.
+     `driver_state_repairs_total` counts them by result: `restored`, `deferred` to the driver's next
+     report, or `failed`.
    - **The surge kill switch and the admins' overrides are gone: if surge was off, switch it off
      again.**
    - A ride under way has lost the start of its route: it is charged its quote, and flagged.
@@ -262,7 +264,8 @@ no driver.
 1. **Are there drivers?** *Available drivers by vehicle type*. A sudden drop with ingest still
    healthy means drivers are being taken off the map: check the stale sweep, and
    `location_updates_total` by result. A rise in `unavailable` means Redis; a rise in
-   `rejected_spoof` means bad GPS, or a client sending stale positions.
+   `rejected_spoof` means bad GPS, or a client sending stale positions. A burst of
+   `driver_state_repairs_total` means Redis lost its data: see *Redis is down*.
 2. **Are drivers turning offers down?** *Offer results per minute*: many `expired` or `rejected`
    against few `accepted`.
 3. **Is demand concentrated?** *Surge: cells above 1.0*. Demand above supply in a few cells is a

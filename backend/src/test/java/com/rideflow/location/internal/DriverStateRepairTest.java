@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.rideflow.driver.DriverStatus;
 import com.rideflow.driver.DriverStatuses;
 import com.rideflow.shared.VehicleType;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -29,9 +30,14 @@ class DriverStateRepairTest {
   private final DriverStatuses statuses = mock(DriverStatuses.class);
   private final TripContextListener trips = mock(TripContextListener.class);
   private final DriverStateStore store = mock(DriverStateStore.class);
-  private final DriverStateRepair repair = new DriverStateRepair(statuses, trips, store);
+  private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+  private final DriverStateRepair repair = new DriverStateRepair(statuses, trips, store, meters);
 
   private final UUID driver = UUID.randomUUID();
+
+  private double counted(String result) {
+    return meters.get("driver.state.repairs").tag("result", result).counter().count();
+  }
 
   /** The status marks the state whole: written without the trip, nothing would try again. */
   @Test
@@ -50,6 +56,8 @@ class DriverStateRepairTest {
     reset(trips);
     repair.repair(driver);
     verify(store, times(1)).applyStatusChange(driver, "AVAILABLE", VehicleType.CAR, 7);
+    assertThat(counted("failed")).isEqualTo(3);
+    assertThat(counted("restored")).isOne();
   }
 
   @Test
@@ -82,6 +90,7 @@ class DriverStateRepairTest {
 
       repair.repair(turnedAway);
       verify(trips, never()).follow(turnedAway);
+      assertThat(counted("deferred")).isOne();
 
       finish.countDown();
       first.get(10, TimeUnit.SECONDS);

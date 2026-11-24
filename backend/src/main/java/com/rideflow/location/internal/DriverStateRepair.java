@@ -1,6 +1,7 @@
 package com.rideflow.location.internal;
 
 import com.rideflow.driver.DriverStatuses;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
@@ -31,17 +32,24 @@ class DriverStateRepair {
   private final DriverStatuses statuses;
   private final TripContextListener trips;
   private final DriverStateStore store;
+  private final MeterRegistry meters;
   private final Semaphore permits = new Semaphore(AT_ONCE);
 
-  DriverStateRepair(DriverStatuses statuses, TripContextListener trips, DriverStateStore store) {
+  DriverStateRepair(
+      DriverStatuses statuses,
+      TripContextListener trips,
+      DriverStateStore store,
+      MeterRegistry meters) {
     this.statuses = statuses;
     this.trips = trips;
     this.store = store;
+    this.meters = meters;
   }
 
   /** Not called from a transaction. A store that is away is logged, and left for next time. */
   void repair(UUID driverId) {
     if (!permits.tryAcquire()) {
+      count("deferred");
       return;
     }
     try {
@@ -53,8 +61,10 @@ class DriverStateRepair {
               now ->
                   store.applyStatusChange(
                       driverId, now.status().name(), now.vehicleType(), now.driverVersion()));
+      count("restored");
       log.debug("Restored the state Redis had lost of driver {}", driverId);
     } catch (DataAccessException | TransactionException unavailable) {
+      count("failed");
       log.warn(
           "Could not restore driver {}'s state; their next position tries again",
           driverId,
@@ -62,5 +72,13 @@ class DriverStateRepair {
     } finally {
       permits.release();
     }
+  }
+
+  /**
+   * {@code driver_state_repairs_total}: a burst means Redis lost its data. The odd one is a driver
+   * who reports before they have ever been online.
+   */
+  private void count(String result) {
+    meters.counter("driver.state.repairs", "result", result).increment();
   }
 }
