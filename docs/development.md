@@ -50,10 +50,11 @@ below 80% line coverage in `trip`, `pricing` and `shared`.
 **Phase 5** adds the matching engine. Offers go to one driver at a time, nearest
 first with a fairness tie-break, widening from 2 to 7 km and searching again
 until the deadline. Nothing waits on a thread: offers, locks and timers live in
-Redis, a poller on every instance expires offers, and a recovery sweep rebuilds
-anything Redis loses from PostgreSQL - which, through the partial unique index,
+Redis, a poller on every instance expires offers, and a recovery sweep restarts
+any search Redis loses from PostgreSQL - which, through the partial unique index,
 is the final word on who gets a trip
-([ADR 0010](adr/0010-non-blocking-matching.md)). Offers reach drivers on
+([ADR 0010](adr/0010-non-blocking-matching.md)). Drivers' own state comes back
+with their next positions ([ADR 0029](adr/0029-restoring-what-redis-loses.md)). Offers reach drivers on
 `/user/queue/offers` through the new notification module, which fans messages out
 across instances over Redis Pub/Sub.
 
