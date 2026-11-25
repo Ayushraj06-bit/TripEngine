@@ -116,14 +116,10 @@ class SurgeJob {
     long minute = SurgeKeys.epochMinute(clock.instant());
     long oldestMinute = minute - rules.windowMinutes() + 1;
 
-    // Cells whose latest request has left the window have no demand any more, and overrides
-    // past their expiry are dropped from the admins' index whether or not anyone looks.
+    // Cells whose latest request has left the window have no demand any more.
     redis
         .opsForZSet()
         .removeRangeByScore(SurgeKeys.ACTIVE_CELLS, Double.NEGATIVE_INFINITY, oldestMinute - 1);
-    redis
-        .opsForZSet()
-        .removeRangeByScore(SurgeKeys.OVERRIDES, Double.NEGATIVE_INFINITY, clock.millis());
     Set<String> active = redis.opsForZSet().range(SurgeKeys.ACTIVE_CELLS, 0, -1);
     Map<String, Long> requests =
         requestsIn(active == null ? Set.of() : active, oldestMinute, minute);

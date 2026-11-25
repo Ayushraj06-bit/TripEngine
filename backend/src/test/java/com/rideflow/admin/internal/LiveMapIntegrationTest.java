@@ -138,14 +138,14 @@ class LiveMapIntegrationTest extends PaymentIntegrationTestBase {
 
   @Test
   void carriesTheSurgeHeatmapAndItsKillSwitch() {
-    redis.opsForValue().set("surge:disabled", "1");
+    jdbc.update("UPDATE surge_switch SET off = true");
     try {
       LiveMap map = publisher.snapshot();
 
       assertThat(map.surgeOff()).isTrue();
       assertThat(map.at()).isEqualTo(CLOCK.instant());
     } finally {
-      redis.delete("surge:disabled");
+      jdbc.update("UPDATE surge_switch SET off = false");
     }
   }
 

@@ -3,15 +3,13 @@ package com.rideflow.pricing.internal;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.rideflow.pricing.SurgeAdministration.CellOverride;
 import com.rideflow.shared.GeoPoint;
 import com.rideflow.shared.RideFlowProperties;
 import com.rideflow.shared.VehicleType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -25,9 +23,10 @@ import org.springframework.stereotype.Component;
  *   <li>1.0 - including when the job has stopped and its keys have lapsed
  * </ol>
  *
- * <p>Kept for {@code cache-seconds} per cell, so the three vehicle types of one quote, and every
- * rider in the same cell, cost one Redis read between them. An admin change reaches other instances
- * within that time.
+ * <p>The computed value is kept for {@code cache-seconds} per cell, so the three vehicle types of
+ * one quote, and every rider in the same cell, cost one Redis read between them. The levers are
+ * kept apart from it, for as long ({@link SurgeLevers}), so an admin change reaches other instances
+ * within that time and not twice it.
  *
  * <p>The cache measures age with a monotonic {@link Ticker}, not the wall clock: were the clock
  * stepped back an hour, every cached value would otherwise live an hour more, and a kill switch
@@ -35,7 +34,8 @@ import org.springframework.stereotype.Component;
  * business time, so the injected {@code Clock} is not the thing to ask; tests supply a ticker of
  * their own.
  *
- * <p>Fails safe through {@code QuoteService}: if Redis cannot answer, the quote is priced at 1.0.
+ * <p>Fails safe through {@code QuoteService}: if Redis or PostgreSQL cannot answer, the quote is
+ * priced at 1.0.
  */
 @Component
 class RedisSurgeProvider implements SurgeProvider {
@@ -44,6 +44,7 @@ class RedisSurgeProvider implements SurgeProvider {
   private static final int MAX_CELLS = 50_000;
 
   private final StringRedisTemplate redis;
+  private final SurgeLevers levers;
   private final Clock clock;
   private final SurgeCalculator calculator;
   private final int precision;
@@ -51,10 +52,12 @@ class RedisSurgeProvider implements SurgeProvider {
 
   RedisSurgeProvider(
       StringRedisTemplate redis,
+      SurgeLevers levers,
       Clock clock,
       Ticker surgeCacheTicker,
       RideFlowProperties properties) {
     this.redis = redis;
+    this.levers = levers;
     this.clock = clock;
     this.calculator = new SurgeCalculator(properties.surge());
     this.precision = properties.surge().geohashPrecision();
@@ -68,54 +71,26 @@ class RedisSurgeProvider implements SurgeProvider {
 
   @Override
   public BigDecimal multiplierAt(GeoPoint pickup, VehicleType type) {
-    return byCell.get(Geohash.encode(pickup, precision), this::lookUp);
-  }
-
-  /** Drops one cell's cached value, so a change made here applies here at once. */
-  void forget(String cell) {
-    byCell.invalidate(cell);
-  }
-
-  void forgetAll() {
-    byCell.invalidateAll();
-  }
-
-  private BigDecimal lookUp(String cell) {
-    List<String> values =
-        redis
-            .opsForValue()
-            .multiGet(
-                List.of(
-                    SurgeKeys.KILL_SWITCH, SurgeKeys.override(cell), SurgeKeys.multiplier(cell)));
-    if (values.get(0) != null) {
+    SurgeLevers.Levers now = levers.current();
+    if (now.off()) {
       return SurgeCalculator.NONE;
     }
-    Optional<SurgeOverride> override =
-        SurgeOverride.decode(cell, values.get(1))
-            .filter(found -> found.expiresAt().isAfter(clock.instant()));
-    if (override.isPresent()) {
-      return calculator.forPricing(override.get().multiplier());
+    String cell = Geohash.encode(pickup, precision);
+    CellOverride override = now.overrides().get(cell);
+    if (override != null && override.expiresAt().isAfter(clock.instant())) {
+      return calculator.forPricing(override.multiplier());
     }
-    return values.get(2) == null
-        ? SurgeCalculator.NONE
-        : calculator.forPricing(new BigDecimal(values.get(2)));
+    return byCell.get(cell, this::computed);
   }
 
-  /** An admin override as stored: the multiplier and when it ends, checked against our clock. */
-  record SurgeOverride(String cell, BigDecimal multiplier, Instant expiresAt) {
+  /** Forgets every cached value, for tests that change what is underneath. */
+  void forgetAll() {
+    byCell.invalidateAll();
+    levers.forget();
+  }
 
-    String encode() {
-      return multiplier.toPlainString() + "|" + expiresAt.toEpochMilli();
-    }
-
-    static Optional<SurgeOverride> decode(String cell, String value) {
-      if (value == null) {
-        return Optional.empty();
-      }
-      String[] parts = value.split("\\|");
-      return Optional.of(
-          new SurgeOverride(
-              cell, new BigDecimal(parts[0]), Instant.ofEpochMilli(Long.parseLong(parts[1]))));
-    }
+  private BigDecimal computed(String cell) {
+    String value = redis.opsForValue().get(SurgeKeys.multiplier(cell));
+    return value == null ? SurgeCalculator.NONE : calculator.forPricing(new BigDecimal(value));
   }
 }

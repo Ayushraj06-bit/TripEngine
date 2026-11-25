@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import net.javacrumbs.shedlock.core.LockConfiguration;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.core.SimpleLock;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -67,8 +68,12 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
   @Autowired MeterRegistry meters;
   @Autowired PaymentTestConfiguration.PausableDriverCounts supply;
 
+  /** Before, and after: the levers are in PostgreSQL, and other tests share this context. */
   @BeforeEach
+  @AfterEach
   void clearSurge() {
+    jdbc.update("DELETE FROM surge_overrides");
+    jdbc.update("UPDATE surge_switch SET off = false");
     Set<String> keys = new HashSet<>(redis.keys("surge:*"));
     keys.addAll(AVAILABLE);
     redis.delete(keys);
@@ -407,15 +412,97 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.on").value(true));
       assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("1");
-      assertThat(redis.getExpire(SurgeKeys.KILL_SWITCH))
-          .as("never expires on its own")
-          .isEqualTo(-1);
+      CLOCK.advance(Duration.ofMinutes(10));
+      assertThat(priceAt(MG_ROAD)).as("never expires on its own").isEqualByComparingTo("1");
       mockMvc
           .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))
           .andExpect(jsonPath("$.killSwitchOn").value(true));
 
       adminPost(admin, "/kill-switch", "{\"on\":false}").andExpect(jsonPath("$.on").value(false));
       assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("2.5");
+    }
+
+    /** A restart of Redis must not turn surge back on by itself. */
+    @Test
+    void keepsTheKillSwitchOnWhenRedisLosesEverything() throws Exception {
+      User admin = admin();
+      adminPost(admin, "/kill-switch", "{\"on\":true}").andExpect(status().isOk());
+
+      redis.delete(redis.keys("surge:*"));
+      computedAtTwo();
+
+      assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("1");
+      mockMvc
+          .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))
+          .andExpect(jsonPath("$.killSwitchOn").value(true));
+    }
+
+    @Test
+    void keepsAnOverrideWhenRedisLosesEverything() throws Exception {
+      User admin = admin();
+      override(admin, MG_ROAD_CELL, "1.5", CLOCK.instant().plus(Duration.ofHours(1)));
+
+      redis.delete(redis.keys("surge:*"));
+      computedAtTwo();
+
+      assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("1.5");
+      mockMvc
+          .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))
+          .andExpect(jsonPath("$.overrides[0].cell").value(MG_ROAD_CELL))
+          .andExpect(jsonPath("$.overrides[0].multiplier").value(1.5));
+    }
+
+    /** At its end, not up to the cache time later. */
+    @Test
+    void endsAnOverrideExactlyOnTime() throws Exception {
+      override(admin(), MG_ROAD_CELL, "1.5", CLOCK.instant().plus(Duration.ofSeconds(3)));
+
+      CLOCK.advance(Duration.ofMillis(2_999));
+      assertThat(provider.multiplierAt(MG_ROAD, VehicleType.CAR)).isEqualByComparingTo("1.5");
+      CLOCK.advance(Duration.ofMillis(1));
+      assertThat(provider.multiplierAt(MG_ROAD, VehicleType.CAR)).isEqualByComparingTo("2");
+    }
+
+    @Test
+    void replacesACellsOverrideWithItsNext() throws Exception {
+      User admin = admin();
+      override(admin, MG_ROAD_CELL, "1.5", CLOCK.instant().plus(Duration.ofMinutes(10)));
+      override(admin, MG_ROAD_CELL, "2.3", CLOCK.instant().plus(Duration.ofHours(2)))
+          .andExpect(status().isCreated());
+
+      CLOCK.advance(Duration.ofMinutes(11));
+
+      assertThat(priceAt(MG_ROAD)).isEqualByComparingTo("2.3");
+    }
+
+    /** A change made by another instance: seen within the cache time, and no query a quote. */
+    @Test
+    void seesAnotherInstancesChangeWithinTheCacheTime() {
+      provider.forgetAll();
+      assertThat(provider.multiplierAt(MG_ROAD, VehicleType.CAR)).isEqualByComparingTo("2");
+      jdbc.update("UPDATE surge_switch SET off = true");
+
+      CLOCK.advance(Duration.ofMillis(4_999));
+      assertThat(provider.multiplierAt(MG_ROAD, VehicleType.CAR)).isEqualByComparingTo("2");
+      CLOCK.advance(Duration.ofMillis(1));
+      assertThat(provider.multiplierAt(MG_ROAD, VehicleType.CAR)).isEqualByComparingTo("1");
+    }
+
+    /** Surge fails safe: what cannot be read must never charge a rider more. */
+    @Test
+    void pricesAtOneWhileTheLeversCannotBeRead() throws Exception {
+      User rider = rider();
+      jdbc.execute("ALTER TABLE surge_switch RENAME TO surge_switch_away");
+      try {
+        provider.forgetAll();
+        String body = quote(rider);
+        assertThat(((Number) carQuote(body, "surgeMultiplier")).doubleValue()).isEqualTo(1.0);
+      } finally {
+        jdbc.execute("ALTER TABLE surge_switch_away RENAME TO surge_switch");
+      }
+
+      // And as soon as they can be, the surge is back.
+      assertThat(((Number) carQuote(quote(rider), "surgeMultiplier")).doubleValue()).isEqualTo(2.0);
     }
 
     @Test
@@ -470,7 +557,7 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
           .andExpect(jsonPath("$.overrides[0].cell").value(MG_ROAD_CELL));
     }
 
-    /** An override past its expiry by our clock is not listed, and its index entry goes. */
+    /** Past its expiry by our clock, and in the order they end. */
     @Test
     void listsOnlyOverridesStillInForce() throws Exception {
       User admin = admin();
@@ -478,9 +565,6 @@ class SurgeIntegrationTest extends PaymentIntegrationTestBase {
       override(admin, "tdr1v9", "2.0", CLOCK.instant().plus(Duration.ofHours(1)));
 
       CLOCK.advance(Duration.ofMinutes(11));
-      // The tick trims the index, whether or not an admin ever looks.
-      job.tick();
-      assertThat(redis.opsForZSet().range(SurgeKeys.OVERRIDES, 0, -1)).containsExactly("tdr1v9");
 
       mockMvc
           .perform(get("/api/v1/admin/surge").header("Authorization", "Bearer " + admin.token()))

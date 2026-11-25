@@ -15,15 +15,6 @@ final class SurgeKeys {
   /** What the last tick priced, for the admin heatmap and the next tick. TTL as {@code surge:*}. */
   static final String SNAPSHOT = "surge:cells";
 
-  /** Override cells, scored by expiry in epoch ms, so admins can list them without a scan. */
-  static final String OVERRIDES = "surge:overrides";
-
-  /**
-   * Present while surge is switched off. The one surge key with no TTL, on purpose: a kill switch
-   * that expired would turn surge back on by itself.
-   */
-  static final String KILL_SWITCH = "surge:disabled";
-
   private SurgeKeys() {}
 
   static String multiplier(String cell) {
@@ -37,10 +28,6 @@ final class SurgeKeys {
   /** Marks a request already counted, so a redelivered event counts once. */
   static String counted(UUID requestId) {
     return "surge:demand:seen:" + requestId;
-  }
-
-  static String override(String cell) {
-    return "surge:override:" + cell;
   }
 
   static long epochMinute(Instant instant) {
