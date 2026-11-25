@@ -107,8 +107,8 @@ docker compose -f infra/deploy/compose.yml up -d --wait
   backend is health-checked on `/readyz` every two seconds, and a request that reaches one just as
   it stops is retried on the other.
 - **Redis keeps no backups on purpose:** positions, offers and quotes are minutes old by nature, and
-  rebuild themselves from the drivers' next reports and PostgreSQL. A restart does lose what the
-  runbook lists under *Redis is down*; the surge kill switch is the one to act on.
+  rebuild themselves from the drivers' next reports and PostgreSQL. What a restart does lose
+  is in the runbook, under *Redis is down*.
 - **Logs:** Docker's `local` driver, which bounds them on disk.
 
 ## 5. Operating it
@@ -121,6 +121,9 @@ docker compose -f infra/deploy/compose.yml up -d --wait
     listeners.
   - **Migrations:** Flyway runs them on start. Keep them backward compatible, since for a moment
     the old version runs against the new schema.
+  - **Once, upgrading past V16** (`surge_levers`): the surge kill switch and overrides move from Redis
+    to PostgreSQL, and a migration cannot read Redis. Set again any that are in force, once every
+    instance is upgraded.
 - **Backups:** `pg_dump` nightly, copied off the machine, and a restore tried now and then. The
   ledger is the record of everyone's money.
 - **Monitoring:** Prometheus loads `infra/prometheus/alerts.yml`, and Grafana its dashboards.

@@ -167,6 +167,8 @@ Terminal states: `COMPLETED`, `CANCELLED`, `NO_DRIVER_FOUND`. Any other transiti
 - `drivers` — user_id (PK), approval_status, status, rating_sum, rating_count, offers_received, offers_accepted, last_status_change_at, version
 - `vehicles` — id, driver_id (unique), type, plate_number (unique, normalized uppercase without spaces), model, colour
 - `rate_cards` — id, vehicle_type, version, base_paise, per_km_paise, per_min_paise, min_fare_paise, waiting_per_min_paise, cancellation_fee_paise, effective_from; unique (vehicle_type, version)
+- `surge_overrides` — cell (PK), multiplier (CHECK ≥ 1), expires_at
+- `surge_switch` — one row: off (the kill switch)
 - `trips` — id, rider_id, driver_id, vehicle_type, status, pickup/drop lat/lng, pickup/drop name (optional, display only), quoted_fare_paise, surge_multiplier, rate_card_id (snapshot of rates used), payment_method (WALLET/CASH), payment_status (UNPAID/PAID/PENDING_SETTLEMENT/REFUNDED), otp, otp_attempts, otp_locked_until, final_fare_paise, distance_m, duration_s, cancelled_by, cancel_reason, cancellation_fee_paise, per-state timestamps, flagged_reason, version
   - `UNIQUE (rider_id) WHERE status IN ('REQUESTED','DRIVER_ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')` — one active trip per rider
   - `UNIQUE (driver_id) WHERE status IN ('DRIVER_ASSIGNED','DRIVER_ARRIVED','IN_PROGRESS')` — one active trip per driver
@@ -198,7 +200,6 @@ Every key has a TTL, except the GEO sets and `drivers:lastseen`, which the stale
 | `quote:{quoteId}` | String (JSON) | quote bound to rider and vehicle type | 5 min |
 | `surge:{cell}` | String | current multiplier | 90 s (fails safe to 1.0) |
 | `surge:demand:{cell}:{epochMinute}` | Counter | ride requests per minute | 10 min |
-| `surge:override:{cell}` | String | admin override | until override expiry |
 | `trip:route:{tripId}` | List | route points during a trip (capped with LTRIM) | 6 h |
 | `trip:seq:{tripId}` | Counter | increasing sequence number for real-time messages of a trip | 24 h |
 | `rt:events` | Pub/Sub channel | cross-instance real-time fan-out | n/a |

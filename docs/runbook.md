@@ -212,8 +212,8 @@ listener's exception in the logs before intervening.
      time on each instance. The log says `Could not restore driver ...` while PostgreSQL is away.
      `driver_state_repairs_total` counts them by result: `restored`, `deferred` to the driver's next
      report, or `failed`.
-   - **The surge kill switch and the admins' overrides are gone: if surge was off, switch it off
-     again.**
+   - Surge is 1.0 until the ticks work it out again. The kill switch and the admins' overrides are in
+     PostgreSQL, and still apply.
    - A ride under way has lost the start of its route: it is charged its quote, and flagged.
    - Each trip's message numbers start again at 1, so a trip screen already open in the web app
      ignores pushed updates until it is reloaded.

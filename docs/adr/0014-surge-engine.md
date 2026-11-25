@@ -75,24 +75,29 @@ applies:
 3. the computed value
 4. 1.0
 
-It caches per cell for `cache-seconds` (5) with Caffeine, so a quote's three
-vehicle types and every rider in the cell share one Redis read. An admin change
-reaches the instance that made it at once, and the others within 5 seconds.
+It caches the computed value per cell for `cache-seconds` (5) with Caffeine, so a
+quote's three vehicle types and every rider in the cell share one Redis read. The
+switch and the overrides are cached apart from it, for as long, so quotes cost
+PostgreSQL two small queries every 5 seconds. An admin change reaches the instance
+that made it at once, and the others within 5 seconds.
 
 The cache measures age with a monotonic ticker, not the wall clock. If the
 clock were stepped back an hour, cached values would otherwise live an hour
 longer, and a kill switch thrown on another instance would not arrive for as
 long. Age is elapsed time, not business time, so the injected `Clock` is not
-the right source. Tests supply a ticker driven by their controllable clock. If Redis fails, `QuoteService` prices
-at 1.0. Quotes already lock their price (Phase 3), so surge moving after a quote
+the right source. Tests supply a ticker driven by their controllable clock. If Redis or PostgreSQL fails,
+`QuoteService` prices at 1.0. Quotes already lock their price (Phase 3), so surge moving after a quote
 never changes the fare booked with it.
 
 **Admin levers.**
 - An override is between 1.0 and the cap, ends in the future and within
-  `override-max-hours`, and lives in `surge:override:{cell}` with a matching TTL.
-  Overrides are listed from the `surge:overrides` index, trimmed as it is read.
-- The kill switch is `surge:disabled`, the one surge key with **no TTL**: a
-  switch that expired would turn surge back on by itself.
+  `override-max-hours`. It is a row of `surge_overrides` in PostgreSQL, one a cell,
+  ignored from the moment it ends.
+- The kill switch is the one row of `surge_switch`, with **no expiry**: a switch that
+  expired would turn surge back on by itself.
+- Both were Redis keys until 2026-11-25. Redis keeps nothing on disk, so a restart
+  forgot them, and surge came back on by itself after all. The computed values stay in
+  Redis: the next ticks work them out again.
 - Every change is logged with the admin who made it.
 
 **Metrics.**
@@ -103,15 +108,11 @@ never changes the fare booked with it.
 
 ## Consequences
 
-- The kill switch and the overrides live only in Redis, which keeps nothing on disk. A Redis restart
-  forgets both, so surge comes back on by itself: the failure the missing TTL is there to avoid. The
-  runbook says to switch it off again.
 - One multiplier per cell for every vehicle type, as the spec's single
   `surge:{cell}` key implies. Surge per vehicle type would need a key per type
   and supply counted per set.
-- Two keys without TTL join the GEO sets and `drivers:lastseen`: the kill switch,
-  on purpose, and the two indexes, which the tick and the admin view trim
-  instead.
+- One more key without TTL joins the GEO sets and `drivers:lastseen`: the index of
+  cells with requests, which the tick trims instead.
 - Measured on a laptop, against Testcontainers Redis, one tick prices 300 busy
   cells - 1,112 cells with their neighbours - against 2,000 drivers in about
   80 ms (`docs/performance.md`). The ceiling is far off. The upgrade, if a city

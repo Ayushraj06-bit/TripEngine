@@ -36,5 +36,5 @@ to a demo left off for a day.
 - A driver whose phone is quiet for the first 30 s of a ride is charged the quote rather than the
   route, and flagged for a human.
 - A route long enough to be trimmed (`route-max-points`) has lost its start too, and is treated alike.
-- **Not restored:** the surge kill switch and overrides (ADR 0014), and each trip's message numbers
-  (ADR 0011). The runbook says what to do about each.
+- **Not lost:** the surge kill switch and overrides, which moved to PostgreSQL (ADR 0014).
+- **Not restored:** each trip's message numbers (ADR 0011). The runbook says what to do about it.
